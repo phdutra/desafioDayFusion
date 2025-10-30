@@ -1,0 +1,30 @@
+<div class="card fade-in-up">
+  <h2 class="gradient-text" style="margin-bottom: 1rem;">Transactions</h2>
+  <div *ngIf="loading">Loading…</div>
+  <div *ngIf="!loading && transactions.length === 0" class="hint">No transactions yet.</div>
+  <div class="table" *ngIf="!loading && transactions.length">
+    <div class="row header">
+      <div>ID</div>
+      <div>Imagens</div>
+      <div>Status</div>
+      <div>Score</div>
+      <div>Created</div>
+      <div>Ações</div>
+    </div>
+    <div class="row" *ngFor="let tx of transactions">
+      <div>{{ tx.id }}</div>
+      <div>
+        <div style="display:flex; gap:.5rem;">
+          <img *ngIf="thumbs[tx.id]?.selfie" [src]="thumbs[tx.id]?.selfie" alt="Selfie" style="width:60px;height:60px;object-fit:cover;border-radius:6px;">
+          <img *ngIf="thumbs[tx.id]?.doc" [src]="thumbs[tx.id]?.doc" alt="Doc" style="width:60px;height:60px;object-fit:cover;border-radius:6px;">
+        </div>
+      </div>
+      <div>{{ tx.status }}</div>
+      <div>{{ tx.similarityScore || 0 | number:'1.0-1' }}%</div>
+      <div>{{ tx.createdAt | date:'short' }}</div>
+      <div>
+        <button class="submit-ticket-btn" (click)="openResult(tx.id)">Ver Resultado</button>
+      </div>
+    </div>
+  </div>
+</div>

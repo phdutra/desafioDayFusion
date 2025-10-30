@@ -1,0 +1,22 @@
+Sempre responda em português do Brasil (pt-BR).
+
+Escopo: Frontend (Angular 19, TypeScript)
+
+Estilo e práticas
+- Componentes standalone, imports explícitos.
+- Nomes descritivos; evitar abreviações.
+- Tipar APIs públicas; evitar any.
+- Preferir early returns e Observables com toPromise apenas onde já adotado.
+- Respeitar HTML acessível (alt, foco, contraste) e i18n simples.
+
+Integração com API
+- Base URL: environment.apiUrl (ex.: http://localhost:5100/api)
+- Serviços: usar HttpClient; tratar Content-Type em uploads (deve coincidir com o da assinatura presign).
+- Presigned GET para exibição de imagens: GET /storage/presigned-url/{key}.
+
+UI/UX
+- Exibir similarityScore com 1 casa decimal e badges por status: Approved, ManualReview, Rejected.
+- Mostrar pré-visualização de selfie e documento (S3 quando disponível).
+
+Padrão de resposta
+- Objetivo, com passos claros e exemplos curtos de código quando útil.

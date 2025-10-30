@@ -1,0 +1,4 @@
+.list { display: grid; gap: 1rem; }
+.list-item { display: flex; align-items: center; justify-content: space-between; padding: 1rem; border: 1px solid var(--border-color); border-radius: var(--radius-lg); background: var(--bg-tertiary); }
+.meta { color: var(--text-secondary); display: grid; gap: .25rem; }
+.hint { color: var(--text-muted); }

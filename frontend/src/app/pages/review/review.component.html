@@ -1,0 +1,22 @@
+<div class="card fade-in-up">
+  <h2 class="gradient-text" style="margin-bottom: 1rem;">Manual Review Queue</h2>
+  <div *ngIf="loading">Loading…</div>
+  <div *ngIf="!loading && transactions.length === 0" class="hint">No items for review.</div>
+  <div class="list" *ngIf="!loading && transactions.length">
+    <div class="list-item" *ngFor="let tx of transactions">
+      <div class="meta">
+        <div><strong>ID:</strong> {{ tx.id }}</div>
+        <div><strong>Status:</strong> {{ tx.status }}</div>
+        <div><strong>Score:</strong> {{ tx.similarityScore || 0 | number:'1.0-1' }}%</div>
+        <div class="thumbs" style="display:flex; gap:.5rem; margin-top:.25rem;">
+          <img *ngIf="thumbs[tx.id]?.selfie" [src]="thumbs[tx.id]?.selfie" alt="Selfie" style="width:90px;height:90px;object-fit:cover;border-radius:6px;">
+          <img *ngIf="thumbs[tx.id]?.doc" [src]="thumbs[tx.id]?.doc" alt="Doc" style="width:90px;height:90px;object-fit:cover;border-radius:6px;">
+        </div>
+      </div>
+      <div class="actions">
+        <button class="submit-ticket-btn" (click)="review(tx, 'Approved')">Approve</button>
+        <button class="submit-ticket-btn" (click)="review(tx, 'Rejected')">Reject</button>
+      </div>
+    </div>
+  </div>
+</div>

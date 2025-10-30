@@ -1,0 +1,42 @@
+# Node/Angular
+frontend/node_modules/
+frontend/dist/
+frontend/.angular/
+frontend/coverage/
+
+# .NET
+backend/bin/
+backend/obj/
+MSBuildTemp/
+NuGetScratch/
+
+# Logs
+backend/logs/
+*.log
+
+# Credentials & local configs (never commit)
+aws_accessKeys.csv
+*.pem
+*.p12
+*.key
+*.crt
+*.cer
+.env
+.env.*
+**/secrets*/
+**/credentials*/
+backend/appsettings.Development.json
+presign*.json
+*.secret*
+
+# macOS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+
+# Temporary/test files
+selfie*.jpg
+selfie*.png
+*.tmp

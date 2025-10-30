@@ -1,0 +1,72 @@
+<div class="app-container">
+  <!-- Navigation Sidebar -->
+  <nav class="sidebar">
+    <div class="sidebar-header">
+      <div class="logo">
+        <div class="logo-icon">🎯</div>
+        <div class="logo-text">
+          <span class="logo-title">DayFusion</span>
+          <span class="logo-subtitle">Facial Recognition</span>
+        </div>
+      </div>
+    </div>
+    
+    <div class="sidebar-divider"></div>
+    
+    <ul class="nav-menu">
+      <li class="nav-item active">
+        <a routerLink="/home" class="nav-link">
+          <span class="nav-icon">🔥</span>
+          <span class="nav-text">Home</span>
+        </a>
+      </li>
+      <li class="nav-item">
+        <a routerLink="/capture" class="nav-link">
+          <span class="nav-icon">📸</span>
+          <span class="nav-text">Capture</span>
+        </a>
+      </li>
+      <li class="nav-item">
+        <a routerLink="/review" class="nav-link">
+          <span class="nav-icon">👁️</span>
+          <span class="nav-text">Review</span>
+        </a>
+      </li>
+      <li class="nav-item">
+        <a routerLink="/transactions" class="nav-link">
+          <span class="nav-icon">📊</span>
+          <span class="nav-text">Transactions</span>
+        </a>
+      </li>
+    </ul>
+  </nav>
+
+  <!-- Main Content Area -->
+  <main class="main-content">
+    <!-- Top Header -->
+    <header class="top-header">
+      <div class="breadcrumb">
+        <span>Home</span>
+        <span class="separator">/</span>
+        <span>Topics</span>
+      </div>
+      
+      <div class="header-actions">
+        <div class="search-container">
+          <input type="text" placeholder="Search..." class="search-input">
+          <span class="search-icon">🔍</span>
+        </div>
+        
+        <button class="submit-ticket-btn">
+          <span class="btn-icon">🏷️</span>
+          SUBMIT TICKET
+        </button>
+      </div>
+    </header>
+
+    <!-- Page Content -->
+    <div class="page-content">
+      <router-outlet></router-outlet>
+    </div>
+  </main>
+</div>

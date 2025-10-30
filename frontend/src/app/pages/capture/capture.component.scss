@@ -1,0 +1,16 @@
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; }
+.video-wrapper { position: relative; background: #0b1022; border-radius: var(--radius-lg); overflow: hidden; border: 1px solid var(--border-color); }
+.video { width: 100%; height: 320px; object-fit: cover; display: block; }
+.overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--text-secondary); background: rgba(0,0,0,.25); }
+.controls { display: flex; gap: .75rem; margin-top: .75rem; }
+.preview { margin-top: 1rem; }
+.preview img { width: 100%; max-width: 320px; border-radius: var(--radius-lg); border: 1px solid var(--border-color); }
+.label { display:block; margin-bottom: .5rem; color: var(--text-secondary); }
+.actions { margin-top: 1rem; }
+.result { margin-top: 1rem; padding: 1rem; border-radius: var(--radius-lg); background: var(--bg-tertiary); border: 1px solid var(--border-color); }
+.status { font-weight: 700; margin-bottom: .5rem; }
+.status.approved { color: var(--success-color); }
+.status.rejected { color: var(--error-color); }
+.status.review { color: var(--accent-color); }
+.hint { margin-top: .5rem; color: var(--text-muted); font-size: .875rem; }
+@media (max-width: 900px){ .grid { grid-template-columns: 1fr; } }

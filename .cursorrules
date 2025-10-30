@@ -1,0 +1,22 @@
+Sempre responda em português do Brasil (pt-BR).
+
+Contexto do projeto
+- Nome: DayFusion (POC de validação facial e documental)
+- Stacks: Backend .NET (C#) e Frontend Angular 19 (TypeScript)
+- AWS: S3 (uploads/downloads), Rekognition (compare/detect), DynamoDB (logs)
+
+Diretrizes gerais
+- Seja objetivo e técnico; use bullet points quando possível.
+- Proponha e aplique mudanças focadas (não reescrever código não relacionado).
+- Preserve o estilo existente de código (indentação, formato, imports).
+- Explique decisões não óbvias com comentários curtos apenas quando necessário.
+- Evite try/catch desnecessários e trate erros de forma significativa.
+
+Fluxos principais (referência)
+- Upload: POST /api/Storage/presigned-url → PUT S3 OU POST /api/Storage/upload
+- Comparação: POST /api/FaceRecognition/compare → retorna similarityScore (0–100) e status
+- Visualização: GET /api/Storage/presigned-url/{key} (download/view temporário)
+- Histórico/Review: /api/Transactions, /api/Transactions/review
+
+Padrão de resposta
+- Sempre em pt-BR, resumindo ao final impactos e próximos passos sugeridos.

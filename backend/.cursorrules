@@ -1,0 +1,24 @@
+Sempre responda em português do Brasil (pt-BR).
+
+Escopo: Backend (.NET, C# Web API)
+
+Estilo e práticas
+- Controllers finos; mover lógica para Services.
+- Logs estruturados (ILogger<T>) com IDs de transação.
+- Validar Content-Type de imagem: image/jpeg, image/png, image/webp.
+- Tratar erros com 400/403/404/500 conforme adequado; nunca engolir exceções.
+- Manter DateTime em UTC (CreatedAt, ProcessedAt, ReviewedAt).
+
+Integração AWS
+- S3: presigned PUT/GET; deletar/checar existência quando necessário.
+- Rekognition: CompareFaces/DetectFaces; converter score 0–100.
+- DynamoDB: tabela dayfusion_transactions (Id hash key), persistir SimilarityScore e Status.
+
+Contratos principais
+- POST /api/Storage/presigned-url → PresignedUrlResponse { url, key, expiresAt }
+- POST /api/Storage/upload (multipart) → { url?, key, expiresAt? }
+- POST /api/FaceRecognition/compare → FaceComparisonResponse { similarityScore, status, message?, transactionId }
+- GET /api/Storage/presigned-url/{key}?expiryMinutes=60 → PresignedUrlResponse
+
+Padrão de resposta
+- Objetivo, com bullets, exemplos sintéticos quando útil.

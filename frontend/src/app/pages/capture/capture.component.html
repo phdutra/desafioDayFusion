@@ -1,0 +1,50 @@
+<div class="card fade-in-up">
+  <h2 class="gradient-text" style="margin-bottom: 1rem;">Selfie Capture & Validation</h2>
+
+  <div class="grid">
+    <div>
+      <div class="video-wrapper">
+        <video #video autoplay playsinline muted class="video"></video>
+        <div class="overlay" *ngIf="!cameraReady">Allow camera permission…</div>
+      </div>
+      <div class="controls">
+        <button class="submit-ticket-btn" (click)="startCamera()">Start Camera</button>
+        <button class="submit-ticket-btn" (click)="captureSelfie()" [disabled]="!cameraReady">Capture Selfie</button>
+        <button class="submit-ticket-btn" (click)="stopCamera()" [disabled]="!cameraReady">Stop</button>
+      </div>
+      <div class="preview" *ngIf="selfieDataUrl">
+        <img [src]="selfieDataUrl" alt="Selfie preview">
+      </div>
+    </div>
+
+    <div>
+      <div style="margin-bottom: 1rem;">
+        <label class="hint" for="docInput">Documento (RG/CNH) — frente</label>
+        <input id="docInput" type="file" accept="image/jpeg,image/png,image/webp" (change)="onDocumentSelected($event)">
+        <div class="preview" *ngIf="documentPreview">
+          <img [src]="documentPreview" alt="Document preview">
+        </div>
+      </div>
+      <div class="actions">
+        <button class="submit-ticket-btn" (click)="onUploadClick()" [disabled]="!canValidate() || loading">
+          {{ loading ? 'Enviando…' : (documentFile ? 'Validar Selfie + Documento' : 'Enviar Selfie') }}
+        </button>
+      </div>
+
+      <div class="result" *ngIf="result">
+        <div class="status" [class.approved]="result.status==='Approved'" [class.rejected]="result.status==='Rejected'" [class.review]="result.status==='ManualReview'">
+          Status: {{ result.status }}
+        </div>
+        <div>Score: {{ result.similarityScore | number:'1.0-1' }}%</div>
+        <div class="message">{{ result.message }}</div>
+        <div class="preview-pair" *ngIf="selfieViewUrl || documentViewUrl" style="margin-top: 0.5rem; display: grid; grid-template-columns: 1fr 1fr; gap: .5rem;">
+          <img *ngIf="selfieViewUrl" [src]="selfieViewUrl" alt="Selfie from S3">
+          <img *ngIf="documentViewUrl" [src]="documentViewUrl" alt="Document from S3">
+        </div>
+      </div>
+
+      <div class="hint">We accept JPEG, PNG or WEBP up to ~5MB.</div>
+      <div class="hint" *ngIf="statusMessage">{{ statusMessage }}</div>
+    </div>
+  </div>
+</div>
