@@ -19,21 +19,26 @@ public class TransactionsController : ControllerBase
     }
 
     /// <summary>
-    /// Get all transactions for the current user
+    /// Get all transactions (from DynamoDB)
     /// </summary>
     [HttpGet]
     public async Task<ActionResult<List<Transaction>>> GetUserTransactions([FromQuery] int limit = 50)
     {
         try
         {
-            var userId = GetCurrentUserId();
-            var transactions = await _dynamoService.GetTransactionsByUserAsync(userId, limit);
+            _logger.LogInformation("Fetching all transactions from DynamoDB (limit: {Limit})", limit);
+            
+            // Buscar todas as transações do DynamoDB
+            var transactions = await _dynamoService.GetAllTransactionsAsync(limit);
+            
+            _logger.LogInformation("Retrieved {Count} transactions from DynamoDB", transactions.Count);
+            
             return Ok(transactions);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error retrieving transactions for user: {UserId}", GetCurrentUserId());
-            return StatusCode(500, "Internal server error");
+            _logger.LogError(ex, "Error retrieving transactions from DynamoDB");
+            return StatusCode(500, new { message = "Internal server error", error = ex.Message });
         }
     }
 
@@ -156,6 +161,85 @@ public class TransactionsController : ControllerBase
         {
             _logger.LogError(ex, "Error deleting transaction: {TransactionId}", transactionId);
             return StatusCode(500, "Internal server error");
+        }
+    }
+
+    /// <summary>
+    /// Test endpoint to verify DynamoDB connectivity and create a test transaction
+    /// </summary>
+    [HttpPost("test")]
+    public async Task<ActionResult> TestDynamoDB()
+    {
+        try
+        {
+            _logger.LogInformation("Testing DynamoDB connectivity by creating a test transaction");
+            
+            var testTransaction = new Transaction
+            {
+                Id = Guid.NewGuid().ToString(),
+                UserId = "test-user",
+                SelfieUrl = "test/selfie.jpg",
+                DocumentUrl = "test/doc.jpg",
+                SimilarityScore = 85.5f,
+                Status = TransactionStatus.Approved,
+                CreatedAt = DateTime.UtcNow,
+                ProcessedAt = DateTime.UtcNow
+            };
+
+            var created = await _dynamoService.CreateTransactionAsync(testTransaction);
+            
+            _logger.LogInformation("Test transaction created successfully: {TransactionId}", created.Id);
+            
+            // Verificar se consegue ler de volta
+            var retrieved = await _dynamoService.GetTransactionAsync(created.Id);
+            
+            return Ok(new { 
+                success = true, 
+                message = "DynamoDB test successful", 
+                transaction = created,
+                retrieved = retrieved != null,
+                tableName = "dayfusion_transactions"
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "DynamoDB test failed: {ErrorMessage}", ex.Message);
+            return StatusCode(500, new { 
+                success = false, 
+                message = "DynamoDB test failed", 
+                error = ex.Message,
+                innerException = ex.InnerException?.Message,
+                stackTrace = ex.StackTrace 
+            });
+        }
+    }
+
+    /// <summary>
+    /// Check DynamoDB connection status
+    /// </summary>
+    [HttpGet("health")]
+    public async Task<ActionResult> CheckDynamoDBHealth()
+    {
+        try
+        {
+            // Tenta buscar transações para verificar conexão
+            var transactions = await _dynamoService.GetAllTransactionsAsync(1);
+            
+            return Ok(new { 
+                status = "healthy",
+                message = "DynamoDB connection OK",
+                tableName = "dayfusion_transactions",
+                existingTransactions = transactions.Count
+            });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { 
+                status = "unhealthy",
+                message = "DynamoDB connection failed",
+                error = ex.Message,
+                innerException = ex.InnerException?.Message
+            });
         }
     }
 

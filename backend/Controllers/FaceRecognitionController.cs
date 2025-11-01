@@ -43,23 +43,33 @@ public class FaceRecognitionController : ControllerBase
             // Try to persist transaction (best-effort). Do not fail the request if DynamoDB is unavailable.
             try
             {
+                var userId = GetCurrentUserId();
                 var transaction = new Transaction
                 {
                     Id = transactionId,
-                    UserId = GetCurrentUserId(),
+                    UserId = userId,
                     SelfieUrl = request.SelfieKey,
                     DocumentUrl = request.DocumentKey,
                     SimilarityScore = response.SimilarityScore,
                     Status = response.Status,
-                    ProcessedAt = DateTime.UtcNow
+                    ProcessedAt = DateTime.UtcNow,
+                    CreatedAt = DateTime.UtcNow
                 };
+
+                _logger.LogInformation("Attempting to save transaction {TransactionId} to DynamoDB for user {UserId}", 
+                    transactionId, userId);
 
                 // Create or update depending on existence
                 await _dynamoService.CreateTransactionAsync(transaction);
+                
+                _logger.LogInformation("Successfully persisted transaction {TransactionId} to DynamoDB", transactionId);
             }
             catch (Exception exPersist)
             {
-                _logger.LogWarning(exPersist, "Face comparison succeeded but failed to persist transaction {TransactionId}", transactionId);
+                _logger.LogError(exPersist, "Face comparison succeeded but FAILED to persist transaction {TransactionId} to DynamoDB. Error: {ErrorMessage}", 
+                    transactionId, exPersist.Message);
+                _logger.LogError("Stack trace: {StackTrace}", exPersist.StackTrace);
+                // Não falha a requisição, mas loga o erro para debug
             }
 
             _logger.LogInformation("Face comparison completed. Tx={TransactionId} Score={Score} Status={Status}", 

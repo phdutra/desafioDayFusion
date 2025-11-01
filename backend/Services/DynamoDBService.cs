@@ -30,13 +30,21 @@ public class DynamoDBService : IDynamoDBService
     {
         try
         {
+            _logger.LogInformation("Attempting to save transaction to DynamoDB. Table: {TableName}, ID: {TransactionId}, UserId: {UserId}", 
+                _tableName, transaction.Id, transaction.UserId);
+            
             await _dynamoContext.SaveAsync(transaction);
-            _logger.LogInformation("Created transaction with ID: {TransactionId}", transaction.Id);
+            
+            _logger.LogInformation("Successfully created transaction with ID: {TransactionId} in table {TableName}", 
+                transaction.Id, _tableName);
+            
             return transaction;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error creating transaction with ID: {TransactionId}", transaction.Id);
+            _logger.LogError(ex, "Error creating transaction with ID: {TransactionId} in table {TableName}. Error: {ErrorMessage}", 
+                transaction.Id, _tableName, ex.Message);
+            _logger.LogError("Stack trace: {StackTrace}", ex.StackTrace);
             throw;
         }
     }
@@ -85,6 +93,41 @@ public class DynamoDBService : IDynamoDBService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error retrieving transactions for user: {UserId}", userId);
+            return new List<Transaction>();
+        }
+    }
+
+    public async Task<List<Transaction>> GetAllTransactionsAsync(int limit = 50)
+    {
+        try
+        {
+            _logger.LogInformation("Starting scan of DynamoDB table {TableName} to retrieve all transactions", _tableName);
+            
+            var search = _dynamoContext.ScanAsync<Transaction>(new List<ScanCondition>());
+            var transactions = new List<Transaction>();
+
+            do
+            {
+                var batch = await search.GetNextSetAsync();
+                _logger.LogInformation("Retrieved batch of {BatchCount} transactions from DynamoDB", batch.Count);
+                transactions.AddRange(batch);
+            } while (!search.IsDone && transactions.Count < limit);
+
+            var result = transactions
+                .OrderByDescending(t => t.CreatedAt)
+                .Take(limit)
+                .ToList();
+
+            _logger.LogInformation("Retrieved total of {Count} transactions from DynamoDB table {TableName}", 
+                result.Count, _tableName);
+            
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving all transactions from DynamoDB table {TableName}. Error: {ErrorMessage}", 
+                _tableName, ex.Message);
+            _logger.LogError("Stack trace: {StackTrace}", ex.StackTrace);
             return new List<Transaction>();
         }
     }
