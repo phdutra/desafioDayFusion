@@ -25,6 +25,13 @@ export class ReviewComponent implements OnInit {
     this.loading = true
     try {
       this.transactions = await this.faceService.getTransactionsForReview().toPromise() || []
+      // Converter status numérico para string (backend retorna enums como números)
+      this.transactions = this.transactions.map(tx => ({
+        ...tx,
+        status: typeof tx.status === 'number' 
+          ? TransactionStatus[tx.status] 
+          : tx.status
+      }))
       // Preload presigned GET URLs for thumbnails (best-effort)
       const promises = this.transactions.map(async tx => {
         const entries: { selfie?: string; doc?: string } = {}
@@ -49,5 +56,12 @@ export class ReviewComponent implements OnInit {
   async review(tx: Transaction, status: 'Approved'|'Rejected'): Promise<void> {
     await this.faceService.reviewTransaction({ transactionId: tx.id, status: status as any }).toPromise()
     await this.refresh()
+  }
+
+  handleImageError(event: Event): void {
+    const img = event.target as HTMLImageElement
+    if (img) {
+      img.style.display = 'none'
+    }
   }
 }

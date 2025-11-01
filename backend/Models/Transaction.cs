@@ -8,6 +8,7 @@ namespace DayFusion.API.Models;
 public class Transaction
 {
     [DynamoDBHashKey]
+    [DynamoDBProperty("TransactionId")]
     [Key]
     public string Id { get; set; } = Guid.NewGuid().ToString();
     
