@@ -1,16 +1,953 @@
-.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; }
-.video-wrapper { position: relative; background: #0b1022; border-radius: var(--radius-lg); overflow: hidden; border: 1px solid var(--border-color); }
-.video { width: 100%; height: 320px; object-fit: cover; display: block; }
-.overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--text-secondary); background: rgba(0,0,0,.25); }
-.controls { display: flex; gap: .75rem; margin-top: .75rem; }
-.preview { margin-top: 1rem; }
-.preview img { width: 100%; max-width: 320px; border-radius: var(--radius-lg); border: 1px solid var(--border-color); }
-.label { display:block; margin-bottom: .5rem; color: var(--text-secondary); }
-.actions { margin-top: 1rem; }
-.result { margin-top: 1rem; padding: 1rem; border-radius: var(--radius-lg); background: var(--bg-tertiary); border: 1px solid var(--border-color); }
-.status { font-weight: 700; margin-bottom: .5rem; }
-.status.approved { color: var(--success-color); }
-.status.rejected { color: var(--error-color); }
-.status.review { color: var(--accent-color); }
-.hint { margin-top: .5rem; color: var(--text-muted); font-size: .875rem; }
-@media (max-width: 900px){ .grid { grid-template-columns: 1fr; } }
+// Container principal
+.capture-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.page-title {
+  font-size: 2rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+  text-align: center;
+}
+
+// Seções
+section {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-xl);
+  padding: 2rem;
+  box-shadow: var(--shadow-md);
+  transition: all var(--transition-normal);
+  
+  &:hover {
+    box-shadow: var(--shadow-lg);
+  }
+}
+
+.section-header {
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 2px solid var(--border-color);
+}
+
+.section-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 0.25rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+// Seção de Captura de Selfie
+.selfie-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+// Trigger para abrir modal
+.capture-trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 2rem;
+}
+
+.trigger-content {
+  text-align: center;
+  max-width: 400px;
+  
+  .trigger-icon {
+    font-size: 5rem;
+    margin-bottom: 1rem;
+    filter: drop-shadow(0 4px 12px rgba(139, 92, 246, 0.3));
+  }
+  
+  .trigger-title {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 0.5rem;
+  }
+  
+  .trigger-description {
+    font-size: 1rem;
+    color: var(--text-secondary);
+    margin-bottom: 2rem;
+  }
+}
+
+// Modal da Câmera (Fullscreen)
+.camera-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000000;
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.modal-content-fullscreen {
+  width: 100vw;
+  height: 100vh;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.modal-cancel {
+  position: absolute;
+  top: 1.5rem;
+  left: 1.5rem;
+  z-index: 10000;
+  background: transparent;
+  border: none;
+  color: #ffffff;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0.5rem 1rem;
+  transition: opacity 0.3s ease;
+  
+  &:hover {
+    opacity: 0.7;
+  }
+}
+
+.camera-wrapper-fullscreen {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.camera-video-fullscreen {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transform: scaleX(-1); // Espelha a imagem (modo selfie)
+}
+
+// Máscara escura ao redor do círculo
+.camera-mask-overlay {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at center, transparent 250px, rgba(0, 0, 0, 0.95) 350px);
+  pointer-events: none;
+  z-index: 10;
+}
+
+// Overlay da câmera
+.camera-overlay-fullscreen {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 20;
+  
+  & > * {
+    pointer-events: all;
+  }
+}
+
+.overlay-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.9);
+  z-index: 30;
+}
+
+.overlay-content-loading {
+  text-align: center;
+  color: var(--text-primary);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 2rem;
+  
+  p {
+    font-size: 1rem;
+    margin: 0;
+  }
+}
+
+.overlay-icon-loading {
+  font-size: 4rem;
+  display: block;
+}
+
+// Círculo de captura fullscreen
+.capture-circle-fullscreen {
+  position: relative;
+  width: 500px;
+  height: 500px;
+  margin: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+// Guias de alinhamento fullscreen
+.alignment-guide-fullscreen {
+  position: absolute;
+  background: rgba(255, 255, 255, 0.3);
+  pointer-events: none;
+  
+  &.vertical-line {
+    width: 2px;
+    height: 500px;
+    left: 50%;
+    top: 0;
+    transform: translateX(-50%);
+  }
+  
+  &.horizontal-line {
+    width: 500px;
+    height: 2px;
+    top: 50%;
+    left: 0;
+    transform: translateY(-50%);
+  }
+}
+
+// Container do anel de progresso
+.progress-ring-container {
+  position: absolute;
+  width: 500px;
+  height: 500px;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+}
+
+.progress-ring-fullscreen {
+  position: absolute;
+  width: 500px;
+  height: 500px;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  filter: drop-shadow(0 0 20px rgba(34, 197, 94, 0.8));
+}
+
+.progress-ring-circle {
+  transition: stroke-dashoffset 0.1s linear;
+}
+
+// Círculo de captura no centro (mantido para compatibilidade)
+.capture-circle {
+  position: relative;
+  width: 280px;
+  height: 280px;
+  margin: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+// Guias de alinhamento (linhas verticais e horizontais)
+.alignment-guide {
+  position: absolute;
+  background: rgba(0, 234, 255, 0.4);
+  pointer-events: none;
+  
+  &.vertical-line {
+    width: 1px;
+    height: 280px;
+    left: 50%;
+    top: 0;
+    transform: translateX(-50%);
+  }
+  
+  &.horizontal-line {
+    width: 280px;
+    height: 1px;
+    top: 50%;
+    left: 0;
+    transform: translateY(-50%);
+  }
+}
+
+// Anel de progresso SVG ao redor do círculo
+.progress-ring {
+  position: absolute;
+  width: 280px;
+  height: 280px;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+}
+
+// Status de detecção
+.detection-status {
+  position: absolute;
+  top: 2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  background: rgba(0, 0, 0, 0.8);
+  border-radius: var(--radius-xl);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  pointer-events: none;
+  
+  .status-icon {
+    font-size: 1.5rem;
+  }
+  
+  .status-text {
+    font-size: 0.875rem;
+    color: var(--text-primary);
+    font-weight: 500;
+  }
+}
+
+// Botão de captura fullscreen
+.capture-btn-fullscreen {
+  position: absolute;
+  bottom: 3rem;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  border: 8px solid rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.2);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
+  
+  &.ready {
+    border-color: #22c55e;
+    background: rgba(34, 197, 94, 0.3);
+    box-shadow: 0 0 50px rgba(34, 197, 94, 0.8);
+    animation: pulse-fullscreen 2s infinite;
+    
+    &:hover {
+      transform: translateX(-50%) scale(1.1);
+      box-shadow: 0 0 60px rgba(34, 197, 94, 1);
+    }
+  }
+  
+  &.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    animation: none;
+  }
+  
+  &:active {
+    transform: translateX(-50%) scale(0.95);
+  }
+}
+
+.capture-btn-inner-fullscreen {
+  width: 70px;
+  height: 70px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
+  transition: all 0.3s ease;
+}
+
+.capture-btn-fullscreen.ready .capture-btn-inner-fullscreen {
+  background: #22c55e;
+  box-shadow: 0 0 30px rgba(34, 197, 94, 0.8);
+}
+
+@keyframes pulse-fullscreen {
+  0%, 100% {
+    box-shadow: 0 0 50px rgba(34, 197, 94, 0.8);
+  }
+  50% {
+    box-shadow: 0 0 80px rgba(34, 197, 94, 1);
+  }
+}
+
+// Botão de captura grande na parte inferior (mantido para compatibilidade)
+.capture-btn {
+  position: absolute;
+  bottom: 3rem;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  border: 6px solid rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.1);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
+  
+  &.ready {
+    border-color: #22c55e;
+    background: rgba(34, 197, 94, 0.2);
+    box-shadow: 0 0 30px rgba(34, 197, 94, 0.5);
+    animation: pulse 2s infinite;
+    
+    &:hover {
+      transform: translateX(-50%) scale(1.1);
+      box-shadow: 0 0 40px rgba(34, 197, 94, 0.8);
+    }
+  }
+  
+  &.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    animation: none;
+  }
+  
+  &:active {
+    transform: translateX(-50%) scale(0.95);
+  }
+}
+
+.capture-btn-inner {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+  transition: all 0.3s ease;
+}
+
+.capture-btn.ready .capture-btn-inner {
+  background: #22c55e;
+  box-shadow: 0 0 20px rgba(34, 197, 94, 0.6);
+}
+
+@keyframes pulse {
+  0%, 100% {
+    box-shadow: 0 0 30px rgba(34, 197, 94, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 50px rgba(34, 197, 94, 0.8);
+  }
+}
+
+// Overlay inicial (quando câmera não iniciada)
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.9);
+  backdrop-filter: blur(4px);
+  border-radius: var(--radius-xl);
+}
+
+.overlay-content {
+  text-align: center;
+  color: var(--text-primary);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 2rem;
+  
+  p {
+    font-size: 1rem;
+    margin: 0;
+  }
+}
+
+.overlay-icon {
+  font-size: 4rem;
+  display: block;
+}
+
+.btn-start-camera {
+  margin-top: 0.5rem;
+}
+
+// Preview da selfie capturada
+.selfie-preview {
+  width: 100%;
+  max-width: 400px;
+  text-align: center;
+  
+  .preview-label {
+    font-size: 1rem;
+    color: var(--text-primary);
+    margin-bottom: 1rem;
+    font-weight: 600;
+  }
+}
+
+.preview-image-wrapper {
+  width: 100%;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  border: 3px solid #22c55e;
+  box-shadow: 0 0 30px rgba(34, 197, 94, 0.3);
+  margin-bottom: 1.5rem;
+  
+  img {
+    width: 100%;
+    display: block;
+    transform: scaleX(-1); // Espelha para mostrar como ficou
+  }
+}
+
+.btn-retake {
+  width: 100%;
+  padding: 1rem;
+  justify-content: center;
+}
+
+// Estilos de botões gerais
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: var(--radius-lg);
+  font-weight: 600;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  box-shadow: var(--shadow-md);
+  
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
+  color: var(--text-primary);
+  
+  &:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+  }
+}
+
+.btn-secondary {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  
+  &:hover:not(:disabled) {
+    background: var(--bg-secondary);
+    transform: translateY(-2px);
+  }
+}
+
+.btn-large {
+  padding: 1rem 2.5rem;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.btn-icon {
+  font-size: 1.125rem;
+}
+
+.spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: var(--text-primary);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.preview-label {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+}
+
+.selfie-preview img,
+.document-preview img {
+  width: 100%;
+  border-radius: var(--radius-lg);
+  border: 2px solid var(--border-color);
+  box-shadow: var(--shadow-md);
+}
+
+// Seção de Upload de Documento
+.document-upload {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.upload-label {
+  cursor: pointer;
+  display: block;
+}
+
+.upload-box {
+  border: 2px dashed var(--border-color);
+  border-radius: var(--radius-xl);
+  padding: 3rem 2rem;
+  text-align: center;
+  background: var(--bg-tertiary);
+  transition: all var(--transition-normal);
+  
+  &:hover {
+    border-color: var(--primary-color);
+    background: rgba(139, 92, 246, 0.05);
+  }
+  
+  &.has-file {
+    border-color: var(--success-color);
+    background: rgba(16, 185, 129, 0.05);
+  }
+}
+
+.file-input {
+  display: none;
+}
+
+.upload-icon {
+  font-size: 3rem;
+  display: block;
+  margin-bottom: 1rem;
+}
+
+.upload-text {
+  color: var(--text-secondary);
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+.document-preview {
+  width: 100%;
+  max-width: 600px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+// Botão de Validação
+.validation-actions {
+  display: flex;
+  justify-content: center;
+  margin: 1rem 0;
+}
+
+// Resultado da Validação
+.result-section {
+  margin-top: 1rem;
+}
+
+.result-card {
+  background: var(--bg-card);
+  border: 2px solid var(--border-color);
+  border-radius: var(--radius-xl);
+  padding: 2rem;
+  box-shadow: var(--shadow-xl);
+  
+  &.approved {
+    border-color: var(--success-color);
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), var(--bg-card));
+  }
+  
+  &.rejected {
+    border-color: var(--error-color);
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.1), var(--bg-card));
+  }
+  
+  &.review {
+    border-color: var(--accent-color);
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.1), var(--bg-card));
+  }
+}
+
+.result-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 2px solid var(--border-color);
+  gap: 2rem;
+  flex-wrap: wrap;
+}
+
+.result-status {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex: 1;
+}
+
+.status-icon {
+  font-size: 3rem;
+}
+
+.status-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.status-title {
+  font-size: 1rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+  margin: 0;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius-lg);
+  font-weight: 700;
+  font-size: 0.875rem;
+  
+  &.approved {
+    background: rgba(16, 185, 129, 0.2);
+    color: var(--success-color);
+    border: 1px solid var(--success-color);
+  }
+  
+  &.rejected {
+    background: rgba(239, 68, 68, 0.2);
+    color: var(--error-color);
+    border: 1px solid var(--error-color);
+  }
+  
+  &.review {
+    background: rgba(245, 158, 11, 0.2);
+    color: var(--accent-color);
+    border: 1px solid var(--accent-color);
+  }
+}
+
+.result-score {
+  text-align: center;
+  padding: 1rem 2rem;
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-xl);
+  border: 2px solid var(--border-color);
+  min-width: 150px;
+}
+
+.score-value {
+  font-size: 2.5rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  line-height: 1;
+  margin-bottom: 0.5rem;
+}
+
+.score-label {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.result-message {
+  margin: 1.5rem 0;
+  padding: 1rem;
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-lg);
+  border-left: 4px solid var(--primary-color);
+  
+  p {
+    margin: 0;
+    color: var(--text-primary);
+    font-size: 0.95rem;
+    line-height: 1.6;
+  }
+}
+
+.result-images {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1.5rem;
+  margin-top: 1.5rem;
+}
+
+.image-item {
+  text-align: center;
+  
+  img {
+    width: 100%;
+    border-radius: var(--radius-lg);
+    border: 2px solid var(--border-color);
+    box-shadow: var(--shadow-md);
+    margin-top: 0.5rem;
+  }
+}
+
+.image-label {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+// Mensagens de Status
+.status-messages {
+  margin-top: 1rem;
+}
+
+.status-message {
+  padding: 1rem;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  color: var(--text-primary);
+  text-align: center;
+}
+
+.hint-info {
+  text-align: center;
+  margin-top: 1rem;
+  
+  p {
+    color: var(--text-muted);
+    font-size: 0.875rem;
+    margin: 0;
+  }
+}
+
+// Responsivo
+@media (max-width: 768px) {
+  .capture-container {
+    padding: 1rem;
+  }
+  
+  // Ajustes do modal fullscreen em mobile
+  .capture-circle-fullscreen {
+    width: 350px;
+    height: 350px;
+    
+    .alignment-guide-fullscreen.vertical-line {
+      height: 350px;
+    }
+    
+    .alignment-guide-fullscreen.horizontal-line {
+      width: 350px;
+    }
+    
+    .progress-ring-container {
+      width: 350px;
+      height: 350px;
+    }
+    
+    .progress-ring-fullscreen {
+      width: 350px;
+      height: 350px;
+    }
+  }
+  
+  .camera-mask-overlay {
+    background: radial-gradient(circle at center, transparent 175px, rgba(0, 0, 0, 0.95) 250px);
+  }
+  
+  .capture-btn-fullscreen {
+    bottom: 2rem;
+    width: 80px;
+    height: 80px;
+  }
+  
+  .capture-btn-inner-fullscreen {
+    width: 55px;
+    height: 55px;
+  }
+  
+  .modal-content {
+    width: 100vw;
+    height: 100vh;
+    max-width: 100%;
+    max-height: 100%;
+    border-radius: 0;
+  }
+  
+  .modal-header {
+    padding: 1rem 1.5rem;
+  }
+  
+  .modal-body {
+    padding: 1rem;
+  }
+  
+  .capture-circle {
+    width: 240px;
+    height: 240px;
+    
+    .alignment-guide.vertical-line {
+      height: 240px;
+    }
+    
+    .alignment-guide.horizontal-line {
+      width: 240px;
+    }
+    
+    .progress-ring {
+      width: 240px;
+      height: 240px;
+    }
+  }
+  
+  .result-header {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+  
+  .result-score {
+    width: 100%;
+  }
+  
+  .result-images {
+    grid-template-columns: 1fr;
+  }
+}

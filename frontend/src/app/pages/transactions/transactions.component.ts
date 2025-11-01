@@ -25,7 +25,16 @@ export class TransactionsComponent implements OnInit {
   async load(): Promise<void> {
     this.loading = true
     try {
-      this.transactions = await this.faceService.getTransactions().toPromise() || []
+      console.log('Carregando transações do DynamoDB...')
+      const response = await this.faceService.getTransactions().toPromise()
+      this.transactions = response || []
+      console.log(`Transações carregadas: ${this.transactions.length}`)
+      
+      if (this.transactions.length === 0) {
+        console.warn('Nenhuma transação encontrada no DynamoDB')
+      }
+      
+      // Preload presigned URLs para thumbnails
       const promises = this.transactions.map(async tx => {
         const entries: { selfie?: string; doc?: string } = {}
         try {
@@ -37,10 +46,16 @@ export class TransactionsComponent implements OnInit {
             const p2 = await this.faceService.generateDownloadUrl(tx.documentUrl, 30).toPromise()
             entries.doc = p2?.url
           }
-        } catch { /* ignore */ }
+        } catch (err) {
+          console.warn(`Erro ao carregar URLs para transação ${tx.id}:`, err)
+        }
         this.thumbs[tx.id] = entries
       })
       await Promise.allSettled(promises)
+    } catch (err) {
+      console.error('Erro ao carregar transações do DynamoDB:', err)
+      this.transactions = []
+      alert('Erro ao carregar histórico. Verifique o console para mais detalhes.')
     } finally {
       this.loading = false
     }
@@ -48,5 +63,20 @@ export class TransactionsComponent implements OnInit {
 
   openResult(id: string): void {
     this.router.navigate(['/result', id])
+  }
+
+  getApprovedCount(): number {
+    return this.transactions.filter(tx => tx.status === 'Approved').length
+  }
+
+  getAverageScore(): number {
+    const scores = this.transactions
+      .map(tx => tx.similarityScore)
+      .filter((score): score is number => score !== null && score !== undefined)
+    
+    if (scores.length === 0) return 0
+    
+    const sum = scores.reduce((acc, score) => acc + score, 0)
+    return sum / scores.length
   }
 }

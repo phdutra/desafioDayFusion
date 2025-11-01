@@ -1,30 +1,122 @@
-<div class="card fade-in-up">
-  <h2 class="gradient-text" style="margin-bottom: 1rem;">Transactions</h2>
-  <div *ngIf="loading">Loading…</div>
-  <div *ngIf="!loading && transactions.length === 0" class="hint">No transactions yet.</div>
-  <div class="table" *ngIf="!loading && transactions.length">
-    <div class="row header">
-      <div>ID</div>
-      <div>Imagens</div>
-      <div>Status</div>
-      <div>Score</div>
-      <div>Created</div>
-      <div>Ações</div>
-    </div>
-    <div class="row" *ngFor="let tx of transactions">
-      <div>{{ tx.id }}</div>
-      <div>
-        <div style="display:flex; gap:.5rem;">
-          <img *ngIf="thumbs[tx.id]?.selfie" [src]="thumbs[tx.id]?.selfie" alt="Selfie" style="width:60px;height:60px;object-fit:cover;border-radius:6px;">
-          <img *ngIf="thumbs[tx.id]?.doc" [src]="thumbs[tx.id]?.doc" alt="Doc" style="width:60px;height:60px;object-fit:cover;border-radius:6px;">
+<div class="history-container fade-in-up">
+  <div class="history-header">
+    <h2 class="gradient-text page-title">📋 Histórico de Validações</h2>
+    <p class="page-subtitle">Visualize todas as comparações faciais realizadas com seus respectivos scores</p>
+  </div>
+
+  <!-- Loading State -->
+  <div class="loading-state" *ngIf="loading">
+    <div class="spinner-large"></div>
+    <p>Carregando histórico...</p>
+  </div>
+
+  <!-- Empty State -->
+  <div class="empty-state" *ngIf="!loading && transactions.length === 0">
+    <div class="empty-icon">📭</div>
+    <h3>Nenhuma transação encontrada</h3>
+    <p>Quando você realizar validações faciais, elas aparecerão aqui.</p>
+  </div>
+
+  <!-- Transactions List -->
+  <div class="transactions-list" *ngIf="!loading && transactions.length">
+    <div class="transaction-card" *ngFor="let tx of transactions" (click)="openResult(tx.id)">
+      <div class="transaction-images">
+        <div class="image-thumb" *ngIf="thumbs[tx.id]?.selfie">
+          <div class="image-label">Selfie</div>
+          <img [src]="thumbs[tx.id]?.selfie" alt="Selfie">
+        </div>
+        <div class="image-thumb" *ngIf="thumbs[tx.id]?.doc">
+          <div class="image-label">Documento</div>
+          <img [src]="thumbs[tx.id]?.doc" alt="Documento">
+        </div>
+        <div class="no-images" *ngIf="!thumbs[tx.id]?.selfie && !thumbs[tx.id]?.doc">
+          <span class="no-images-icon">🖼️</span>
+          <span class="no-images-text">Imagens não disponíveis</span>
         </div>
       </div>
-      <div>{{ tx.status }}</div>
-      <div>{{ tx.similarityScore || 0 | number:'1.0-1' }}%</div>
-      <div>{{ tx.createdAt | date:'short' }}</div>
-      <div>
-        <button class="submit-ticket-btn" (click)="openResult(tx.id)">Ver Resultado</button>
+
+      <div class="transaction-info">
+        <div class="transaction-header">
+          <div class="transaction-id">
+            <span class="id-label">ID:</span>
+            <span class="id-value">{{ tx.id }}</span>
+          </div>
+          <div class="transaction-date">
+            <span class="date-icon">📅</span>
+            <span>{{ tx.createdAt | date:'dd/MM/yyyy HH:mm' }}</span>
+          </div>
+        </div>
+
+        <div class="transaction-status-score">
+          <div class="status-badge" 
+               [class.approved]="tx.status === 'Approved'" 
+               [class.rejected]="tx.status === 'Rejected'" 
+               [class.review]="tx.status === 'ManualReview'"
+               [class.pending]="tx.status === 'Pending'"
+               [class.processing]="tx.status === 'Processing'"
+               [class.error]="tx.status === 'Error'">
+            <span class="status-icon">
+              {{ tx.status === 'Approved' ? '✅' : 
+                 tx.status === 'Rejected' ? '❌' : 
+                 tx.status === 'ManualReview' ? '🔍' : 
+                 tx.status === 'Pending' ? '⏳' :
+                 tx.status === 'Processing' ? '⚙️' : '⚠️' }}
+            </span>
+            <span class="status-text">
+              {{ tx.status === 'Approved' ? 'Aprovado' : 
+                 tx.status === 'Rejected' ? 'Rejeitado' : 
+                 tx.status === 'ManualReview' ? 'Revisão Manual' : 
+                 tx.status === 'Pending' ? 'Pendente' :
+                 tx.status === 'Processing' ? 'Processando' : 'Erro' }}
+            </span>
+          </div>
+
+          <div class="score-display" *ngIf="tx.similarityScore !== null && tx.similarityScore !== undefined">
+            <div class="score-value">{{ tx.similarityScore | number:'1.1-1' }}%</div>
+            <div class="score-label">Similaridade</div>
+            <div class="score-bar">
+              <div class="score-bar-fill" 
+                   [style.width.%]="tx.similarityScore" 
+                   [class.score-high]="tx.similarityScore >= 80"
+                   [class.score-medium]="tx.similarityScore >= 60 && tx.similarityScore < 80"
+                   [class.score-low]="tx.similarityScore < 60">
+              </div>
+            </div>
+          </div>
+          <div class="score-display no-score" *ngIf="tx.similarityScore === null || tx.similarityScore === undefined">
+            <div class="score-value">N/A</div>
+            <div class="score-label">Score não disponível</div>
+          </div>
+        </div>
+
+        <div class="transaction-notes" *ngIf="tx.reviewNotes || tx.rejectionReason">
+          <div class="notes-label">Observações:</div>
+          <div class="notes-text">{{ tx.reviewNotes || tx.rejectionReason }}</div>
+        </div>
+
+        <div class="transaction-footer">
+          <button class="view-btn" (click)="openResult(tx.id); $event.stopPropagation()">
+            <span class="btn-icon">👁️</span>
+            Ver Detalhes
+          </button>
+        </div>
       </div>
+    </div>
+  </div>
+
+  <!-- Summary -->
+  <div class="summary-card" *ngIf="!loading && transactions.length">
+    <div class="summary-item">
+      <div class="summary-value">{{ transactions.length }}</div>
+      <div class="summary-label">Total de Validações</div>
+    </div>
+    <div class="summary-item">
+      <div class="summary-value">{{ getApprovedCount() }}</div>
+      <div class="summary-label">Aprovadas</div>
+    </div>
+    <div class="summary-item">
+      <div class="summary-value">{{ getAverageScore() | number:'1.1-1' }}%</div>
+      <div class="summary-label">Score Médio</div>
     </div>
   </div>
 </div>

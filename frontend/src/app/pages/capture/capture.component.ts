@@ -27,6 +27,16 @@ export class CaptureComponent implements OnInit, OnDestroy {
   transactionId: string | null = null
   result: FaceComparisonResponse | null = null
   statusMessage: string | null = null
+  
+  // Face detection
+  detectionStatus: 'idle' | 'detecting' | 'ready' | 'captured' = 'idle'
+  detectionProgress: number = 0
+  progressDashArray = 2 * Math.PI * 145 // Circunferência do círculo (raio 145)
+  progressDashOffset = 0
+  detectionInterval?: number
+  
+  // Modal state
+  showCameraModal = false
 
   constructor(
     private cameraService: CameraService,
@@ -38,6 +48,7 @@ export class CaptureComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.stopDetection()
     this.stopCamera()
   }
 
@@ -45,23 +56,112 @@ export class CaptureComponent implements OnInit, OnDestroy {
     if (!this.videoRef) return
     const supported = await this.cameraService.checkCameraSupport()
     if (!supported) {
-      alert('Camera not supported in this browser')
+      alert('Câmera não suportada neste navegador')
       return
     }
     const stream = await this.cameraService.getMediaStream()
     this.videoRef.nativeElement.srcObject = stream
     this.cameraReady = true
+    this.detectionStatus = 'detecting'
+    this.startFaceDetection()
   }
 
   stopCamera(): void {
+    this.stopDetection()
     this.cameraService.stopStream()
     this.cameraReady = false
+    this.detectionStatus = 'idle'
+    this.detectionProgress = 0
+    this.progressDashOffset = this.progressDashArray
+  }
+
+  retakePhoto(): void {
+    this.selfieDataUrl = null
+    this.detectionStatus = 'detecting'
+    this.detectionProgress = 0
+    this.progressDashOffset = this.progressDashArray
+    this.startFaceDetection()
+  }
+
+  startFaceDetection(): void {
+    if (!this.videoRef || !this.cameraReady) return
+    
+    // Simulação de detecção de rosto com progresso
+    let progress = 0
+    const updateProgress = () => {
+      if (this.detectionStatus === 'captured') return
+      
+      progress += 2
+      if (progress > 100) {
+        progress = 100
+      }
+      
+      this.detectionProgress = progress
+      this.progressDashOffset = this.progressDashArray * (1 - progress / 100)
+      
+      if (progress >= 100) {
+        this.detectionStatus = 'ready'
+      }
+      
+      if (this.detectionStatus !== 'ready') {
+        this.detectionInterval = window.setTimeout(updateProgress, 50)
+      }
+    }
+    
+    updateProgress()
+  }
+
+  stopDetection(): void {
+    if (this.detectionInterval) {
+      clearTimeout(this.detectionInterval)
+      this.detectionInterval = undefined
+    }
+  }
+
+  getDetectionStatusText(): string {
+    switch (this.detectionStatus) {
+      case 'detecting':
+        return 'Ajuste sua posição...'
+      case 'ready':
+        return 'Posição perfeita!'
+      case 'captured':
+        return 'Capturado!'
+      default:
+        return ''
+    }
   }
 
   async captureSelfie(): Promise<void> {
-    if (!this.videoRef) return
+    if (!this.videoRef || this.detectionStatus !== 'ready') return
+    this.stopDetection()
+    this.detectionStatus = 'captured'
     this.selfieDataUrl = await this.cameraService.capturePhoto(this.videoRef.nativeElement)
+    // Fecha o modal após captura bem-sucedida
+    setTimeout(() => {
+      this.closeCameraModal()
+    }, 500)
     // Only capture the selfie; uploading is triggered explicitly by the Upload button
+  }
+  
+  // Modal control methods
+  openCameraModal(): void {
+    this.showCameraModal = true
+    // Inicia a câmera automaticamente ao abrir o modal
+    setTimeout(() => {
+      this.startCamera()
+    }, 100)
+  }
+  
+  closeCameraModal(): void {
+    this.showCameraModal = false
+    this.stopCamera()
+  }
+  
+  onModalBackdropClick(event: Event): void {
+    // Fecha o modal ao clicar no backdrop
+    if (event.target === event.currentTarget) {
+      this.closeCameraModal()
+    }
   }
 
   private async uploadSelfieOnly(): Promise<void> {

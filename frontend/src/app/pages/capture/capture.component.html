@@ -1,50 +1,182 @@
-<div class="card fade-in-up">
-  <h2 class="gradient-text" style="margin-bottom: 1rem;">Selfie Capture & Validation</h2>
+<div class="capture-container fade-in-up">
+  <h2 class="gradient-text page-title">Captura e Validação Facial</h2>
 
-  <div class="grid">
-    <div>
-      <div class="video-wrapper">
-        <video #video autoplay playsinline muted class="video"></video>
-        <div class="overlay" *ngIf="!cameraReady">Allow camera permission…</div>
-      </div>
-      <div class="controls">
-        <button class="submit-ticket-btn" (click)="startCamera()">Start Camera</button>
-        <button class="submit-ticket-btn" (click)="captureSelfie()" [disabled]="!cameraReady">Capture Selfie</button>
-        <button class="submit-ticket-btn" (click)="stopCamera()" [disabled]="!cameraReady">Stop</button>
-      </div>
-      <div class="preview" *ngIf="selfieDataUrl">
-        <img [src]="selfieDataUrl" alt="Selfie preview">
-      </div>
-    </div>
-
-    <div>
-      <div style="margin-bottom: 1rem;">
-        <label class="hint" for="docInput">Documento (RG/CNH) — frente</label>
-        <input id="docInput" type="file" accept="image/jpeg,image/png,image/webp" (change)="onDocumentSelected($event)">
-        <div class="preview" *ngIf="documentPreview">
-          <img [src]="documentPreview" alt="Document preview">
+  <!-- Seção de Captura de Selfie -->
+  <section class="capture-section">
+    <div class="selfie-container">
+      <!-- Preview da selfie capturada -->
+      <div class="selfie-preview" *ngIf="selfieDataUrl">
+        <div class="preview-label">✅ Selfie Capturada com Sucesso!</div>
+        <div class="preview-image-wrapper">
+          <img [src]="selfieDataUrl" alt="Selfie preview">
         </div>
-      </div>
-      <div class="actions">
-        <button class="submit-ticket-btn" (click)="onUploadClick()" [disabled]="!canValidate() || loading">
-          {{ loading ? 'Enviando…' : (documentFile ? 'Validar Selfie + Documento' : 'Enviar Selfie') }}
+        <button class="btn btn-secondary btn-retake" (click)="retakePhoto()">
+          <span class="btn-icon">🔄</span>
+          Tirar Novamente
         </button>
       </div>
-
-      <div class="result" *ngIf="result">
-        <div class="status" [class.approved]="result.status==='Approved'" [class.rejected]="result.status==='Rejected'" [class.review]="result.status==='ManualReview'">
-          Status: {{ result.status }}
-        </div>
-        <div>Score: {{ result.similarityScore | number:'1.0-1' }}%</div>
-        <div class="message">{{ result.message }}</div>
-        <div class="preview-pair" *ngIf="selfieViewUrl || documentViewUrl" style="margin-top: 0.5rem; display: grid; grid-template-columns: 1fr 1fr; gap: .5rem;">
-          <img *ngIf="selfieViewUrl" [src]="selfieViewUrl" alt="Selfie from S3">
-          <img *ngIf="documentViewUrl" [src]="documentViewUrl" alt="Document from S3">
+      
+      <!-- Botão para abrir modal de captura -->
+      <div class="capture-trigger" *ngIf="!selfieDataUrl">
+        <div class="trigger-content">
+          <div class="trigger-icon">📸</div>
+          <h3 class="trigger-title">Capturar Selfie</h3>
+          <p class="trigger-description">Posicione seu rosto dentro do círculo de captura</p>
+          <button class="btn btn-primary btn-large" (click)="openCameraModal()">
+            <span class="btn-icon">📷</span>
+            Iniciar Captura
+          </button>
         </div>
       </div>
-
-      <div class="hint">We accept JPEG, PNG or WEBP up to ~5MB.</div>
-      <div class="hint" *ngIf="statusMessage">{{ statusMessage }}</div>
     </div>
+  </section>
+  
+  <!-- Modal da Câmera -->
+  <div class="camera-modal" *ngIf="showCameraModal">
+    <div class="modal-content-fullscreen">
+      <!-- Botão Cancel no topo -->
+      <button class="modal-cancel" (click)="closeCameraModal()">
+        Cancelar
+      </button>
+      
+      <!-- Video da câmera com máscara -->
+      <div class="camera-wrapper-fullscreen">
+        <video #video autoplay playsinline muted class="camera-video-fullscreen"></video>
+        
+        <!-- Máscara escura ao redor (black overlay) -->
+        <div class="camera-mask-overlay"></div>
+        
+        <!-- Overlay da câmera -->
+        <div class="camera-overlay-fullscreen" *ngIf="cameraReady">
+          <!-- Círculo de captura -->
+          <div class="capture-circle-fullscreen">
+            <!-- Guias de alinhamento -->
+            <div class="alignment-guide-fullscreen vertical-line"></div>
+            <div class="alignment-guide-fullscreen horizontal-line"></div>
+            
+            <!-- Anel de progresso segmentado (verde) -->
+            <div class="progress-ring-container">
+              <svg class="progress-ring-fullscreen" viewBox="0 0 300 300">
+                <circle class="progress-ring-circle"
+                        cx="150" cy="150"
+                        r="145"
+                        fill="none"
+                        stroke="#22c55e"
+                        stroke-width="8"
+                        [attr.stroke-dasharray]="progressDashArray"
+                        [attr.stroke-dashoffset]="progressDashOffset"
+                        stroke-linecap="round"
+                        transform="rotate(-90 150 150)"/>
+              </svg>
+            </div>
+          </div>
+          
+          <!-- Botão de captura -->
+          <button class="capture-btn-fullscreen" 
+                  (click)="captureSelfie()" 
+                  [class.ready]="detectionStatus === 'ready'"
+                  [class.disabled]="detectionStatus !== 'ready'">
+            <div class="capture-btn-inner-fullscreen"></div>
+          </button>
+        </div>
+        
+        <!-- Overlay de loading -->
+        <div class="overlay-loading" *ngIf="!cameraReady">
+          <div class="overlay-content-loading">
+            <span class="overlay-icon-loading">📹</span>
+            <p>Iniciando câmera...</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Seção de Upload de Documento -->
+  <section class="document-section">
+    <div class="section-header">
+      <h3 class="section-title">📄 Documento (RG/CNH)</h3>
+      <span class="section-subtitle">Frente do documento</span>
+    </div>
+    
+    <div class="document-upload">
+      <label for="docInput" class="upload-label">
+        <div class="upload-box" [class.has-file]="documentPreview">
+          <span class="upload-icon" *ngIf="!documentPreview">📎</span>
+          <span class="upload-text" *ngIf="!documentPreview">
+            Clique ou arraste para fazer upload
+          </span>
+          <input 
+            id="docInput" 
+            type="file" 
+            accept="image/jpeg,image/png,image/webp" 
+            (change)="onDocumentSelected($event)"
+            class="file-input">
+        </div>
+      </label>
+      
+      <div class="document-preview" *ngIf="documentPreview">
+        <div class="preview-label">Pré-visualização do Documento</div>
+        <img [src]="documentPreview" alt="Document preview">
+      </div>
+    </div>
+  </section>
+
+  <!-- Botão de Validação -->
+  <div class="validation-actions">
+    <button 
+      class="btn btn-large btn-primary" 
+      (click)="onUploadClick()" 
+      [disabled]="!canValidate() || loading">
+      <span class="btn-icon" *ngIf="!loading">{{ documentFile ? '✅' : '📤' }}</span>
+      <span *ngIf="loading" class="spinner"></span>
+      {{ loading ? 'Processando…' : (documentFile ? 'Validar Selfie + Documento' : 'Enviar Selfie') }}
+    </button>
+  </div>
+
+  <!-- Resultado da Validação -->
+  <section class="result-section" *ngIf="result">
+    <div class="result-card" [class.approved]="result.status==='Approved'" [class.rejected]="result.status==='Rejected'" [class.review]="result.status==='ManualReview'">
+      <div class="result-header">
+        <div class="result-status">
+          <span class="status-icon">
+            {{ result.status === 'Approved' ? '✅' : result.status === 'Rejected' ? '❌' : '🔍' }}
+          </span>
+          <div class="status-info">
+            <h3 class="status-title">Status da Validação</h3>
+            <span class="status-badge" [class.approved]="result.status==='Approved'" [class.rejected]="result.status==='Rejected'" [class.review]="result.status==='ManualReview'">
+              {{ result.status === 'Approved' ? 'Aprovado' : result.status === 'Rejected' ? 'Rejeitado' : 'Revisão Manual' }}
+            </span>
+          </div>
+        </div>
+        <div class="result-score">
+          <div class="score-value">{{ result.similarityScore | number:'1.1-1' }}%</div>
+          <div class="score-label">Similaridade</div>
+        </div>
+      </div>
+      
+      <div class="result-message" *ngIf="result.message">
+        <p>{{ result.message }}</p>
+      </div>
+      
+      <div class="result-images" *ngIf="selfieViewUrl || documentViewUrl">
+        <div class="image-item" *ngIf="selfieViewUrl">
+          <div class="image-label">Selfie Enviada</div>
+          <img [src]="selfieViewUrl" alt="Selfie from S3">
+        </div>
+        <div class="image-item" *ngIf="documentViewUrl">
+          <div class="image-label">Documento Enviado</div>
+          <img [src]="documentViewUrl" alt="Document from S3">
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Mensagens de Status -->
+  <div class="status-messages" *ngIf="statusMessage">
+    <div class="status-message">{{ statusMessage }}</div>
+  </div>
+
+  <div class="hint-info">
+    <p>Formatos aceitos: JPEG, PNG ou WEBP (até 5MB)</p>
   </div>
 </div>
