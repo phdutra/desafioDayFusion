@@ -2,13 +2,18 @@ import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { 
+  DetectFaceRequest,
   FaceComparisonRequest, 
   FaceComparisonResponse, 
   PresignedUrlRequest, 
   PresignedUrlResponse,
   PresignedGetRequest,
   Transaction,
-  ReviewRequest
+  ReviewRequest,
+  StartLivenessRequest,
+  LivenessSessionResponse,
+  GetLivenessResultRequest,
+  LivenessResultResponse
 } from '../../shared/models/transaction.model';
 import { environment } from '../../../environments/environment';
 
@@ -35,7 +40,10 @@ export class FaceRecognitionService {
   }
 
   detectFaces(imageKey: string): Observable<boolean> {
-    return this.http.post<boolean>(`${this.API_URL}/facerecognition/detect/${imageKey}`, {});
+    // Usar DTO no body ao invés de query string ou path parameter
+    const request: DetectFaceRequest = { imageKey };
+    // API usa lowercase URLs, então usar facerecognition (minúsculas)
+    return this.http.post<boolean>(`${this.API_URL}/facerecognition/detect`, request);
   }
 
   getFaceSimilarity(request: FaceComparisonRequest): Observable<number> {
@@ -79,5 +87,14 @@ export class FaceRecognitionService {
 
   deleteTransaction(id: string): Observable<void> {
     return this.http.delete<void>(`${this.API_URL}/transactions/${id}`);
+  }
+
+  // Face Liveness 3D
+  startLivenessSession(request: StartLivenessRequest): Observable<LivenessSessionResponse> {
+    return this.http.post<LivenessSessionResponse>(`${this.API_URL}/facerecognition/liveness/start`, request);
+  }
+
+  getLivenessResult(request: GetLivenessResultRequest): Observable<LivenessResultResponse> {
+    return this.http.post<LivenessResultResponse>(`${this.API_URL}/facerecognition/liveness/result`, request);
   }
 }

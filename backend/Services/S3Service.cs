@@ -200,7 +200,7 @@ public class S3Service : IS3Service
             return new PresignedUrlResponse
             {
                 Key = key,
-                Url = previewUrl,
+                Url = previewUrl ?? string.Empty,
                 ExpiresAt = DateTime.UtcNow.AddMinutes(15)
             };
         }

@@ -9,12 +9,12 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.10" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0" />
-    <PackageReference Include="AWSSDK.S3" Version="3.7.400.0" />
-    <PackageReference Include="AWSSDK.Rekognition" Version="3.7.400.0" />
-    <PackageReference Include="AWSSDK.DynamoDBv2" Version="3.7.400.0" />
-    <PackageReference Include="AWSSDK.CognitoIdentityProvider" Version="3.7.400.0" />
-    <PackageReference Include="AWSSDK.KeyManagementService" Version="3.7.400.0" />
-    <PackageReference Include="AWSSDK.Extensions.NETCore.Setup" Version="3.7.400" />
+    <PackageReference Include="AWSSDK.S3" Version="4.0.9.1" />
+    <PackageReference Include="AWSSDK.Rekognition" Version="4.0.3" />
+    <PackageReference Include="AWSSDK.DynamoDBv2" Version="4.0.9.3" />
+    <PackageReference Include="AWSSDK.CognitoIdentityProvider" Version="4.0.4" />
+    <PackageReference Include="AWSSDK.KeyManagementService" Version="4.0.6" />
+    <PackageReference Include="AWSSDK.Extensions.NETCore.Setup" Version="4.0.3.9" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.10" />
     <PackageReference Include="Serilog.AspNetCore" Version="8.0.2" />
     <PackageReference Include="Serilog.Sinks.Console" Version="6.0.0" />

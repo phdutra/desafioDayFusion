@@ -18,7 +18,14 @@ Contratos principais
 - POST /api/Storage/presigned-url → PresignedUrlResponse { url, key, expiresAt }
 - POST /api/Storage/upload (multipart) → { url?, key, expiresAt? }
 - POST /api/FaceRecognition/compare → FaceComparisonResponse { similarityScore, status, message?, transactionId }
+- POST /api/FaceRecognition/detect → DetectFaceRequest { imageKey } (usar DTO no body, NÃO usar query string ou path parameter)
 - GET /api/Storage/presigned-url/{key}?expiryMinutes=60 → PresignedUrlResponse
+
+Regras de API
+- SEMPRE usar objetos DTO no body para requisições POST/PUT
+- NUNCA usar query string para dados complexos ou com caracteres especiais (como barras em S3 keys)
+- Path parameters apenas para IDs simples (UUIDs, números)
+- Sempre validar DTOs com [Required] e DataAnnotations
 
 Padrão de resposta
 - Objetivo, com bullets, exemplos sintéticos quando útil.

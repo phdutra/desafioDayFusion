@@ -1,0 +1,128 @@
+<!-- Modal Fullscreen da Câmera -->
+<div class="camera-modal" *ngIf="isOpen" (click)="onBackdropClick($event)">
+  <div class="modal-content-fullscreen">
+    <button class="modal-cancel" (click)="closeModal()">
+      ✕ Cancelar
+    </button>
+    
+    <div class="camera-wrapper-fullscreen">
+      <video 
+        #videoElement 
+        autoplay 
+        playsinline 
+        muted 
+        class="camera-video-fullscreen"
+      ></video>
+      
+      <!-- Máscara de captura (apenas para 2D) -->
+      <div class="camera-mask-overlay" *ngIf="mode === '2d'"></div>
+      
+      <!-- Overlay de câmera (2D com detecção facial) -->
+      <div class="camera-overlay-fullscreen" *ngIf="cameraReady && mode === '2d'">
+        <div class="capture-circle-fullscreen">
+          <div class="alignment-guide-fullscreen vertical-line"></div>
+          <div class="alignment-guide-fullscreen horizontal-line"></div>
+          
+          <div class="progress-ring-container">
+            <svg class="progress-ring-fullscreen" viewBox="0 0 300 300">
+              <circle class="progress-ring-circle"
+                      cx="150" cy="150"
+                      r="145"
+                      fill="none"
+                      stroke="#22c55e"
+                      stroke-width="8"
+                      [attr.stroke-dasharray]="progressDashArray"
+                      [attr.stroke-dashoffset]="progressDashOffset"
+                      stroke-linecap="round"
+                      transform="rotate(-90 150 150)"/>
+            </svg>
+          </div>
+        </div>
+        
+        <div class="detection-status">
+          <span class="status-icon">{{ detectionStatus === 'ready' ? '✅' : '👤' }}</span>
+          <span class="status-text">{{ getDetectionStatusText() }}</span>
+        </div>
+        
+        <button class="capture-btn-fullscreen" 
+                (click)="capturePhoto()" 
+                [class.ready]="detectionStatus === 'ready'"
+                [class.disabled]="detectionStatus !== 'ready'">
+          <div class="capture-btn-inner-fullscreen"></div>
+        </button>
+      </div>
+
+      <!-- Overlay de câmera (3D com liveness) -->
+      <div class="camera-overlay-fullscreen" *ngIf="cameraReady && mode === '3d'">
+        <!-- Guia de rosto (igual ao 2D) -->
+        <div class="capture-circle-fullscreen" *ngIf="!sessionActive">
+          <div class="alignment-guide-fullscreen vertical-line"></div>
+          <div class="alignment-guide-fullscreen horizontal-line"></div>
+        </div>
+
+        <!-- Status de detecção -->
+        <div class="detection-status" *ngIf="!sessionActive" [class.valid]="faceDetected">
+          <span class="status-icon">{{ faceDetected ? '✅' : (validatingPosition ? '⏳' : '👤') }}</span>
+          <span class="status-text">{{ validationMessage || 'Aguardando validação...' }}</span>
+        </div>
+
+        <!-- Controles na parte inferior -->
+        <div class="liveness-controls-bottom">
+          <div class="liveness-info" *ngIf="!sessionActive && !faceDetected">
+            <p class="liveness-info-text">📸 Validação em tempo real</p>
+            <p class="liveness-info-hint">Siga as instruções acima para posicionar corretamente</p>
+          </div>
+          
+          <div class="liveness-info-ready" *ngIf="!sessionActive && faceDetected">
+            <p class="liveness-info-text">✓ Tudo certo! Você pode iniciar a verificação</p>
+          </div>
+
+          <!-- Botão redesenhado -->
+          <button 
+            class="btn-liveness-start btn-start-large" 
+            [class.ready]="faceDetected"
+            [class.disabled]="!faceDetected || validatingPosition"
+            *ngIf="!sessionActive"
+            (click)="startLiveness3D()"
+            [disabled]="!faceDetected || validatingPosition">
+            <span class="btn-icon-large">▶</span>
+            <span class="btn-text-large">Iniciar Verificação 3D</span>
+            <span class="btn-subtitle" *ngIf="!faceDetected">Aguarde validação...</span>
+          </button>
+
+          <div class="liveness-active-status" *ngIf="sessionActive">
+            <div class="active-status-badge">
+              <div class="status-pulse-active"></div>
+              <span>Verificação em andamento...</span>
+            </div>
+            
+            <button class="btn-liveness-stop" (click)="stopLiveness()">
+              <span class="btn-liveness-icon">⏹</span>
+              <span>Finalizar</span>
+            </button>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Loading overlay -->
+      <div class="overlay-loading" *ngIf="cameraInitializing">
+        <div class="overlay-content-loading">
+          <div class="loading-spinner"></div>
+          <p>Iniciando câmera...</p>
+        </div>
+      </div>
+
+      <!-- Erro overlay -->
+      <div class="overlay-error" *ngIf="error && !cameraInitializing">
+        <div class="overlay-content-error">
+          <span class="error-icon">⚠️</span>
+          <p class="error-message">{{ error }}</p>
+          <button class="btn btn-secondary" (click)="initializeCamera()">
+            Tentar Novamente
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+

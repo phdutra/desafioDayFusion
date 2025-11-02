@@ -84,6 +84,12 @@ public class FaceComparisonRequest
     public string? TransactionId { get; set; }
 }
 
+public class DetectFaceRequest
+{
+    [Required]
+    public string ImageKey { get; set; } = string.Empty;
+}
+
 public class FaceComparisonResponse
 {
     public float SimilarityScore { get; set; }
@@ -118,4 +124,44 @@ public class AuthResponse
     public string RefreshToken { get; set; } = string.Empty;
     public DateTime ExpiresAt { get; set; }
     public string UserId { get; set; } = string.Empty;
+}
+
+// Face Liveness 3D Models
+public class StartLivenessRequest
+{
+    public string? TransactionId { get; set; }
+}
+
+public class LivenessSessionResponse
+{
+    public string SessionId { get; set; } = string.Empty;
+    public string StreamingUrl { get; set; } = string.Empty;
+    public string TransactionId { get; set; } = string.Empty;
+    public DateTime ExpiresAt { get; set; }
+}
+
+public class GetLivenessResultRequest
+{
+    [Required]
+    public string SessionId { get; set; } = string.Empty;
+    
+    public string? TransactionId { get; set; }
+}
+
+public class LivenessResultResponse
+{
+    public string SessionId { get; set; } = string.Empty;
+    public string Status { get; set; } = string.Empty; // SUCCEEDED, FAILED, etc
+    public string LivenessDecision { get; set; } = string.Empty; // LIVE, SPOOF, etc
+    public float Confidence { get; set; }
+    public string TransactionId { get; set; } = string.Empty;
+    public string Message { get; set; } = string.Empty;
+    public string? ReferenceImageUrl { get; set; } // URL da imagem de referência
+    public List<string> AuditImageUrls { get; set; } = new(); // URLs das imagens de auditoria
+    
+    // Informações detalhadas sobre score baixo
+    public List<string> LowScoreReasons { get; set; } = new(); // Razões para score baixo
+    public List<string> Recommendations { get; set; } = new(); // Recomendações para melhorar
+    public float? QualityScore { get; set; } // Score de qualidade da imagem (0-100)
+    public string? QualityAssessment { get; set; } // Avaliação da qualidade (EXCELLENT, GOOD, FAIR, POOR)
 }

@@ -1,9 +1,10 @@
 import { Component, ElementRef, OnDestroy, OnInit, ViewChild } from '@angular/core'
 import { CommonModule } from '@angular/common'
 import { FormsModule } from '@angular/forms'
+import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser'
 import { CameraService } from '../../core/services/camera.service'
 import { FaceRecognitionService } from '../../core/services/face-recognition.service'
-import { PresignedUrlRequest, FaceComparisonRequest, FaceComparisonResponse, TransactionStatus } from '../../shared/models/transaction.model'
+import { PresignedUrlRequest, FaceComparisonRequest, FaceComparisonResponse, TransactionStatus, StartLivenessRequest, LivenessSessionResponse, GetLivenessResultRequest, LivenessResultResponse } from '../../shared/models/transaction.model'
 
 @Component({
   selector: 'app-capture',
@@ -37,10 +38,21 @@ export class CaptureComponent implements OnInit, OnDestroy {
   
   // Modal state
   showCameraModal = false
+  showLivenessModal = false
+  
+  // Liveness 3D state
+  livenessSession: LivenessSessionResponse | null = null
+  livenessResult: LivenessResultResponse | null = null
+  livenessLoading = false
+  livenessError: string | null = null
+
+  // Safe URL for iframe
+  safeStreamingUrl: SafeResourceUrl | null = null
 
   constructor(
     private cameraService: CameraService,
     private faceService: FaceRecognitionService,
+    private sanitizer: DomSanitizer
   ) {}
 
   async ngOnInit(): Promise<void> {
@@ -258,5 +270,60 @@ export class CaptureComponent implements OnInit, OnDestroy {
     } finally {
       this.loading = false
     }
+  }
+
+  // Face Liveness 3D Methods
+  async startLiveness3D(): Promise<void> {
+    // Note: Face Liveness 3D requer AWS Amplify no frontend
+    // Por enquanto, implementação backend pronta, mas frontend precisa de Amplify SDK
+    alert('⚠️ Face Liveness 3D requer AWS Amplify SDK no frontend.\n\nA integração backend está pronta (API disponível), mas o componente visual precisa ser integrado com @aws-amplify/ui-liveness.\n\nPor enquanto, use "Selfie 2D" para validação facial.')
+  }
+
+  closeLivenessModal(): void {
+    this.showLivenessModal = false
+    this.livenessSession = null
+    this.safeStreamingUrl = null
+    this.livenessResult = null
+  }
+
+  async checkLivenessResult(): Promise<void> {
+    if (!this.livenessSession) return
+
+    this.livenessLoading = true
+    this.livenessError = null
+
+    try {
+      const request: GetLivenessResultRequest = {
+        sessionId: this.livenessSession.sessionId,
+        transactionId: this.livenessSession.transactionId
+      }
+
+      const result = await this.faceService.getLivenessResult(request).toPromise()
+      if (!result) throw new Error('Falha ao obter resultado de liveness')
+
+      this.livenessResult = result
+
+      if (result.livenessDecision === 'LIVE') {
+        alert(`✅ Verificação 3D bem-sucedida!\n${result.message}\nConfiança: ${(result.confidence * 100).toFixed(1)}%`)
+        this.closeLivenessModal()
+      } else {
+        alert(`❌ Verificação 3D falhou.\n${result.message}`)
+      }
+    } catch (err: any) {
+      console.error('Erro ao verificar resultado de liveness:', err)
+      this.livenessError = err.message || 'Erro ao verificar resultado. Tente novamente.'
+      alert(this.livenessError)
+    } finally {
+      this.livenessLoading = false
+    }
+  }
+
+  onLivenessIframeLoad(): void {
+    // Quando o iframe da AWS carrega completamente, pode verificar o resultado após alguns segundos
+    // A AWS geralmente completa a sessão automaticamente após a interação do usuário
+    setTimeout(() => {
+      // Aguarda 3 segundos após o carregamento do iframe antes de verificar
+      // Em produção, você pode usar um WebSocket ou polling mais inteligente
+    }, 3000)
   }
 }

@@ -1,0 +1,178 @@
+<div class="capture-container fade-in-up">
+  <h2 class="gradient-text page-title">Face Liveness 3D - Anti-Spoof</h2>
+
+  <!-- Seção de Informações -->
+  <section class="capture-section">
+    <div class="info-container">
+      <div class="info-content">
+        <div class="info-icon">🔐</div>
+        <h3 class="info-title">Verificação 3D com Detecção de Liveness</h3>
+        <p class="info-description">
+          Tecnologia avançada que previne fraudes com deepfakes e fotos estáticas. 
+          O sistema detecta movimentos reais em tempo real.
+        </p>
+        
+        <div class="features-list">
+          <div class="feature-item">
+            <span class="feature-icon">✅</span>
+            <span class="feature-text">Detecção de movimento real</span>
+          </div>
+          <div class="feature-item">
+            <span class="feature-icon">✅</span>
+            <span class="feature-text">Anti-deepfake</span>
+          </div>
+          <div class="feature-item">
+            <span class="feature-icon">✅</span>
+            <span class="feature-text">Anti-spoofing</span>
+          </div>
+        </div>
+
+        <div class="warning-message" *ngIf="livenessError">
+          <p class="error-text">⚠️ {{ livenessError }}</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Controles -->
+  <div class="controls-section">
+    <button 
+      class="btn btn-primary btn-large" 
+      (click)="openCameraModal()" 
+      [disabled]="livenessLoading">
+      <span class="btn-icon">🔐</span>
+      <span>Iniciar Verificação 3D</span>
+    </button>
+
+    <button 
+      class="btn btn-secondary btn-large" 
+      (click)="stopSession()" 
+      *ngIf="sessionActive">
+      <span class="btn-icon">⏹️</span>
+      Finalizar Verificação
+    </button>
+  </div>
+
+  <!-- Modal da Câmera (Reutilizável) -->
+  <app-camera-modal
+    #cameraModal
+    [isOpen]="showCameraModal"
+    mode="3d"
+    (close)="closeCameraModal()"
+    (livenessStart)="onLivenessStart()"
+    (livenessComplete)="onLivenessComplete($event)"
+  ></app-camera-modal>
+
+  <!-- Resultado do Liveness -->
+  <section class="result-section" *ngIf="livenessResult">
+    <div class="result-card" [class.approved]="livenessResult.livenessDecision === 'LIVE'" [class.rejected]="livenessResult.livenessDecision === 'SPOOF'">
+      <div class="result-header">
+        <div class="result-status">
+          <span class="status-icon-large">
+            {{ livenessResult.livenessDecision === 'LIVE' ? '✅' : '❌' }}
+          </span>
+          <div class="status-info">
+            <h3 class="result-title">Verificação 3D Concluída</h3>
+            <span class="status-badge" [class.approved]="livenessResult.livenessDecision === 'LIVE'" [class.rejected]="livenessResult.livenessDecision === 'SPOOF'">
+              {{ livenessResult.livenessDecision === 'LIVE' ? 'APROVADO' : livenessResult.livenessDecision === 'SPOOF' ? 'SPOOF DETECTADO' : 'INDETERMINADO' }}
+            </span>
+          </div>
+        </div>
+        
+        <div class="result-score">
+          <div class="score-value">{{ (livenessResult.confidence * 100) | number:'1.1-1' }}%</div>
+          <div class="score-label">Confiança</div>
+        </div>
+      </div>
+
+      <div class="result-message" *ngIf="livenessResult.message">
+        <p>{{ livenessResult.message }}</p>
+      </div>
+
+      <!-- Análise Detalhada do Score (quando score baixo) -->
+      <div class="result-analysis" *ngIf="livenessResult.confidence < 0.90 && (livenessResult.lowScoreReasons || livenessResult.recommendations)">
+        <h4 class="analysis-title">📊 Análise Detalhada</h4>
+        
+        <div class="analysis-section" *ngIf="livenessResult.qualityAssessment">
+          <div class="quality-badge" [class.excellent]="livenessResult.qualityAssessment === 'EXCELLENT'"
+               [class.good]="livenessResult.qualityAssessment === 'GOOD'"
+               [class.fair]="livenessResult.qualityAssessment === 'FAIR'"
+               [class.poor]="livenessResult.qualityAssessment === 'POOR'">
+            <span class="quality-label">Qualidade:</span>
+            <span class="quality-value">{{ livenessResult.qualityAssessment }}</span>
+            <span class="quality-score" *ngIf="livenessResult.qualityScore">
+              ({{ livenessResult.qualityScore | number:'1.1-1' }}%)
+            </span>
+          </div>
+        </div>
+
+        <div class="analysis-section" *ngIf="livenessResult.lowScoreReasons && livenessResult.lowScoreReasons.length > 0">
+          <h5 class="section-title">⚠️ Razões para Score Baixo</h5>
+          <ul class="reasons-list">
+            <li *ngFor="let reason of livenessResult.lowScoreReasons">{{ reason }}</li>
+          </ul>
+        </div>
+
+        <div class="analysis-section" *ngIf="livenessResult.recommendations && livenessResult.recommendations.length > 0">
+          <h5 class="section-title">💡 Recomendações</h5>
+          <ul class="recommendations-list">
+            <li *ngFor="let rec of livenessResult.recommendations">{{ rec }}</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Imagem de Referência -->
+      <div class="result-images-section" *ngIf="livenessResult.referenceImageUrl">
+        <h4 class="images-section-title">📸 Imagem de Referência</h4>
+        <div class="reference-image-container">
+          <img [src]="livenessResult.referenceImageUrl" alt="Referência" class="reference-image">
+          <p class="image-caption">Frame capturado para verificação facial downstream</p>
+        </div>
+      </div>
+
+      <!-- Imagens de Auditoria -->
+      <div class="result-images-section" *ngIf="livenessResult.auditImageUrls && livenessResult.auditImageUrls.length > 0">
+        <h4 class="images-section-title">🖼️ Imagens de Auditoria</h4>
+        <p class="images-section-subtitle">Até 4 frames extraídos do vídeo selfie para auditoria do processo</p>
+        <div class="audit-images-grid">
+          <div class="audit-image-item" *ngFor="let imageUrl of livenessResult.auditImageUrls; let i = index">
+            <img [src]="imageUrl" [alt]="'Audit image ' + (i + 1)" class="audit-image">
+            <span class="audit-image-label">Frame {{ i + 1 }}</span>
+          </div>
+        </div>
+      </div>
+
+      <button class="btn btn-secondary btn-retry" (click)="resetResult()">
+        <span class="btn-icon">🔄</span>
+        Nova Verificação
+      </button>
+    </div>
+  </section>
+
+  <!-- Status da API -->
+  <section class="status-section">
+    <div class="status-content">
+      <h3 class="status-title">📊 Status da Implementação</h3>
+      <div class="status-grid">
+        <div class="status-item approved">
+          <div class="status-icon">✅</div>
+          <div class="status-info">
+            <div class="status-label">Backend API</div>
+            <div class="status-value">Pronto (AWS SDK 4.x)</div>
+          </div>
+        </div>
+        <div class="status-item approved">
+          <div class="status-icon">✅</div>
+          <div class="status-info">
+            <div class="status-label">Frontend UI</div>
+            <div class="status-value">WebRTC Implementado</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="hint-info">
+    <p><strong>Nota:</strong> Implementação WebRTC base concluída. Próximo passo: Integrar handshake AWS Rekognition para streaming completo.</p>
+  </div>
+</div>

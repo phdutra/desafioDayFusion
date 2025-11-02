@@ -11,6 +11,14 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/home/home.component').then(m => m.HomeComponent)
   },
   {
+    path: 'capture2d',
+    loadComponent: () => import('./pages/capture2d/capture2d.component').then(m => m.Capture2dComponent)
+  },
+  {
+    path: 'capture3d',
+    loadComponent: () => import('./pages/capture3d/capture3d.component').then(m => m.Capture3dComponent)
+  },
+  {
     path: 'capture',
     loadComponent: () => import('./pages/capture/capture.component').then(m => m.CaptureComponent)
   },

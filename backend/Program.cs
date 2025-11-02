@@ -26,8 +26,15 @@ builder.Host.UseSerilog();
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
+        options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
         options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
     });
+
+// Configurar rotas em lowercase
+builder.Services.Configure<Microsoft.AspNetCore.Routing.RouteOptions>(options =>
+{
+    options.LowercaseUrls = true;
+});
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
@@ -69,23 +76,11 @@ builder.Services.AddCors(options =>
     });
 });
 
-// Configure AWS services (force using local AWS CLI profile if available)
-// Ensure S3 presigned URLs use Signature Version 4
-Amazon.AWSConfigsS3.UseSignatureVersion4 = true;
+// Configure AWS services
 var awsRegionName = builder.Configuration["AWS:Region"] ?? "us-east-1";
-var awsProfileName = builder.Configuration["AWS:Profile"] ?? Environment.GetEnvironmentVariable("AWS_PROFILE") ?? "default";
 
 var awsOptions = builder.Configuration.GetAWSOptions();
 awsOptions.Region = RegionEndpoint.GetBySystemName(awsRegionName);
-try
-{
-    // Use stored profile credentials from ~/.aws/credentials
-    awsOptions.Credentials = new StoredProfileAWSCredentials(awsProfileName);
-}
-catch
-{
-    // Fallback to the SDK default chain if profile not found
-}
 
 builder.Services.AddDefaultAWSOptions(awsOptions);
 builder.Services.AddSingleton<IAmazonS3>(sp =>
@@ -93,25 +88,12 @@ builder.Services.AddSingleton<IAmazonS3>(sp =>
     var opts = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<AWSOptions>>().Value;
     var config = new AmazonS3Config
     {
-        SignatureVersion = "4",
         ForcePathStyle = false,
         RegionEndpoint = opts.Region
     };
-    var creds = opts.Credentials;
-    if (creds == null)
-    {
-        // Fallback explícito para a default chain (env vars, shared credentials, EC2/ECS, etc.)
-        try
-        {
-            creds = Amazon.Runtime.FallbackCredentialsFactory.GetCredentials();
-        }
-        catch { /* ignored */ }
-    }
-    if (creds == null)
-    {
-        // Último recurso: falhar com mensagem clara
-        throw new InvalidOperationException("AWS credentials not found. Configure AWS_PROFILE, environment variables or shared credentials.");
-    }
+    // Note: FallbackCredentialsFactory is deprecated but still functional
+    // In production, use proper AWS credential management
+    var creds = opts.Credentials ?? Amazon.Runtime.FallbackCredentialsFactory.GetCredentials();
     return new AmazonS3Client(creds, config);
 });
 builder.Services.AddAWSService<IAmazonRekognition>();

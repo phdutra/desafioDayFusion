@@ -16,20 +16,88 @@
         </button>
       </div>
       
-      <!-- Botão para abrir modal de captura -->
+      <!-- Botões para captura -->
       <div class="capture-trigger" *ngIf="!selfieDataUrl">
         <div class="trigger-content">
           <div class="trigger-icon">📸</div>
           <h3 class="trigger-title">Capturar Selfie</h3>
-          <p class="trigger-description">Posicione seu rosto dentro do círculo de captura</p>
-          <button class="btn btn-primary btn-large" (click)="openCameraModal()">
-            <span class="btn-icon">📷</span>
-            Iniciar Captura
-          </button>
+          <p class="trigger-description">Escolha o tipo de verificação</p>
+          
+          <div class="capture-options">
+            <button class="btn btn-primary btn-large" (click)="openCameraModal()">
+              <span class="btn-icon">📷</span>
+              Selfie 2D
+            </button>
+            
+            <button class="btn btn-primary btn-large btn-liveness" (click)="startLiveness3D()" [disabled]="livenessLoading">
+              <span class="btn-icon">🔐</span>
+              <span *ngIf="livenessLoading">Carregando...</span>
+              <span *ngIf="!livenessLoading">Verificação 3D (Liveness)</span>
+            </button>
+          </div>
+          
+          <p class="liveness-hint">
+            <strong>Verificação 3D:</strong> Detecta movimento real e previne deepfakes
+          </p>
         </div>
       </div>
     </div>
   </section>
+  
+  <!-- Modal de Liveness 3D -->
+  <div class="liveness-modal" *ngIf="showLivenessModal && livenessSession">
+    <div class="modal-backdrop" (click)="closeLivenessModal()"></div>
+    <div class="modal-content-liveness">
+      <div class="modal-header-liveness">
+        <h3>🔐 Verificação 3D - Liveness Detection</h3>
+        <button class="modal-close" (click)="closeLivenessModal()">✕</button>
+      </div>
+      
+      <div class="liveness-instructions">
+        <p><strong>Instruções:</strong></p>
+        <ul>
+          <li>Posicione seu rosto centralizado na tela</li>
+          <li>Siga as instruções que aparecerem na tela</li>
+          <li>Mova-se conforme solicitado (virar cabeça, piscar, etc.)</li>
+          <li>Após completar, clique em "Verificar Resultado"</li>
+        </ul>
+      </div>
+      
+      <div class="liveness-iframe-container">
+        <iframe 
+          *ngIf="safeStreamingUrl"
+          [src]="safeStreamingUrl" 
+          class="liveness-iframe"
+          frameborder="0"
+          allow="camera; microphone"
+          (load)="onLivenessIframeLoad()">
+        </iframe>
+      </div>
+      
+      <div class="liveness-actions">
+        <button class="btn btn-secondary" (click)="closeLivenessModal()">
+          Cancelar
+        </button>
+        <button class="btn btn-primary" (click)="checkLivenessResult()" [disabled]="livenessLoading">
+          <span *ngIf="livenessLoading">Verificando...</span>
+          <span *ngIf="!livenessLoading">Verificar Resultado</span>
+        </button>
+      </div>
+      
+      <div class="liveness-error" *ngIf="livenessError">
+        <p class="error-message">❌ {{ livenessError }}</p>
+      </div>
+      
+      <div class="liveness-result" *ngIf="livenessResult">
+        <div class="result-info">
+          <p><strong>Status:</strong> {{ livenessResult.status }}</p>
+          <p><strong>Decisão:</strong> {{ livenessResult.livenessDecision }}</p>
+          <p><strong>Confiança:</strong> {{ (livenessResult.confidence * 100).toFixed(1) }}%</p>
+          <p>{{ livenessResult.message }}</p>
+        </div>
+      </div>
+    </div>
+  </div>
   
   <!-- Modal da Câmera -->
   <div class="camera-modal" *ngIf="showCameraModal">

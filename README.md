@@ -59,10 +59,16 @@ ng serve --host 0.0.0.0 --port 4200
 - ✅ Captura de selfie com câmera
 - ✅ Upload de documento
 - ✅ Reconhecimento facial via AWS Rekognition
+- ✅ **Face Liveness 3D Anti-Spoof (Backend Pronto)**
 - ✅ Interface moderna e responsiva
 - ✅ PWA com offline support
 - ✅ Validação em tempo real
 - ✅ Painel de revisão humana
+
+### ⚠️ Face Liveness 3D - Status
+- **Backend**: ✅ API completa com AWS SDK 4.x
+- **Frontend**: ⚠️ Requer AWS Amplify SDK (não instalado)
+- **Endpoints**: `/api/FaceRecognition/liveness/start` e `/api/FaceRecognition/liveness/result`
 
 ## 🔒 Segurança
 
