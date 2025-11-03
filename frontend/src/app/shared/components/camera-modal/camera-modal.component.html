@@ -6,12 +6,14 @@
     </button>
     
     <div class="camera-wrapper-fullscreen">
+      <!-- Vídeo fullscreen (para 2D) -->
       <video 
         #videoElement 
         autoplay 
         playsinline 
         muted 
         class="camera-video-fullscreen"
+        *ngIf="mode === '2d'"
       ></video>
       
       <!-- Máscara de captura (apenas para 2D) -->
@@ -53,33 +55,52 @@
       </div>
 
       <!-- Overlay de câmera (3D com liveness) -->
-      <div class="camera-overlay-fullscreen" *ngIf="cameraReady && mode === '3d'">
-        <!-- Guia de rosto (igual ao 2D) -->
-        <div class="capture-circle-fullscreen" *ngIf="!sessionActive">
-          <div class="alignment-guide-fullscreen vertical-line"></div>
-          <div class="alignment-guide-fullscreen horizontal-line"></div>
-        </div>
-
-        <!-- Status de detecção -->
-        <div class="detection-status" *ngIf="!sessionActive" [class.valid]="faceDetected">
-          <span class="status-icon" [class.valid-icon]="faceDetected">{{ faceDetected ? '✅' : (validatingPosition ? '⏳' : '👤') }}</span>
-          <span class="status-text" [class.valid-text]="faceDetected">{{ validationMessage || 'Aguardando validação...' }}</span>
-        </div>
-
-        <!-- Indicador de fase atual -->
-        <div class="phase-indicator" *ngIf="sessionActive">
-          <div class="phase-content">
-            <span class="phase-icon">
-              <span *ngIf="currentPhase === 'recording'">📹</span>
-              <span *ngIf="currentPhase === 'processing'">⏳</span>
-              <span *ngIf="currentPhase === 'completed'">✅</span>
-            </span>
-            <span class="phase-text">
-              <span *ngIf="currentPhase === 'recording'">Gravação em andamento...</span>
-              <span *ngIf="currentPhase === 'processing'">Processando resultados...</span>
-              <span *ngIf="currentPhase === 'completed'">Verificação concluída</span>
-            </span>
+      <div class="camera-overlay-fullscreen" *ngIf="mode === '3d'">
+        <!-- Efeito de vinheta para escurecer as laterais e focar no rosto -->
+        <div class="vignette-overlay-3d"></div>
+        
+        <!-- Layout estilizado: Círculo branco central com anel de progresso -->
+        <div class="liveness-container-3d">
+          <!-- Anel de progresso circular com segmentos (ao redor do círculo) -->
+          <div class="progress-ring-segments-3d">
+            <svg class="progress-segments-svg" viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg">
+              <line 
+                *ngFor="let seg of getProgressSegments(); trackBy: trackByIndex"
+                [attr.x1]="seg.x1"
+                [attr.y1]="seg.y1"
+                [attr.x2]="seg.x2"
+                [attr.y2]="seg.y2"
+                [attr.stroke]="seg.isActive ? '#22c55e' : 'rgba(255, 255, 255, 0.6)'"
+                [attr.stroke-width]="seg.isActive ? '8' : '6'"
+                stroke-linecap="round"
+                [attr.opacity]="seg.isActive ? '1' : '0.8'"
+                [class.active]="seg.isActive"
+                [style.filter]="(livenessProgress === 100 && seg.isActive) ? 'drop-shadow(0 0 6px rgba(34, 197, 94, 1))' : ''"
+              />
+            </svg>
           </div>
+          
+          <!-- Círculo branco central (máscara) com vídeo dentro -->
+          <div class="face-mask-circle-3d">
+            <!-- Vídeo recortado em círculo (sempre renderizado no modo 3D para ViewChild funcionar) -->
+            <div class="face-video-mask">
+              <video 
+                #videoElement3d 
+                autoplay 
+                playsinline 
+                muted 
+                class="face-video-clipped"
+                [style.opacity]="cameraReady ? '1' : '0'"
+              ></video>
+            </div>
+            
+            <!-- Linhas de guia (cruz no centro) -->
+            <div class="alignment-guide-inner vertical-line"></div>
+            <div class="alignment-guide-inner horizontal-line"></div>
+          </div>
+          
+          <!-- Forçar atualização do SVG quando progresso mudar (trigger de mudança) -->
+          <div style="display: none; width: 0; height: 0; opacity: 0;">{{ livenessProgress }}{{ currentPhase }}{{ currentLivenessStep }}{{ faceDetected }}{{ sessionActive }}</div>
         </div>
 
         <!-- Indicador de etapa do liveness (direita, esquerda, piscar/sorrir) -->
@@ -146,8 +167,67 @@
         </div>
       </div>
 
+      <!-- Tela de processamento de resultados (estilosa) -->
+      <div class="overlay-processing-results" *ngIf="processingResults">
+        <div class="processing-results-content">
+          <div class="processing-animation">
+            <div class="processing-icon-wrapper">
+              <div class="processing-icon">
+                <svg viewBox="0 0 100 100" class="processing-svg">
+                  <circle cx="50" cy="50" r="40" fill="none" stroke="rgba(34, 197, 94, 0.3)" stroke-width="4" />
+                  <circle cx="50" cy="50" r="40" fill="none" stroke="#22c55e" stroke-width="4" 
+                          [attr.stroke-dasharray]="251.2"
+                          [attr.stroke-dashoffset]="251.2 - (251.2 * processingProgress / 100)"
+                          stroke-linecap="round"
+                          transform="rotate(-90 50 50)"
+                          class="processing-circle" />
+                </svg>
+                <div class="processing-checkmark" *ngIf="processingProgress >= 100">✓</div>
+              </div>
+            </div>
+            
+            <h2 class="processing-title">Gerando Resultados</h2>
+            <p class="processing-subtitle">Processando análise facial e verificando liveness...</p>
+            
+            <!-- Barra de progresso animada -->
+            <div class="progress-bar-container">
+              <div class="progress-bar-background">
+                <div class="progress-bar-fill" [style.width.%]="processingProgress">
+                  <div class="progress-bar-shine"></div>
+                </div>
+              </div>
+              <div class="progress-percentage">{{ processingProgress }}%</div>
+            </div>
+            
+            <!-- Mensagens de status -->
+            <div class="processing-status-messages">
+              <div class="status-message" *ngIf="processingProgress < 30">
+                <span class="status-dot"></span>
+                <span>Conectando com AWS Rekognition...</span>
+              </div>
+              <div class="status-message" *ngIf="processingProgress >= 30 && processingProgress < 60">
+                <span class="status-dot"></span>
+                <span>Processando frames de vídeo...</span>
+              </div>
+              <div class="status-message" *ngIf="processingProgress >= 60 && processingProgress < 90">
+                <span class="status-dot"></span>
+                <span>Analisando liveness e gerando imagens...</span>
+              </div>
+              <div class="status-message" *ngIf="processingProgress >= 90 && processingProgress < 100">
+                <span class="status-dot"></span>
+                <span>Finalizando análise...</span>
+              </div>
+              <div class="status-message success" *ngIf="processingProgress >= 100">
+                <span class="status-dot success"></span>
+                <span>Análise concluída!</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Erro overlay -->
-      <div class="overlay-error" *ngIf="error && !cameraInitializing">
+      <div class="overlay-error" *ngIf="error && !cameraInitializing && !processingResults">
         <div class="overlay-content-error">
           <span class="error-icon">⚠️</span>
           <p class="error-message">{{ error }}</p>

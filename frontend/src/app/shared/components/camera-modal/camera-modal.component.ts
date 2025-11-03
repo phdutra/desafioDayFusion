@@ -1,5 +1,6 @@
 import { Component, OnInit, OnDestroy, AfterViewInit, OnChanges, SimpleChanges, ViewChild, ElementRef, Input, Output, EventEmitter, ChangeDetectorRef } from '@angular/core'
 import { CommonModule } from '@angular/common'
+import { DomSanitizer, SafeHtml } from '@angular/platform-browser'
 import { CameraService } from '../../../core/services/camera.service'
 import { FaceRecognitionService } from '../../../core/services/face-recognition.service'
 import { firstValueFrom } from 'rxjs'
@@ -14,10 +15,13 @@ export type CameraMode = '2d' | '3d'
   styleUrls: ['./camera-modal.component.scss']
 })
 export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, OnChanges {
-  @ViewChild('videoElement') videoElement!: ElementRef<HTMLVideoElement>
+  @ViewChild('videoElement', { static: false }) videoElement?: ElementRef<HTMLVideoElement>
+  @ViewChild('videoElement3d', { static: false }) videoElement3d?: ElementRef<HTMLVideoElement>
   
   @Input() mode: CameraMode = '2d'
   @Input() isOpen: boolean = false
+  @Input() processingResults: boolean = false
+  @Input() processingProgress: number = 0 // 0-100
   
   @Output() close = new EventEmitter<void>()
   @Output() capture = new EventEmitter<string>()
@@ -44,6 +48,9 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
   // Instruções de voz e fases automáticas
   currentPhase: 'waiting' | 'positioning' | 'validating' | 'recording' | 'processing' | 'completed' = 'waiting'
   currentLivenessStep: 'center' | 'right' | 'left' | 'blink_smile' | 'completed' = 'center'
+  
+  // Progresso do anel segmentado (0-100)
+  livenessProgress = 0
   phaseInstructions: string[] = []
   private speechSynthesis: SpeechSynthesis | null = null
   private currentSpeechUtterance: SpeechSynthesisUtterance | null = null
@@ -57,7 +64,8 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
   constructor(
     private cameraService: CameraService,
     private faceService: FaceRecognitionService,
-    private cdr: ChangeDetectorRef
+    private cdr: ChangeDetectorRef,
+    private sanitizer: DomSanitizer
   ) {
     // Inicializar síntese de voz se disponível
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
@@ -105,57 +113,89 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
       
       console.log('✅ Stream obtido, configurando vídeo...')
       
-      // Aguardar até o elemento estar disponível
+      // Aguardar até o elemento estar disponível (2D ou 3D)
       let retries = 0
-      while (!this.videoElement?.nativeElement && retries < 10) {
-        await new Promise(resolve => setTimeout(resolve, 100))
+      const maxRetries = 20 // Aumentar para dar mais tempo
+      const targetVideo = this.mode === '2d' ? this.videoElement : this.videoElement3d
+      
+      console.log('🔍 Aguardando elemento de vídeo...', { 
+        mode: this.mode, 
+        videoElement: !!this.videoElement?.nativeElement,
+        videoElement3d: !!this.videoElement3d?.nativeElement 
+      })
+      
+      while (!targetVideo?.nativeElement && retries < maxRetries) {
+        await new Promise(resolve => setTimeout(resolve, 150))
         retries++
         this.cdr.detectChanges()
+        
+        if (retries % 5 === 0) {
+          console.log(`⏳ Tentativa ${retries}/${maxRetries}...`, { 
+            videoElement: !!this.videoElement?.nativeElement,
+            videoElement3d: !!this.videoElement3d?.nativeElement 
+          })
+        }
       }
 
-      if (this.videoElement?.nativeElement) {
-        const video = this.videoElement.nativeElement
-        video.srcObject = this.stream
-        
-        await new Promise<void>((resolve, reject) => {
-          const timeout = setTimeout(() => {
-            reject(new Error('Timeout aguardando vídeo ficar pronto'))
-          }, 5000)
-          
-          const onReady = () => {
-            clearTimeout(timeout)
-            video.removeEventListener('loadedmetadata', onReady)
-            video.removeEventListener('canplay', onReady)
-            resolve()
-          }
-          
-          if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
-            clearTimeout(timeout)
-            resolve()
-          } else {
-            video.addEventListener('loadedmetadata', onReady, { once: true })
-            video.addEventListener('canplay', onReady, { once: true })
-          }
+      const video = targetVideo?.nativeElement
+      if (!video) {
+        console.error('❌ Elemento de vídeo não encontrado no DOM', { 
+          mode: this.mode, 
+          videoElement: !!this.videoElement?.nativeElement,
+          videoElement3d: !!this.videoElement3d?.nativeElement
         })
+        throw new Error('Elemento de vídeo não encontrado no DOM')
+      }
+      
+      video.srcObject = this.stream
+      
+      await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error('Timeout aguardando vídeo ficar pronto'))
+        }, 5000)
         
-        await video.play()
-        this.cameraReady = true
-        this.cameraInitializing = false
+        const onReady = () => {
+          clearTimeout(timeout)
+          video.removeEventListener('loadedmetadata', onReady)
+          video.removeEventListener('canplay', onReady)
+          resolve()
+        }
         
-        if (this.mode === '2d') {
-          this.startFaceDetection()
-        } else if (this.mode === '3d') {
+        if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+          clearTimeout(timeout)
+          resolve()
+        } else {
+          video.addEventListener('loadedmetadata', onReady, { once: true })
+          video.addEventListener('canplay', onReady, { once: true })
+        }
+      })
+      
+      await video.play()
+      this.cameraReady = true
+      this.cameraInitializing = false
+      
+      // Aguardar um pouco para garantir que o DOM está atualizado
+      await new Promise(resolve => setTimeout(resolve, 100))
+      this.cdr.detectChanges()
+      
+      if (this.mode === '2d') {
+        this.startFaceDetection()
+      } else if (this.mode === '3d') {
+        // Verificar novamente se o vídeo 3D está disponível
+        if (this.videoElement3d?.nativeElement) {
           // Iniciar validação de posicionamento para 3D
           this.currentPhase = 'waiting'
           this.speakInstruction('Olá! Vou guiá-lo durante a verificação. Primeiro, posicione seu rosto no centro da tela.')
           this.startPositionValidation()
+        } else {
+          console.error('❌ Vídeo 3D não encontrado após inicialização')
+          this.error = 'Não foi possível inicializar a câmera para verificação 3D'
+          this.cameraInitializing = false
         }
-        
-        this.cdr.detectChanges()
-        console.log('✅ Câmera iniciada com sucesso')
-      } else {
-        throw new Error('Elemento de vídeo não encontrado no DOM')
       }
+      
+      this.cdr.detectChanges()
+      console.log('✅ Câmera iniciada com sucesso')
     } catch (error: any) {
       console.error('❌ Erro ao acessar a câmera:', error)
       this.error = error.message || 'Erro ao acessar a câmera. Verifique as permissões.'
@@ -267,7 +307,7 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
 
   // 3D Position Validation - Contínua
   startPositionValidation(): void {
-    if (this.mode !== '3d' || !this.cameraReady || !this.videoElement) return
+    if (this.mode !== '3d' || !this.cameraReady || !this.videoElement3d) return
     
     this.currentPhase = 'positioning'
     this.faceDetected = false
@@ -290,8 +330,10 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
         this.validationMessage = 'Analisando posição...'
         this.cdr.detectChanges()
         
-        // Capturar frame atual
-        const dataUrl = await this.cameraService.capturePhoto(this.videoElement.nativeElement)
+        // Capturar frame atual (usar vídeo 3D)
+        const video3d = this.videoElement3d?.nativeElement
+        if (!video3d) return
+        const dataUrl = await this.cameraService.capturePhoto(video3d)
         
         // Converter para File
         const file = this.dataUrlToFile(dataUrl, `validation_${Date.now()}.jpg`)
@@ -713,6 +755,119 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
       default:
         return ''
     }
+  }
+
+  // Calcular progresso do liveness
+  getLivenessProgress(): number {
+    if (this.sessionActive) {
+      if (this.currentPhase === 'recording') {
+        // Progresso durante gravação baseado nas etapas
+        if (this.currentLivenessStep === 'center') return 10
+        else if (this.currentLivenessStep === 'right') return 30
+        else if (this.currentLivenessStep === 'left') return 60
+        else if (this.currentLivenessStep === 'blink_smile') return 85
+        else if (this.currentLivenessStep === 'completed') return 95
+      } else if (this.currentPhase === 'processing') {
+        return 98
+      } else if (this.currentPhase === 'completed') {
+        return 100
+      }
+    } else if (this.faceDetected) {
+      // Quando centralização está correta, preencher completamente (100%) - círculo verde pontilhado completo
+      console.log('✅ Face detectada - preenchendo anel verde 100%')
+      return 100
+    }
+    // Sempre mostrar pelo menos os segmentos inativos (cinza) mesmo quando não há progresso
+    return 0
+  }
+
+  // Gerar array de segmentos para renderização
+  getProgressSegments(): Array<{x1: number, y1: number, x2: number, y2: number, isActive: boolean}> {
+    const totalSegments = 60
+    const centerX = 200
+    const centerY = 200
+    const circleRadiusInViewBox = 178.5
+    const innerRadius = circleRadiusInViewBox
+    const outerRadius = circleRadiusInViewBox + 15
+    
+    const progress = this.getLivenessProgress()
+    this.livenessProgress = progress
+    const activeSegments = Math.floor((progress / 100) * totalSegments)
+    
+    // Debug
+    if (progress > 0 || this.mode === '3d') {
+      console.log('🔄 Gerando segmentos do anel:', { 
+        progress, 
+        activeSegments, 
+        totalSegments, 
+        faceDetected: this.faceDetected,
+        sessionActive: this.sessionActive,
+        mode: this.mode
+      })
+    }
+    
+    const segments: Array<{x1: number, y1: number, x2: number, y2: number, isActive: boolean}> = []
+    
+    for (let i = 0; i < totalSegments; i++) {
+      const angle = (i / totalSegments) * 2 * Math.PI - Math.PI / 2
+      const isActive = i < activeSegments
+      
+      const x1 = centerX + innerRadius * Math.cos(angle)
+      const y1 = centerY + innerRadius * Math.sin(angle)
+      const x2 = centerX + outerRadius * Math.cos(angle)
+      const y2 = centerY + outerRadius * Math.sin(angle)
+      
+      segments.push({ x1, y1, x2, y2, isActive })
+    }
+    
+    return segments
+  }
+
+  // Gerar string SVG completo dos segmentos do anel de progresso (método alternativo)
+  getProgressSegmentsSVGString(): string {
+    const segments = this.getProgressSegments()
+    const progress = this.livenessProgress
+    
+    let lines = ''
+    
+    segments.forEach(seg => {
+      const strokeColor = seg.isActive ? '#22c55e' : 'rgba(255, 255, 255, 0.6)'
+      const strokeWidth = seg.isActive ? '8' : '6'
+      const opacity = seg.isActive ? '1' : '0.8'
+      const glowStyle = progress === 100 && seg.isActive 
+        ? 'filter: drop-shadow(0 0 6px rgba(34, 197, 94, 1));' 
+        : ''
+      
+      lines += `<line x1="${seg.x1.toFixed(2)}" y1="${seg.y1.toFixed(2)}" x2="${seg.x2.toFixed(2)}" y2="${seg.y2.toFixed(2)}" stroke="${strokeColor}" stroke-width="${strokeWidth}" stroke-linecap="round" opacity="${opacity}" style="${glowStyle}"/>`
+    })
+    
+    const svg = `<svg class="progress-segments-svg" viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg">${lines}</svg>`
+    
+    if (!svg || svg.length < 100) {
+      console.error('❌ SVG não gerado corretamente!', { svgLength: svg?.length, segmentsCount: segments.length })
+    } else {
+      console.log('✅ SVG gerado:', { svgLength: svg.length, segmentsCount: segments.length, progress })
+    }
+    
+    return svg
+  }
+  
+  // TrackBy para ngFor dos segmentos
+  trackByIndex(index: number): number {
+    return index
+  }
+
+  // Retornar SVG sanitizado para innerHTML (método alternativo - mantido para compatibilidade)
+  getProgressSegmentsSVG(): SafeHtml {
+    const svgString = this.getProgressSegmentsSVGString()
+    const sanitized = this.sanitizer.sanitize(1, svgString) || ''
+    
+    // Debug: verificar se está gerando SVG
+    if (!sanitized && this.livenessProgress > 0) {
+      console.log('⚠️ SVG vazio gerado, progresso:', this.livenessProgress)
+    }
+    
+    return sanitized as SafeHtml
   }
 }
 

@@ -58,10 +58,22 @@
     #cameraModal
     [isOpen]="showCameraModal"
     mode="3d"
+    [processingResults]="processingResults"
+    [processingProgress]="processingProgress"
     (close)="closeCameraModal()"
     (livenessStart)="onLivenessStart()"
     (livenessComplete)="onLivenessComplete($event)"
   ></app-camera-modal>
+
+  <!-- Widget AWS Face Liveness (Web Component) -->
+  <div class="widget-container" *ngIf="showLivenessWidget">
+    <face-liveness-widget
+      [attr.region]="awsRegion"
+      [attr.create-session-url]="livenessSessionUrl"
+      [attr.results-url]="livenessResultsUrl"
+      [attr.identity-pool-id]="identityPoolId">
+    </face-liveness-widget>
+  </div>
 
   <!-- Resultado do Liveness -->
   <section class="result-section" *ngIf="livenessResult">
@@ -104,37 +116,37 @@
       <div class="result-analysis" *ngIf="livenessResult">
         <h4 class="analysis-title">📊 Análise Detalhada</h4>
         
+        <!-- Score Principal (sempre exibir) -->
+        <div class="analysis-section">
+          <div class="score-badge-large" style="text-align: center; margin: 20px auto;">
+            <span class="score-label-large">Score de Confiança</span>
+            <span class="score-value-large">{{ (livenessResult.confidence * 100) | number:'1.1-1' }}%</span>
+          </div>
+        </div>
+        
         <!-- Thumbnails na análise detalhada -->
         <div class="analysis-thumbnails" *ngIf="livenessResult.referenceImageUrl || (livenessResult.auditImageUrls && livenessResult.auditImageUrls.length > 0)">
           <h5 class="section-title">📷 Imagens Capturadas</h5>
-          <div class="thumbnails-with-score">
-            <div class="score-summary" *ngIf="livenessResult.confidence !== undefined">
-              <div class="score-badge-large">
-                <span class="score-label-large">Score de Confiança</span>
-                <span class="score-value-large">{{ (livenessResult.confidence * 100) | number:'1.1-1' }}%</span>
+          <div class="thumbnails-grid">
+            <!-- Imagem de referência -->
+            <div class="thumbnail-item" *ngIf="livenessResult.referenceImageUrl">
+              <div class="thumbnail-image-wrapper">
+                <img [src]="livenessResult.referenceImageUrl" alt="Referência" class="thumbnail-image" (error)="handleImageError($event)">
+                <div class="thumbnail-overlay">
+                  <span class="thumbnail-badge">Referência</span>
+                </div>
               </div>
+              <span class="thumbnail-label">Imagem de Referência</span>
             </div>
-            <div class="thumbnails-grid">
-              <!-- Imagem de referência -->
-              <div class="thumbnail-item" *ngIf="livenessResult.referenceImageUrl">
-                <div class="thumbnail-image-wrapper">
-                  <img [src]="livenessResult.referenceImageUrl" alt="Referência" class="thumbnail-image" (error)="handleImageError($event)">
-                  <div class="thumbnail-overlay">
-                    <span class="thumbnail-badge">Referência</span>
-                  </div>
+            <!-- Imagens de auditoria -->
+            <div class="thumbnail-item" *ngFor="let imageUrl of livenessResult.auditImageUrls; let i = index">
+              <div class="thumbnail-image-wrapper">
+                <img [src]="imageUrl" [alt]="'Auditoria ' + (i + 1)" class="thumbnail-image" (error)="handleImageError($event)">
+                <div class="thumbnail-overlay">
+                  <span class="thumbnail-badge">Frame {{ i + 1 }}</span>
                 </div>
-                <span class="thumbnail-label">Imagem de Referência</span>
               </div>
-              <!-- Imagens de auditoria -->
-              <div class="thumbnail-item" *ngFor="let imageUrl of livenessResult.auditImageUrls; let i = index">
-                <div class="thumbnail-image-wrapper">
-                  <img [src]="imageUrl" [alt]="'Auditoria ' + (i + 1)" class="thumbnail-image" (error)="handleImageError($event)">
-                  <div class="thumbnail-overlay">
-                    <span class="thumbnail-badge">Frame {{ i + 1 }}</span>
-                  </div>
-                </div>
-                <span class="thumbnail-label">Frame {{ i + 1 }} de Auditoria</span>
-              </div>
+              <span class="thumbnail-label">Frame {{ i + 1 }} de Auditoria</span>
             </div>
           </div>
         </div>
@@ -167,21 +179,6 @@
         </div>
       </div>
 
-      <!-- Mensagem quando sessão não foi completada -->
-      <div class="result-warning" *ngIf="livenessResult.status === 'CREATED'">
-        <div class="warning-icon">⚠️</div>
-        <div class="warning-content">
-          <h4 class="warning-title">Sessão Não Completada</h4>
-          <p class="warning-message">
-            A sessão de liveness não foi iniciada corretamente. O vídeo precisa ser transmitido para a AWS Rekognition via WebRTC.
-          </p>
-          <p class="warning-details">
-            <strong>Status:</strong> {{ livenessResult.status }}<br>
-            <strong>Confiança:</strong> {{ (livenessResult.confidence * 100) | number:'1.1-1' }}%<br>
-            <strong>Thumbnails:</strong> Não disponíveis (sessão não processada)
-          </p>
-        </div>
-      </div>
 
       <!-- Imagem de Referência -->
       <div class="result-images-section" *ngIf="livenessResult.referenceImageUrl">
@@ -244,8 +241,4 @@
       </div>
     </div>
   </section>
-
-  <div class="hint-info">
-    <p><strong>Nota:</strong> Implementação WebRTC base concluída. Próximo passo: Integrar handshake AWS Rekognition para streaming completo.</p>
-  </div>
 </div>
