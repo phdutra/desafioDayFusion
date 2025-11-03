@@ -23,11 +23,11 @@
       <div class="transaction-images">
         <div class="image-thumb" *ngIf="thumbs[tx.id]?.selfie">
           <div class="image-label">Selfie</div>
-          <img [src]="thumbs[tx.id]?.selfie" alt="Selfie">
+          <img [src]="thumbs[tx.id]!.selfie!" alt="Selfie">
         </div>
         <div class="image-thumb" *ngIf="thumbs[tx.id]?.doc">
           <div class="image-label">Documento</div>
-          <img [src]="thumbs[tx.id]?.doc" alt="Documento">
+          <img [src]="thumbs[tx.id]!.doc!" alt="Documento">
         </div>
         <div class="no-images" *ngIf="!thumbs[tx.id]?.selfie && !thumbs[tx.id]?.doc">
           <span class="no-images-icon">🖼️</span>

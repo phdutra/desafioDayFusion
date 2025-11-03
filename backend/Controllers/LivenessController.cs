@@ -37,10 +37,10 @@ public class LivenessController : ControllerBase
 
     /// <summary>
     /// Cria uma sessão de Face Liveness 3D
-    /// Conforme documento: POST /api/liveness/session
+    /// Conforme documento: POST /api/liveness/start
     /// </summary>
-    [HttpPost("session")]
-    public async Task<IActionResult> CreateSession()
+    [HttpPost("start")]
+    public async Task<IActionResult> StartSession()
     {
         try
         {
@@ -62,13 +62,30 @@ public class LivenessController : ControllerBase
             
             _logger.LogInformation("Face Liveness session created. SessionId: {SessionId}", response.SessionId);
 
-            return Ok(new { sessionId = response.SessionId });
+            // Retornar formato compatível com LivenessSessionResponse do frontend
+            return Ok(new 
+            { 
+                sessionId = response.SessionId,
+                streamingUrl = string.Empty, // AWS Rekognition não retorna streaming URL diretamente
+                transactionId = Guid.NewGuid().ToString(),
+                expiresAt = DateTime.UtcNow.AddMinutes(15).ToString("O")
+            });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error creating Face Liveness session");
             return StatusCode(500, new { message = "Erro ao criar sessão de liveness", error = ex.Message });
         }
+    }
+
+    /// <summary>
+    /// Cria uma sessão de Face Liveness 3D (alias para compatibilidade)
+    /// POST /api/liveness/session
+    /// </summary>
+    [HttpPost("session")]
+    public async Task<IActionResult> CreateSession()
+    {
+        return await StartSession();
     }
 
     /// <summary>
@@ -85,12 +102,45 @@ public class LivenessController : ControllerBase
 
             _logger.LogInformation("Getting Face Liveness results for session: {SessionId}", sessionId);
 
-            var getResultsRequest = new GetFaceLivenessSessionResultsRequest
+            // Polling para aguardar conclusão da sessão (máximo 30 segundos, intervalos de 2s)
+            var maxAttempts = 15;
+            var attempt = 0;
+            GetFaceLivenessSessionResultsResponse? result = null;
+            
+            while (attempt < maxAttempts)
             {
-                SessionId = sessionId
-            };
+                var getResultsRequest = new GetFaceLivenessSessionResultsRequest
+                {
+                    SessionId = sessionId
+                };
 
-            var result = await _rekognitionClient.GetFaceLivenessSessionResultsAsync(getResultsRequest);
+                result = await _rekognitionClient.GetFaceLivenessSessionResultsAsync(getResultsRequest);
+                var currentStatus = result.Status ?? "UNKNOWN";
+                
+                _logger.LogInformation("Session {SessionId} status check #{Attempt}: Status={Status}, Confidence={Confidence}", 
+                    sessionId, attempt + 1, currentStatus, result.Confidence ?? 0f);
+                
+                // Se sessão foi concluída (SUCCEEDED, FAILED, EXPIRED) ou ainda não iniciou (CREATED), processar
+                if (currentStatus != "IN_PROGRESS")
+                {
+                    _logger.LogInformation("Session {SessionId} completed with status: {Status}", sessionId, currentStatus);
+                    break;
+                }
+                
+                // Aguardar 2 segundos antes da próxima tentativa
+                await Task.Delay(2000);
+                attempt++;
+            }
+
+            if (result == null)
+            {
+                return StatusCode(500, new { message = $"Não foi possível obter resultados da sessão {sessionId} após {maxAttempts} tentativas" });
+            }
+            
+            _logger.LogInformation("Final session status: {Status}, Confidence: {Confidence}, ReferenceImage present: {HasRef}, AuditImages count: {AuditCount}",
+                result.Status ?? "UNKNOWN", result.Confidence ?? 0f, 
+                result.ReferenceImage != null && result.ReferenceImage.Bytes != null && result.ReferenceImage.Bytes.Length > 0,
+                result.AuditImages?.Count ?? 0);
 
             // Salva imagens no S3 (Reference + Audit) conforme documento
             var prefix = $"liveness/{sessionId}";
@@ -99,49 +149,123 @@ public class LivenessController : ControllerBase
             string? referenceKey = null;
             if (result.ReferenceImage != null && result.ReferenceImage.Bytes != null)
             {
-                referenceKey = $"{prefix}/reference.jpg";
+                var streamLength = result.ReferenceImage.Bytes.Length;
+                _logger.LogInformation("ReferenceImage stream length: {Length} bytes for session: {SessionId}", 
+                    streamLength, sessionId);
                 
-                // Converter MemoryStream para byte array
-                var bytes = new byte[result.ReferenceImage.Bytes.Length];
-                result.ReferenceImage.Bytes.Position = 0;
-                result.ReferenceImage.Bytes.Read(bytes, 0, (int)result.ReferenceImage.Bytes.Length);
-                
-                await _s3Client.PutObjectAsync(new PutObjectRequest
+                if (streamLength > 0)
                 {
-                    BucketName = _bucketName,
-                    Key = referenceKey,
-                    InputStream = new MemoryStream(bytes),
-                    ContentType = "image/jpeg"
-                });
-                _logger.LogInformation("Reference image saved to S3: {Key}", referenceKey);
+                    referenceKey = $"{prefix}/reference.jpg";
+                    
+                    // Converter MemoryStream para byte array usando CopyTo para garantir integridade
+                    result.ReferenceImage.Bytes.Position = 0;
+                    using var memoryStream = new MemoryStream();
+                    await result.ReferenceImage.Bytes.CopyToAsync(memoryStream);
+                    var bytes = memoryStream.ToArray();
+                    
+                    _logger.LogInformation("ReferenceImage converted to byte array: {ByteLength} bytes for session: {SessionId}", 
+                        bytes.Length, sessionId);
+                    
+                    if (bytes.Length > 0)
+                    {
+                        await _s3Client.PutObjectAsync(new PutObjectRequest
+                        {
+                            BucketName = _bucketName,
+                            Key = referenceKey,
+                            InputStream = new MemoryStream(bytes),
+                            ContentType = "image/jpeg"
+                        });
+                        _logger.LogInformation("Reference image saved successfully ({Size} bytes) to S3: {Key}", bytes.Length, referenceKey);
+                    }
+                    else
+                    {
+                        _logger.LogWarning("ReferenceImage bytes array is empty for session: {SessionId}", sessionId);
+                    }
+                }
+                else
+                {
+                    _logger.LogWarning("ReferenceImage stream is empty (length=0) for session: {SessionId}. Status: {Status}", 
+                        sessionId, result.Status ?? "UNKNOWN");
+                }
+            }
+            else
+            {
+                _logger.LogWarning("ReferenceImage is null or Bytes is null for session: {SessionId}. Status: {Status}", 
+                    sessionId, result.Status ?? "UNKNOWN");
             }
 
             // Audit images - conforme documento usa audit_{i}.jpg
             var auditKeys = new List<string>();
-            if (result.AuditImages != null)
+            if (result.AuditImages != null && result.AuditImages.Count > 0)
             {
+                _logger.LogInformation("Processing {Count} audit images for session: {SessionId}", 
+                    result.AuditImages.Count, sessionId);
+                
                 int i = 0;
                 foreach (var img in result.AuditImages)
                 {
-                    if (img.Bytes != null && img.Bytes.Length > 0)
+                    if (img.Bytes != null)
                     {
-                        var key = $"{prefix}/audit_{i++}.jpg";
+                        var streamLength = img.Bytes.Length;
+                        _logger.LogInformation("AuditImage[{Index}] stream length: {Length} bytes for session: {SessionId}", 
+                            i, streamLength, sessionId);
                         
-                        // Converter MemoryStream para byte array
-                        var bytes = new byte[img.Bytes.Length];
-                        img.Bytes.Position = 0;
-                        img.Bytes.Read(bytes, 0, (int)img.Bytes.Length);
-                        
-                        await _s3Client.PutObjectAsync(new PutObjectRequest
+                        if (streamLength > 0)
                         {
-                            BucketName = _bucketName,
-                            Key = key,
-                            InputStream = new MemoryStream(bytes),
-                            ContentType = "image/jpeg"
-                        });
-                        auditKeys.Add(key);
-                        _logger.LogInformation("Audit image {Index} saved to S3: {Key}", i - 1, key);
+                            var key = $"{prefix}/audit_{i++}.jpg";
+                            
+                            // Converter MemoryStream para byte array usando CopyTo para garantir integridade
+                            img.Bytes.Position = 0;
+                            using var memoryStream = new MemoryStream();
+                            await img.Bytes.CopyToAsync(memoryStream);
+                            var bytes = memoryStream.ToArray();
+                            
+                            _logger.LogInformation("AuditImage[{Index}] converted to byte array: {ByteLength} bytes for session: {SessionId}", 
+                                i - 1, bytes.Length, sessionId);
+                            
+                            if (bytes.Length > 0)
+                            {
+                                await _s3Client.PutObjectAsync(new PutObjectRequest
+                                {
+                                    BucketName = _bucketName,
+                                    Key = key,
+                                    InputStream = new MemoryStream(bytes),
+                                    ContentType = "image/jpeg"
+                                });
+                                auditKeys.Add(key);
+                                _logger.LogInformation("Audit image {Index} saved successfully ({Size} bytes) to S3: {Key}", 
+                                    i - 1, bytes.Length, key);
+                            }
+                            else
+                            {
+                                _logger.LogWarning("AuditImage[{Index}] bytes array is empty for session: {SessionId}", i - 1, sessionId);
+                            }
+                        }
+                        else
+                        {
+                            _logger.LogWarning("AuditImage[{Index}] stream is empty (length=0) for session: {SessionId}. Status: {Status}", 
+                                i, sessionId, result.Status ?? "UNKNOWN");
+                            i++; // Incrementar índice mesmo se vazio
+                        }
                     }
+                    else
+                    {
+                        _logger.LogWarning("AuditImage[{Index}] Bytes is null for session: {SessionId}", i, sessionId);
+                        i++; // Incrementar índice mesmo se null
+                    }
+                }
+            }
+            else
+            {
+                _logger.LogWarning("No audit images available for session: {SessionId}. Status: {Status}, ReferenceImage present: {HasRef}", 
+                    sessionId, result.Status ?? "UNKNOWN", 
+                    result.ReferenceImage != null && result.ReferenceImage.Bytes != null && result.ReferenceImage.Bytes.Length > 0);
+                
+                // Se status não for SUCCEEDED, explicar por que não há thumbnails
+                if (result.Status != "SUCCEEDED")
+                {
+                    _logger.LogWarning("Audit images are only generated when session status is SUCCEEDED. Current status: {Status} for session: {SessionId}", 
+                        result.Status ?? "UNKNOWN", sessionId);
                 }
             }
 

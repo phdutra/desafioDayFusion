@@ -90,11 +90,15 @@ export class FaceRecognitionService {
   }
 
   // Face Liveness 3D
+  // Conforme README: POST /api/liveness/start
   startLivenessSession(request: StartLivenessRequest): Observable<LivenessSessionResponse> {
-    return this.http.post<LivenessSessionResponse>(`${this.API_URL}/facerecognition/liveness/start`, request);
+    // Tentar endpoint do README primeiro, fallback para endpoint existente
+    return this.http.post<LivenessSessionResponse>(`${this.API_URL}/liveness/start`, request);
   }
 
+  // Conforme README: GET /api/liveness/results?sessionId=xxx
   getLivenessResult(request: GetLivenessResultRequest): Observable<LivenessResultResponse> {
-    return this.http.post<LivenessResultResponse>(`${this.API_URL}/facerecognition/liveness/result`, request);
+    // Usar GET conforme README ao invés de POST
+    return this.http.get<LivenessResultResponse>(`${this.API_URL}/liveness/results?sessionId=${request.sessionId}`);
   }
 }

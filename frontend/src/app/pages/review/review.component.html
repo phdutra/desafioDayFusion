@@ -9,8 +9,8 @@
         <div><strong>Status:</strong> {{ tx.status }}</div>
         <div><strong>Score:</strong> {{ tx.similarityScore || 0 | number:'1.0-1' }}%</div>
         <div class="thumbs" style="display:flex; gap:.5rem; margin-top:.25rem;">
-          <img *ngIf="thumbs[tx.id]?.selfie" [src]="thumbs[tx.id]?.selfie" alt="Selfie" style="width:90px;height:90px;object-fit:cover;border-radius:6px;background:#1e293b;" (error)="handleImageError($event)">
-          <img *ngIf="thumbs[tx.id]?.doc" [src]="thumbs[tx.id]?.doc" alt="Doc" style="width:90px;height:90px;object-fit:cover;border-radius:6px;background:#1e293b;" (error)="handleImageError($event)">
+          <img *ngIf="thumbs[tx.id]?.selfie" [src]="thumbs[tx.id]!.selfie!" alt="Selfie" style="width:90px;height:90px;object-fit:cover;border-radius:6px;background:#1e293b;" (error)="handleImageError($event)">
+          <img *ngIf="thumbs[tx.id]?.doc" [src]="thumbs[tx.id]!.doc!" alt="Doc" style="width:90px;height:90px;object-fit:cover;border-radius:6px;background:#1e293b;" (error)="handleImageError($event)">
           <div *ngIf="!thumbs[tx.id]?.selfie && !thumbs[tx.id]?.doc" style="width:90px;height:90px;background:#1e293b;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#64748b;font-size:10px;text-align:center;padding:8px;">
             Sem imagem disponível
           </div>

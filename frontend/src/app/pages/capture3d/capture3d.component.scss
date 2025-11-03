@@ -393,6 +393,7 @@ section {
   border-radius: var(--radius-lg);
   font-weight: 700;
   font-size: 0.875rem;
+  margin-top: 0.5rem;
   
   &.approved {
     background: rgba(16, 185, 129, 0.2);
@@ -405,6 +406,45 @@ section {
     color: var(--error-color);
     border: 1px solid var(--error-color);
   }
+}
+
+.status-session-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  padding: 0.75rem;
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-lg);
+  font-size: 0.875rem;
+}
+
+.status-session-label {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.status-session-value {
+  font-weight: 700;
+  font-size: 0.95rem;
+  
+  &.created {
+    color: #f59e0b;
+  }
+  
+  &.succeeded {
+    color: var(--success-color);
+  }
+  
+  &.failed {
+    color: var(--error-color);
+  }
+}
+
+.status-session-confidence {
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  margin-top: 0.25rem;
 }
 
 .result-score {
@@ -462,6 +502,143 @@ section {
   font-weight: 700;
   color: var(--text-primary);
   margin: 0 0 1.5rem 0;
+}
+
+// Thumbnails na análise detalhada
+.analysis-thumbnails {
+  margin-bottom: 2rem;
+  padding-bottom: 2rem;
+  border-bottom: 2px solid var(--border-color);
+  
+  .section-title {
+    margin-bottom: 1.5rem;
+  }
+}
+
+.thumbnails-with-score {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.score-summary {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 0.5rem;
+}
+
+.score-badge-large {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1.5rem 2.5rem;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(5, 150, 105, 0.15) 100%);
+  border: 3px solid var(--primary-color);
+  border-radius: var(--radius-xl);
+  box-shadow: 0 4px 20px rgba(16, 185, 129, 0.3);
+  min-width: 250px;
+  
+  .score-label-large {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  
+  .score-value-large {
+    font-size: 2.5rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--primary-color), #059669);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    line-height: 1;
+  }
+}
+
+.thumbnails-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 1.25rem;
+  margin-top: 0.5rem;
+}
+
+.thumbnail-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0;
+  background: transparent;
+  border-radius: var(--radius-lg);
+  transition: all 0.3s ease;
+  
+  &:hover {
+    transform: translateY(-4px);
+    
+    .thumbnail-image-wrapper {
+      box-shadow: 0 8px 24px rgba(16, 185, 129, 0.4);
+      border-color: var(--primary-color);
+    }
+  }
+}
+
+.thumbnail-image-wrapper {
+  position: relative;
+  width: 100%;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  border: 3px solid var(--border-color);
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.thumbnail-image {
+  width: 100%;
+  height: 140px;
+  object-fit: cover;
+  display: block;
+  background: var(--bg-tertiary);
+}
+
+.thumbnail-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.7) 0%, transparent 50%);
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  padding: 0.5rem;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  
+  .thumbnail-item:hover & {
+    opacity: 1;
+  }
+}
+
+.thumbnail-badge {
+  background: rgba(16, 185, 129, 0.9);
+  color: white;
+  padding: 0.35rem 0.75rem;
+  border-radius: var(--radius-md);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.thumbnail-label {
+  font-size: 0.875rem;
+  color: var(--text-primary);
+  font-weight: 600;
+  text-align: center;
 }
 
 .analysis-section {

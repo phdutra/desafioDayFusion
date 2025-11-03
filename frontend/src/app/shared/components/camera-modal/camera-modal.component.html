@@ -62,19 +62,51 @@
 
         <!-- Status de detecção -->
         <div class="detection-status" *ngIf="!sessionActive" [class.valid]="faceDetected">
-          <span class="status-icon">{{ faceDetected ? '✅' : (validatingPosition ? '⏳' : '👤') }}</span>
-          <span class="status-text">{{ validationMessage || 'Aguardando validação...' }}</span>
+          <span class="status-icon" [class.valid-icon]="faceDetected">{{ faceDetected ? '✅' : (validatingPosition ? '⏳' : '👤') }}</span>
+          <span class="status-text" [class.valid-text]="faceDetected">{{ validationMessage || 'Aguardando validação...' }}</span>
+        </div>
+
+        <!-- Indicador de fase atual -->
+        <div class="phase-indicator" *ngIf="sessionActive">
+          <div class="phase-content">
+            <span class="phase-icon">
+              <span *ngIf="currentPhase === 'recording'">📹</span>
+              <span *ngIf="currentPhase === 'processing'">⏳</span>
+              <span *ngIf="currentPhase === 'completed'">✅</span>
+            </span>
+            <span class="phase-text">
+              <span *ngIf="currentPhase === 'recording'">Gravação em andamento...</span>
+              <span *ngIf="currentPhase === 'processing'">Processando resultados...</span>
+              <span *ngIf="currentPhase === 'completed'">Verificação concluída</span>
+            </span>
+          </div>
+        </div>
+
+        <!-- Indicador de etapa do liveness (direita, esquerda, piscar/sorrir) -->
+        <div class="liveness-step-indicator" *ngIf="sessionActive && currentPhase === 'recording' && currentLivenessStep !== 'center'">
+          <div class="step-content" [class.step-right]="currentLivenessStep === 'right'" 
+               [class.step-left]="currentLivenessStep === 'left'"
+               [class.step-blink-smile]="currentLivenessStep === 'blink_smile'"
+               [class.step-completed]="currentLivenessStep === 'completed'">
+            <div class="step-icon-large">
+              <span *ngIf="currentLivenessStep === 'right'">➡️</span>
+              <span *ngIf="currentLivenessStep === 'left'">⬅️</span>
+              <span *ngIf="currentLivenessStep === 'blink_smile'">👁️😊</span>
+              <span *ngIf="currentLivenessStep === 'completed'">✓</span>
+            </div>
+            <div class="step-text-large">{{ getLivenessStepText() }}</div>
+          </div>
         </div>
 
         <!-- Controles na parte inferior -->
         <div class="liveness-controls-bottom">
           <div class="liveness-info" *ngIf="!sessionActive && !faceDetected">
             <p class="liveness-info-text">📸 Validação em tempo real</p>
-            <p class="liveness-info-hint">Siga as instruções acima para posicionar corretamente</p>
+            <p class="liveness-info-hint">Siga as instruções de voz para posicionar corretamente</p>
           </div>
           
           <div class="liveness-info-ready" *ngIf="!sessionActive && faceDetected">
-            <p class="liveness-info-text">✓ Tudo certo! Você pode iniciar a verificação</p>
+            <p class="liveness-info-text">✓ Tudo certo! Iniciando automaticamente...</p>
           </div>
 
           <!-- Botão redesenhado -->
@@ -93,12 +125,14 @@
           <div class="liveness-active-status" *ngIf="sessionActive">
             <div class="active-status-badge">
               <div class="status-pulse-active"></div>
-              <span>Verificação em andamento...</span>
+              <span *ngIf="currentPhase === 'recording'">Gravação em andamento... Finalização automática</span>
+              <span *ngIf="currentPhase === 'processing'">Processando resultados...</span>
+              <span *ngIf="currentPhase === 'completed'">Concluído</span>
             </div>
             
-            <button class="btn-liveness-stop" (click)="stopLiveness()">
+            <button class="btn-liveness-stop" (click)="stopLiveness()" *ngIf="currentPhase !== 'completed'">
               <span class="btn-liveness-icon">⏹</span>
-              <span>Finalizar</span>
+              <span>Finalizar Manualmente</span>
             </button>
           </div>
         </div>

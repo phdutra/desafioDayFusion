@@ -73,6 +73,17 @@
           </span>
           <div class="status-info">
             <h3 class="result-title">Verificação 3D Concluída</h3>
+            <div class="status-session-info" *ngIf="livenessResult.status">
+              <span class="status-session-label">Status da sessão:</span>
+              <span class="status-session-value" [class.created]="getStatusString() === 'CREATED'" 
+                    [class.succeeded]="getStatusString() === 'SUCCEEDED'" 
+                    [class.failed]="getStatusString() === 'FAILED' || getStatusString() === 'EXPIRED'">
+                {{ getStatusString() }}
+              </span>
+              <span class="status-session-confidence" *ngIf="livenessResult.confidence">
+                Confiança: {{ (livenessResult.confidence * 100) | number:'1.1-1' }}%
+              </span>
+            </div>
             <span class="status-badge" [class.approved]="livenessResult.livenessDecision === 'LIVE'" [class.rejected]="livenessResult.livenessDecision === 'SPOOF'">
               {{ livenessResult.livenessDecision === 'LIVE' ? 'APROVADO' : livenessResult.livenessDecision === 'SPOOF' ? 'SPOOF DETECTADO' : 'INDETERMINADO' }}
             </span>
@@ -89,9 +100,44 @@
         <p>{{ livenessResult.message }}</p>
       </div>
 
-      <!-- Análise Detalhada do Score (quando score baixo) -->
-      <div class="result-analysis" *ngIf="livenessResult.confidence < 0.90 && (livenessResult.lowScoreReasons || livenessResult.recommendations)">
+      <!-- Análise Detalhada do Score (sempre exibir conforme README) -->
+      <div class="result-analysis" *ngIf="livenessResult">
         <h4 class="analysis-title">📊 Análise Detalhada</h4>
+        
+        <!-- Thumbnails na análise detalhada -->
+        <div class="analysis-thumbnails" *ngIf="livenessResult.referenceImageUrl || (livenessResult.auditImageUrls && livenessResult.auditImageUrls.length > 0)">
+          <h5 class="section-title">📷 Imagens Capturadas</h5>
+          <div class="thumbnails-with-score">
+            <div class="score-summary" *ngIf="livenessResult.confidence !== undefined">
+              <div class="score-badge-large">
+                <span class="score-label-large">Score de Confiança</span>
+                <span class="score-value-large">{{ (livenessResult.confidence * 100) | number:'1.1-1' }}%</span>
+              </div>
+            </div>
+            <div class="thumbnails-grid">
+              <!-- Imagem de referência -->
+              <div class="thumbnail-item" *ngIf="livenessResult.referenceImageUrl">
+                <div class="thumbnail-image-wrapper">
+                  <img [src]="livenessResult.referenceImageUrl" alt="Referência" class="thumbnail-image" (error)="handleImageError($event)">
+                  <div class="thumbnail-overlay">
+                    <span class="thumbnail-badge">Referência</span>
+                  </div>
+                </div>
+                <span class="thumbnail-label">Imagem de Referência</span>
+              </div>
+              <!-- Imagens de auditoria -->
+              <div class="thumbnail-item" *ngFor="let imageUrl of livenessResult.auditImageUrls; let i = index">
+                <div class="thumbnail-image-wrapper">
+                  <img [src]="imageUrl" [alt]="'Auditoria ' + (i + 1)" class="thumbnail-image" (error)="handleImageError($event)">
+                  <div class="thumbnail-overlay">
+                    <span class="thumbnail-badge">Frame {{ i + 1 }}</span>
+                  </div>
+                </div>
+                <span class="thumbnail-label">Frame {{ i + 1 }} de Auditoria</span>
+              </div>
+            </div>
+          </div>
+        </div>
         
         <div class="analysis-section" *ngIf="livenessResult.qualityAssessment">
           <div class="quality-badge" [class.excellent]="livenessResult.qualityAssessment === 'EXCELLENT'"
@@ -121,6 +167,22 @@
         </div>
       </div>
 
+      <!-- Mensagem quando sessão não foi completada -->
+      <div class="result-warning" *ngIf="livenessResult.status === 'CREATED'">
+        <div class="warning-icon">⚠️</div>
+        <div class="warning-content">
+          <h4 class="warning-title">Sessão Não Completada</h4>
+          <p class="warning-message">
+            A sessão de liveness não foi iniciada corretamente. O vídeo precisa ser transmitido para a AWS Rekognition via WebRTC.
+          </p>
+          <p class="warning-details">
+            <strong>Status:</strong> {{ livenessResult.status }}<br>
+            <strong>Confiança:</strong> {{ (livenessResult.confidence * 100) | number:'1.1-1' }}%<br>
+            <strong>Thumbnails:</strong> Não disponíveis (sessão não processada)
+          </p>
+        </div>
+      </div>
+
       <!-- Imagem de Referência -->
       <div class="result-images-section" *ngIf="livenessResult.referenceImageUrl">
         <h4 class="images-section-title">📸 Imagem de Referência</h4>
@@ -139,6 +201,17 @@
             <img [src]="imageUrl" [alt]="'Audit image ' + (i + 1)" class="audit-image">
             <span class="audit-image-label">Frame {{ i + 1 }}</span>
           </div>
+        </div>
+      </div>
+
+      <!-- Mensagem quando não há thumbnails -->
+      <div class="result-info" *ngIf="livenessResult.status !== 'CREATED' && (!livenessResult.auditImageUrls || livenessResult.auditImageUrls.length === 0) && !livenessResult.referenceImageUrl">
+        <div class="info-icon">ℹ️</div>
+        <div class="info-content">
+          <p>Nenhuma imagem de referência ou auditoria disponível.</p>
+          <p *ngIf="livenessResult.status === 'FAILED' || livenessResult.status === 'EXPIRED'">
+            Status da sessão: {{ livenessResult.status }}
+          </p>
         </div>
       </div>
 
