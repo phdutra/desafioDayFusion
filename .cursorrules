@@ -1,22 +1,47 @@
-Sempre responda em português do Brasil (pt-BR).
+# DayFusion - Regras do Cursor
 
-Contexto do projeto
+## Idioma
+- Sempre responder em português do Brasil (pt-BR)
+
+## Contexto do Projeto
 - Nome: DayFusion (POC de validação facial e documental)
 - Stacks: Backend .NET (C#) e Frontend Angular 19 (TypeScript)
 - AWS: S3 (uploads/downloads), Rekognition (compare/detect), DynamoDB (logs)
 
-Diretrizes gerais
-- Seja objetivo e técnico; use bullet points quando possível.
-- Proponha e aplique mudanças focadas (não reescrever código não relacionado).
-- Preserve o estilo existente de código (indentação, formato, imports).
-- Explique decisões não óbvias com comentários curtos apenas quando necessário.
-- Evite try/catch desnecessários e trate erros de forma significativa.
+## Diretrizes Gerais
+- Seja objetivo e técnico; use bullet points quando possível
+- Proponha e aplique mudanças focadas (não reescrever código não relacionado)
+- Preserve o estilo existente de código (indentação, formato, imports)
+- Explique decisões não óbvias com comentários curtos apenas quando necessário
+- Evite try/catch desnecessários e trate erros de forma significativa
 
-Fluxos principais (referência)
+## Fluxos Principais (Referência)
 - Upload: POST /api/Storage/presigned-url → PUT S3 OU POST /api/Storage/upload
 - Comparação: POST /api/FaceRecognition/compare → retorna similarityScore (0–100) e status
 - Visualização: GET /api/Storage/presigned-url/{key} (download/view temporário)
 - Histórico/Review: /api/Transactions, /api/Transactions/review
+- Liveness 3D: POST /api/Liveness/session → Widget AWS → POST /api/Liveness/results
 
-Padrão de resposta
-- Sempre em pt-BR, resumindo ao final impactos e próximos passos sugeridos.
+## Padrão de Resposta
+- Sempre em pt-BR, resumindo ao final impactos e próximos passos sugeridos
+
+## Arquitetura
+- Backend: .NET 8, controllers RESTful, serviços com injeção de dependência
+- Frontend: Angular 19 standalone components, services com RxJS
+- AWS: SDK v4, configuração via environment variables
+
+## Convenções
+- Nomes de arquivos: kebab-case (ex: camera-modal.component.ts)
+- Nomes de classes: PascalCase (ex: CameraModalComponent)
+- Nomes de variáveis/métodos: camelCase (ex: getProgressSegments)
+- Componentes: sempre standalone, imports explícitos
+
+## Tratamento de Erros
+- Logar erros com contexto (console.error com detalhes)
+- Retornar mensagens de erro claras ao usuário
+- Não expor detalhes técnicos internos nas respostas da API
+
+## Testes e Validação
+- Validar inputs antes de processar
+- Verificar permissões e estados antes de operações
+- Usar async/await para operações assíncronas
