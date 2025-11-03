@@ -165,3 +165,12 @@ public class LivenessResultResponse
     public float? QualityScore { get; set; } // Score de qualidade da imagem (0-100)
     public string? QualityAssessment { get; set; } // Avaliação da qualidade (EXCELLENT, GOOD, FAIR, POOR)
 }
+
+public class LivenessCompareRequest
+{
+    [Required]
+    public string SessionId { get; set; } = string.Empty;
+    
+    [Required]
+    public string DocumentKey { get; set; } = string.Empty;
+}

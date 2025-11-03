@@ -1,0 +1,4 @@
+# Este diretório contém o widget React buildado
+# Execute: cd ../liveness-widget && npm install && npm run build
+# Depois copie dist/widget.js para este diretório
+

@@ -4,9 +4,12 @@
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
+    "start:https": "ng serve --ssl",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
-    "test": "ng test"
+    "test": "ng test",
+    "clean": "rm -rf dist .angular && npm cache clean --force",
+    "fresh-start": "npm run clean && npm install && npm start"
   },
   "private": true,
   "dependencies": {
@@ -23,6 +26,8 @@
     "@angular/pwa": "^19.2.18",
     "@angular/router": "^19.2.0",
     "@angular/service-worker": "^19.2.15",
+    "@aws-amplify/ui-angular": "^5.1.6",
+    "aws-amplify": "^6.15.7",
     "chart.js": "^4.5.1",
     "ng2-charts": "^5.0.4",
     "rxjs": "^7.8.1",

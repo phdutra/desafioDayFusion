@@ -2,6 +2,7 @@ using Amazon.Rekognition;
 using Amazon.Rekognition.Model;
 using Amazon.S3;
 using Amazon.S3.Model;
+using DayFusion.API.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 
@@ -117,8 +118,17 @@ public class LivenessController : ControllerBase
                 result = await _rekognitionClient.GetFaceLivenessSessionResultsAsync(getResultsRequest);
                 var currentStatus = result.Status ?? "UNKNOWN";
                 
-                _logger.LogInformation("Session {SessionId} status check #{Attempt}: Status={Status}, Confidence={Confidence}", 
-                    sessionId, attempt + 1, currentStatus, result.Confidence ?? 0f);
+                _logger.LogInformation("Session {SessionId} status check #{Attempt}: Status={Status}, Confidence={Confidence}, ReferenceImage={HasRef}, AuditCount={AuditCount}", 
+                    sessionId, attempt + 1, currentStatus, result.Confidence ?? 0f,
+                    result.ReferenceImage != null && result.ReferenceImage.Bytes != null && result.ReferenceImage.Bytes.Length > 0,
+                    result.AuditImages?.Count ?? 0);
+                
+                // Log adicional quando status é CREATED (sessão criada mas sem vídeo ainda)
+                if (currentStatus == "CREATED")
+                {
+                    _logger.LogWarning("Session {SessionId} ainda em CREATED após {Attempt} tentativas. Possíveis causas: widget não enviou vídeo, WebRTC não conectou, ou sessão expirou.", 
+                        sessionId, attempt + 1);
+                }
                 
                 // Se sessão foi concluída (SUCCEEDED, FAILED, EXPIRED) ou ainda não iniciou (CREATED), processar
                 if (currentStatus != "IN_PROGRESS")
@@ -364,6 +374,138 @@ public class LivenessController : ControllerBase
         {
             _logger.LogError(ex, "Error getting Face Liveness results for session: {SessionId}", sessionId);
             return StatusCode(500, new { message = "Erro ao obter resultados de liveness", error = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Compara a imagem de referência do Liveness com a foto do documento
+    /// Conforme documento: POST /api/liveness/compare
+    /// </summary>
+    [HttpPost("compare")]
+    public async Task<IActionResult> Compare([FromBody] LivenessCompareRequest req)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(req.SessionId))
+                return BadRequest(new { message = "SessionId é obrigatório." });
+            
+            if (string.IsNullOrWhiteSpace(req.DocumentKey))
+                return BadRequest(new { message = "DocumentKey é obrigatório." });
+
+            _logger.LogInformation("Starting liveness comparison. SessionId: {SessionId}, DocumentKey: {DocumentKey}", 
+                req.SessionId, req.DocumentKey);
+
+            // 1) Obter resultados do Liveness (pega a ReferenceImage "viva")
+            var result = await _rekognitionClient.GetFaceLivenessSessionResultsAsync(
+                new GetFaceLivenessSessionResultsRequest { SessionId = req.SessionId });
+
+            if (result.Confidence < 0.70f)
+            {
+                _logger.LogWarning("Liveness confidence too low: {Confidence} for session: {SessionId}", 
+                    result.Confidence, req.SessionId);
+                return Ok(new 
+                { 
+                    status = "reprovado", 
+                    reason = "Liveness baixo", 
+                    liveness = result.Confidence 
+                });
+            }
+
+            // 2) Garantir que ReferenceImage está salva no S3
+            var prefix = $"liveness/{req.SessionId}";
+            var refKey = $"{prefix}/reference.jpg";
+            
+            // Verificar se já existe
+            var refExists = await ObjectExistsAsync(refKey);
+            
+            if (!refExists && result.ReferenceImage != null && result.ReferenceImage.Bytes != null)
+            {
+                var streamLength = result.ReferenceImage.Bytes.Length;
+                if (streamLength > 0)
+                {
+                    result.ReferenceImage.Bytes.Position = 0;
+                    using var memoryStream = new MemoryStream();
+                    await result.ReferenceImage.Bytes.CopyToAsync(memoryStream);
+                    var bytes = memoryStream.ToArray();
+                    
+                    if (bytes.Length > 0)
+                    {
+                        await _s3Client.PutObjectAsync(new PutObjectRequest
+                        {
+                            BucketName = _bucketName,
+                            Key = refKey,
+                            InputStream = new MemoryStream(bytes),
+                            ContentType = "image/jpeg"
+                        });
+                        _logger.LogInformation("Reference image saved to S3: {Key}", refKey);
+                    }
+                }
+            }
+
+            // 3) Comparar referência (source) com documento (target)
+            var cmp = await _rekognitionClient.CompareFacesAsync(new CompareFacesRequest
+            {
+                SourceImage = new Image 
+                { 
+                    S3Object = new Amazon.Rekognition.Model.S3Object 
+                    { 
+                        Bucket = _bucketName, 
+                        Name = refKey 
+                    } 
+                },
+                TargetImage = new Image 
+                { 
+                    S3Object = new Amazon.Rekognition.Model.S3Object 
+                    { 
+                        Bucket = _bucketName, 
+                        Name = req.DocumentKey 
+                    } 
+                },
+                SimilarityThreshold = 80f
+            });
+
+            var match = cmp.FaceMatches.FirstOrDefault();
+            var similarity = match?.Similarity ?? 0f;
+            var status = (similarity >= 80f && result.Confidence >= 0.70f) ? "aprovado" : "reprovado";
+
+            _logger.LogInformation("Liveness comparison completed. SessionId: {SessionId}, Liveness: {Liveness}, Similarity: {Similarity}, Status: {Status}",
+                req.SessionId, result.Confidence, similarity, status);
+
+            return Ok(new
+            {
+                status,
+                liveness = result.Confidence,
+                similarity,
+                referenceKey = refKey,
+                documentKey = req.DocumentKey,
+                message = status == "aprovado"
+                    ? $"Validação aprovada. Liveness: {result.Confidence * 100:F1}%, Similaridade: {similarity:F1}%"
+                    : $"Validação reprovada. Liveness: {result.Confidence * 100:F1}%, Similaridade: {similarity:F1}%"
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error comparing liveness with document. SessionId: {SessionId}, DocumentKey: {DocumentKey}", 
+                req.SessionId, req.DocumentKey);
+            return StatusCode(500, new { message = "Erro ao comparar liveness com documento", error = ex.Message });
+        }
+    }
+
+    private async Task<bool> ObjectExistsAsync(string key)
+    {
+        try
+        {
+            var request = new GetObjectMetadataRequest
+            {
+                BucketName = _bucketName,
+                Key = key
+            };
+            await _s3Client.GetObjectMetadataAsync(request);
+            return true;
+        }
+        catch (AmazonS3Exception ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            return false;
         }
     }
 
