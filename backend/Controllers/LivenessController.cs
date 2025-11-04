@@ -64,12 +64,19 @@ public class LivenessController : ControllerBase
             _logger.LogInformation("Face Liveness session created. SessionId: {SessionId}", response.SessionId);
 
             // Retornar formato compatível com LivenessSessionResponse do frontend
+            // O widget AWS Face Liveness espera este formato exato
+            var transactionId = Guid.NewGuid().ToString();
+            var expiresAt = DateTime.UtcNow.AddMinutes(3); // Sessões são válidas por 3 minutos conforme AWS
+            
+            _logger.LogInformation("Face Liveness session created. SessionId: {SessionId}, TransactionId: {TransactionId}, ExpiresAt: {ExpiresAt}", 
+                response.SessionId, transactionId, expiresAt);
+            
             return Ok(new 
             { 
                 sessionId = response.SessionId,
                 streamingUrl = string.Empty, // AWS Rekognition não retorna streaming URL diretamente
-                transactionId = Guid.NewGuid().ToString(),
-                expiresAt = DateTime.UtcNow.AddMinutes(15).ToString("O")
+                transactionId = transactionId,
+                expiresAt = expiresAt.ToString("O") // ISO 8601 format
             });
         }
         catch (Exception ex)
@@ -116,7 +123,8 @@ public class LivenessController : ControllerBase
                 };
 
                 result = await _rekognitionClient.GetFaceLivenessSessionResultsAsync(getResultsRequest);
-                var currentStatus = result.Status ?? "UNKNOWN";
+                // Garantir que status seja sempre string (pode vir como enum do AWS SDK)
+                var currentStatus = result.Status?.ToString() ?? "UNKNOWN";
                 
                 _logger.LogInformation("Session {SessionId} status check #{Attempt}: Status={Status}, Confidence={Confidence}, ReferenceImage={HasRef}, AuditCount={AuditCount}", 
                     sessionId, attempt + 1, currentStatus, result.Confidence ?? 0f,
@@ -147,10 +155,38 @@ public class LivenessController : ControllerBase
                 return StatusCode(500, new { message = $"Não foi possível obter resultados da sessão {sessionId} após {maxAttempts} tentativas" });
             }
             
-            _logger.LogInformation("Final session status: {Status}, Confidence: {Confidence}, ReferenceImage present: {HasRef}, AuditImages count: {AuditCount}",
-                result.Status ?? "UNKNOWN", result.Confidence ?? 0f, 
-                result.ReferenceImage != null && result.ReferenceImage.Bytes != null && result.ReferenceImage.Bytes.Length > 0,
-                result.AuditImages?.Count ?? 0);
+            // Garantir que status seja sempre string (pode vir como enum do AWS SDK)
+            var finalStatus = result.Status?.ToString() ?? "UNKNOWN";
+            var finalConfidence = result.Confidence ?? 0f;
+            var hasReferenceImage = result.ReferenceImage != null && result.ReferenceImage.Bytes != null && result.ReferenceImage.Bytes.Length > 0;
+            var auditCount = result.AuditImages?.Count ?? 0;
+            
+            _logger.LogInformation("📊 Final session status: {Status}, Confidence: {Confidence} ({ConfidencePercent}%), ReferenceImage present: {HasRef}, AuditImages count: {AuditCount}",
+                finalStatus, finalConfidence, finalConfidence * 100, hasReferenceImage, auditCount);
+            
+            // Diagnóstico específico para status CREATED
+            if (finalStatus == "CREATED")
+            {
+                _logger.LogWarning("⚠️ PROBLEMA: Sessão permanece em CREATED. Isso significa que o WebRTC não foi estabelecido corretamente.");
+                _logger.LogWarning("🔍 Possíveis causas:");
+                _logger.LogWarning("   1. Widget AWS Face Liveness não foi inicializado corretamente");
+                _logger.LogWarning("   2. WebRTC não conectou (requer HTTPS ou localhost)");
+                _logger.LogWarning("   3. Cognito Identity Pool não configurado ou sem permissões");
+                _logger.LogWarning("   4. Vídeo não foi transmitido do frontend para AWS Rekognition");
+                _logger.LogWarning("   5. Sessão expirou (válida por apenas 3 minutos)");
+                _logger.LogWarning("📋 Resultado: Confidence={Confidence}%, Status={Status}, HasImages={HasImages}", 
+                    finalConfidence * 100, finalStatus, hasReferenceImage || auditCount > 0);
+            }
+            else if (finalStatus == "SUCCEEDED")
+            {
+                _logger.LogInformation("✅ Sessão concluída com sucesso! Confidence: {Confidence}%, ReferenceImage: {HasRef}, AuditImages: {Count}", 
+                    finalConfidence * 100, hasReferenceImage, auditCount);
+            }
+            else if (finalStatus == "FAILED")
+            {
+                _logger.LogWarning("❌ Sessão falhou. Confidence: {Confidence}%, Status: {Status}", 
+                    finalConfidence * 100, finalStatus);
+            }
 
             // Salva imagens no S3 (Reference + Audit) conforme documento
             var prefix = $"liveness/{sessionId}";
@@ -280,7 +316,8 @@ public class LivenessController : ControllerBase
             }
 
             var confidence = result.Confidence ?? 0f;
-            var status = result.Status ?? "UNKNOWN";
+            // Garantir que status seja sempre string (pode vir como enum do AWS SDK)
+            var status = result.Status?.ToString() ?? "UNKNOWN";
             var decision = confidence >= 0.90f 
                 ? "LIVE" 
                 : (status == "SUCCEEDED" && confidence < 0.90f ? "SPOOF" : "UNKNOWN");

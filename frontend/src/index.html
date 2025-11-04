@@ -6,6 +6,20 @@
   <base href="/">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="icon" type="image/x-icon" href="favicon.ico">
+  <!-- Polyfill para process.env (necessário para widget.js) -->
+  <script>
+    // Polyfill para process.env usado pelo widget AWS Face Liveness
+    if (typeof process === 'undefined') {
+      window.process = {
+        env: {
+          NODE_ENV: 'development'
+        }
+      };
+    }
+  </script>
+  <!-- AWS SDK (carregado antes do widget para garantir disponibilidade) -->
+  <!-- Nota: sem async/defer para garantir carregamento antes do Angular -->
+  <script src="https://sdk.amazonaws.com/js/aws-sdk-2.1000.0.min.js"></script>
   <!-- Face Liveness Widget (AWS Amplify UI React como Web Component) -->
   <script src="/assets/liveness/widget.js"></script>
 </head>

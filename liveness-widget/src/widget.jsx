@@ -10,16 +10,42 @@ export default function Widget() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const el = document.currentScript?.ownerDocument?.currentScript || 
+    const el = document.currentScript?.ownerDocument?.currentScript ||
                document.querySelector('face-liveness-widget')
     
     const region = el?.getAttribute('region') || 'us-east-1'
     const createUrl = el?.getAttribute('create-session-url') // ex.: /api/liveness/session
+    const identityPoolId = el?.getAttribute('identity-pool-id') // ID do Identity Pool passado pelo Angular
 
-    // Configurar Amplify apenas com a região (sem autenticação Cognito para liveness)
-    Amplify.configure({ 
-      Auth: { region } 
-    })
+    if (!identityPoolId) {
+      setError('identity-pool-id não fornecido. Configure o Identity Pool ID no componente Angular.')
+      setLoading(false)
+      return
+    }
+
+    // ✅ Configurar Amplify com Identity Pool (sem login de usuário)
+    // Amplify v6 - configuração para usar apenas Identity Pool
+    try {
+      Amplify.configure({
+        Auth: {
+          Cognito: {
+            identityPoolId: identityPoolId,
+            allowGuestAccess: true,
+          }
+        }
+      })
+      console.log('✅ Amplify configurado com Identity Pool:', identityPoolId)
+    } catch (configError) {
+      console.warn('⚠️ Erro ao configurar Amplify v6, tentando configuração alternativa:', configError)
+      // Fallback para configuração compatível
+      Amplify.configure({
+        Auth: {
+          region: region,
+          identityPoolId: identityPoolId,
+          identityPoolRegion: region,
+        }
+      })
+    }
 
     // Criar sessão ao montar
     if (createUrl) {
@@ -48,6 +74,7 @@ export default function Widget() {
     }
   }, [])
 
+
   const handleAnalysisComplete = async () => {
     const el = document.querySelector('face-liveness-widget')
     const resultsUrl = el?.getAttribute('results-url')
@@ -59,9 +86,7 @@ export default function Widget() {
         const data = await response.json()
         
         // Disparar evento customizado para o Angular escutar
-        const event = new CustomEvent('liveness-complete', { 
-          detail: data 
-        })
+        const event = new CustomEvent('liveness-complete', { detail: data })
         document.dispatchEvent(event)
       } catch (err) {
         console.error('Erro ao buscar resultados:', err)
@@ -108,11 +133,14 @@ export default function Widget() {
     )
   }
 
-  // Usar o componente oficial AWS Amplify FaceLivenessDetector com WebRTC real
+  // ✅ Usa o FaceLivenessDetector com WebRTC real e sem login
+  // Usar a região extraída do atributo ou padrão
+  const widgetRegion = document.querySelector('face-liveness-widget')?.getAttribute('region') || 'us-east-1'
+  
   return (
     <FaceLivenessDetector
       sessionId={sessionId}
-      region="us-east-1"
+      region={widgetRegion}
       onAnalysisComplete={handleAnalysisComplete}
       onError={handleError}
       displayText={{
@@ -120,7 +148,6 @@ export default function Widget() {
         cameraMinSpecificationsMessageText: "Verifique se sua câmera atende aos requisitos mínimos",
         goodFitCaptionText: "Posição perfeita",
         hintMoveFaceText: "Não detectamos um rosto. Ajuste sua posição.",
-        hintMoveFacerText: "Não detectamos um rosto. Ajuste sua posição.",
         hintTooCloseText: "Muito perto da câmera. Afaste-se um pouco.",
         hintTooFarText: "Muito longe. Aproxime-se da câmera.",
         hintCenterFaceText: "Centralize seu rosto na tela.",

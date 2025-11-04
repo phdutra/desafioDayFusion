@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
+import { tap } from 'rxjs/operators';
 import { 
   DetectFaceRequest,
   FaceComparisonRequest, 
@@ -36,7 +37,33 @@ export class FaceRecognitionService {
   }
 
   compareFaces(request: FaceComparisonRequest): Observable<FaceComparisonResponse> {
-    return this.http.post<FaceComparisonResponse>(`${this.API_URL}/facerecognition/compare`, request);
+    console.log('🌐 [FaceRecognitionService] Calling compareFaces API:', {
+      url: `${this.API_URL}/facerecognition/compare`,
+      request: request
+    })
+    
+    return this.http.post<FaceComparisonResponse>(`${this.API_URL}/facerecognition/compare`, request)
+      .pipe(
+        tap({
+          next: (response) => {
+            console.log('✅ [FaceRecognitionService] API response received:', {
+              similarityScore: response.similarityScore,
+              status: response.status,
+              message: response.message,
+              transactionId: response.transactionId
+            })
+          },
+          error: (error) => {
+            console.error('❌ [FaceRecognitionService] API error:', {
+              status: error.status,
+              statusText: error.statusText,
+              message: error.message,
+              error: error.error,
+              fullError: error
+            })
+          }
+        })
+      )
   }
 
   detectFaces(imageKey: string): Observable<boolean> {

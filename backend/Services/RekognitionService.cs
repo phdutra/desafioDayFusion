@@ -38,17 +38,51 @@ public class RekognitionService : IRekognitionService
     {
         try
         {
-            _logger.LogInformation("Starting face comparison for transaction: {TransactionId}", request.TransactionId);
+            _logger.LogInformation("🚀 Starting face comparison for transaction: {TransactionId}", request.TransactionId);
+            _logger.LogInformation("📋 Request details - SelfieKey: {SelfieKey}, DocumentKey: {DocumentKey}", 
+                request.SelfieKey, request.DocumentKey);
 
             // Download images from S3
+            _logger.LogInformation("⬇️ Downloading selfie from S3: {SelfieKey}", request.SelfieKey);
             var selfieImage = await GetImageFromS3Async(request.SelfieKey);
+            _logger.LogInformation("✅ Selfie downloaded. Size: {SelfieSize} bytes", selfieImage?.Length ?? 0);
+
+            _logger.LogInformation("⬇️ Downloading document from S3: {DocumentKey}", request.DocumentKey);
             var documentImage = await GetImageFromS3Async(request.DocumentKey);
+            _logger.LogInformation("✅ Document downloaded. Size: {DocumentSize} bytes", documentImage?.Length ?? 0);
+
+            if (selfieImage == null || selfieImage.Length == 0)
+            {
+                _logger.LogError("❌ Selfie image is null or empty after download from S3");
+                return new FaceComparisonResponse
+                {
+                    SimilarityScore = 0,
+                    Status = TransactionStatus.Error,
+                    TransactionId = request.TransactionId ?? Guid.NewGuid().ToString(),
+                    Message = "Error: Selfie image not found or empty"
+                };
+            }
+
+            if (documentImage == null || documentImage.Length == 0)
+            {
+                _logger.LogError("❌ Document image is null or empty after download from S3");
+                return new FaceComparisonResponse
+                {
+                    SimilarityScore = 0,
+                    Status = TransactionStatus.Error,
+                    TransactionId = request.TransactionId ?? Guid.NewGuid().ToString(),
+                    Message = "Error: Document image not found or empty"
+                };
+            }
 
             // Compare faces
+            _logger.LogInformation("🔍 Starting face similarity calculation...");
             var similarityScore = await GetFaceSimilarityAsync(selfieImage, documentImage);
+            _logger.LogInformation("📊 Similarity score calculated: {Score}%", similarityScore);
 
             // Determine status based on similarity score
             var status = DetermineStatus(similarityScore);
+            _logger.LogInformation("📋 Status determined: {Status}", status);
 
             var response = new FaceComparisonResponse
             {
@@ -58,21 +92,35 @@ public class RekognitionService : IRekognitionService
                 Message = GetStatusMessage(status, similarityScore)
             };
 
-            _logger.LogInformation("Face comparison completed. Score: {Score}, Status: {Status}", 
-                similarityScore, status);
+            _logger.LogInformation("✅ Face comparison completed successfully. TransactionId: {TransactionId}, Score: {Score}%, Status: {Status}, Message: {Message}", 
+                response.TransactionId, similarityScore, status, response.Message);
 
             return response;
         }
-        catch (Exception ex)
+        catch (Amazon.S3.AmazonS3Exception ex)
         {
-            _logger.LogError(ex, "Error during face comparison for transaction: {TransactionId}", request.TransactionId);
+            _logger.LogError(ex, "❌ AWS S3 error during face comparison. ErrorCode: {ErrorCode}, StatusCode: {StatusCode}, Message: {Message}", 
+                ex.ErrorCode, ex.StatusCode, ex.Message);
             
             return new FaceComparisonResponse
             {
                 SimilarityScore = 0,
                 Status = TransactionStatus.Error,
                 TransactionId = request.TransactionId ?? Guid.NewGuid().ToString(),
-                Message = "Error processing face comparison"
+                Message = $"S3 Error: {ex.Message}"
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ Unexpected error during face comparison for transaction: {TransactionId}. Message: {Message}, StackTrace: {StackTrace}", 
+                request.TransactionId, ex.Message, ex.StackTrace);
+            
+            return new FaceComparisonResponse
+            {
+                SimilarityScore = 0,
+                Status = TransactionStatus.Error,
+                TransactionId = request.TransactionId ?? Guid.NewGuid().ToString(),
+                Message = $"Error processing face comparison: {ex.Message}"
             };
         }
     }
@@ -170,35 +218,100 @@ public class RekognitionService : IRekognitionService
 
     private async Task<float> GetFaceSimilarityAsync(byte[] sourceImage, byte[] targetImage)
     {
-        var request = new CompareFacesRequest
+        try
         {
-            SourceImage = new Image { Bytes = new MemoryStream(sourceImage) },
-            TargetImage = new Image { Bytes = new MemoryStream(targetImage) },
-            SimilarityThreshold = 0F
-        };
+            _logger.LogInformation("🔍 Starting face similarity comparison. SourceImage size: {SourceSize} bytes, TargetImage size: {TargetSize} bytes", 
+                sourceImage?.Length ?? 0, targetImage?.Length ?? 0);
 
-        var response = await _rekognitionClient.CompareFacesAsync(request);
-        
-        if (response.FaceMatches.Any())
-        {
-            return response.FaceMatches.Max(m => m.Similarity ?? 0f);
+            if (sourceImage == null || sourceImage.Length == 0)
+            {
+                _logger.LogError("❌ SourceImage is null or empty");
+                return 0f;
+            }
+
+            if (targetImage == null || targetImage.Length == 0)
+            {
+                _logger.LogError("❌ TargetImage is null or empty");
+                return 0f;
+            }
+
+            var request = new CompareFacesRequest
+            {
+                SourceImage = new Image { Bytes = new MemoryStream(sourceImage) },
+                TargetImage = new Image { Bytes = new MemoryStream(targetImage) },
+                SimilarityThreshold = 0F
+            };
+
+            _logger.LogInformation("📤 Calling AWS Rekognition CompareFaces API...");
+            var response = await _rekognitionClient.CompareFacesAsync(request);
+            
+            _logger.LogInformation("📥 AWS Rekognition response received. FaceMatches count: {MatchCount}", 
+                response.FaceMatches?.Count ?? 0);
+
+            if (response.FaceMatches != null && response.FaceMatches.Any())
+            {
+                var maxSimilarity = response.FaceMatches.Max(m => m.Similarity ?? 0f);
+                var allSimilarities = string.Join(", ", response.FaceMatches.Select(m => $"{m.Similarity:F2}%"));
+                
+                _logger.LogInformation("✅ Face matches found! Max similarity: {MaxSimilarity}%, All similarities: [{AllSimilarities}]", 
+                    maxSimilarity, allSimilarities);
+                
+                return maxSimilarity;
+            }
+            else
+            {
+                _logger.LogWarning("⚠️ No face matches found. AWS Rekognition não encontrou faces correspondentes entre as duas imagens.");
+            }
+
+            return 0f;
         }
-
-        return 0f;
+        catch (Amazon.Rekognition.AmazonRekognitionException ex)
+        {
+            _logger.LogError(ex, "❌ AWS Rekognition API error. ErrorCode: {ErrorCode}, StatusCode: {StatusCode}, Message: {Message}", 
+                ex.ErrorCode, ex.StatusCode, ex.Message);
+            return 0f;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ Unexpected error during face similarity comparison. Message: {Message}, StackTrace: {StackTrace}", 
+                ex.Message, ex.StackTrace);
+            return 0f;
+        }
     }
 
     private async Task<byte[]> GetImageFromS3Async(string key)
     {
-        var request = new GetObjectRequest
+        try
         {
-            BucketName = _bucketName,
-            Key = key
-        };
+            _logger.LogInformation("📥 Downloading image from S3. Bucket: {Bucket}, Key: {Key}", _bucketName, key);
 
-        using var response = await _s3Client.GetObjectAsync(request);
-        using var memoryStream = new MemoryStream();
-        await response.ResponseStream.CopyToAsync(memoryStream);
-        return memoryStream.ToArray();
+            var request = new GetObjectRequest
+            {
+                BucketName = _bucketName,
+                Key = key
+            };
+
+            using var response = await _s3Client.GetObjectAsync(request);
+            using var memoryStream = new MemoryStream();
+            await response.ResponseStream.CopyToAsync(memoryStream);
+            var imageBytes = memoryStream.ToArray();
+
+            _logger.LogInformation("✅ Image downloaded successfully. Key: {Key}, Size: {Size} bytes", 
+                key, imageBytes.Length);
+
+            return imageBytes;
+        }
+        catch (Amazon.S3.AmazonS3Exception ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            _logger.LogError("❌ Image not found in S3. Bucket: {Bucket}, Key: {Key}", _bucketName, key);
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ Error downloading image from S3. Bucket: {Bucket}, Key: {Key}, Error: {Error}", 
+                _bucketName, key, ex.Message);
+            throw;
+        }
     }
 
     private static TransactionStatus DetermineStatus(float similarityScore)

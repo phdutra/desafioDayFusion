@@ -259,10 +259,36 @@ export class CaptureComponent implements OnInit, OnDestroy {
         documentKey: docUpload.key,
         transactionId: this.transactionId ?? undefined,
       }
+      
+      console.log('🔍 [Capture] Starting face comparison with request:', {
+        selfieKey: compareReq.selfieKey,
+        documentKey: compareReq.documentKey,
+        transactionId: compareReq.transactionId
+      })
+      
       const compare = await this.faceService.compareFaces(compareReq).toPromise()
+      
+      console.log('📥 [Capture] Face comparison response received:', {
+        similarityScore: compare?.similarityScore,
+        status: compare?.status,
+        message: compare?.message,
+        transactionId: compare?.transactionId,
+        fullResponse: compare
+      })
+      
       if (compare) {
         this.result = compare
         this.transactionId = compare.transactionId
+        
+        if (compare.similarityScore === 0 || compare.similarityScore === null || compare.similarityScore === undefined) {
+          console.warn('⚠️ [Capture] WARNING: Similarity score is 0 or null!', {
+            score: compare.similarityScore,
+            status: compare.status,
+            message: compare.message
+          })
+        }
+      } else {
+        console.error('❌ [Capture] No response received from face comparison API')
       }
     } catch (err) {
       console.error(err)

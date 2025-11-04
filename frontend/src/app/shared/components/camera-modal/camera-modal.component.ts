@@ -103,38 +103,21 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
     this.cdr.detectChanges()
 
     try {
-      console.log('🎥 Iniciando acesso à câmera...')
-      
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         throw new Error('API de mídia não suportada neste navegador')
       }
 
       this.stream = await this.cameraService.getMediaStream()
       
-      console.log('✅ Stream obtido, configurando vídeo...')
-      
       // Aguardar até o elemento estar disponível (2D ou 3D)
       let retries = 0
       const maxRetries = 20 // Aumentar para dar mais tempo
       const targetVideo = this.mode === '2d' ? this.videoElement : this.videoElement3d
       
-      console.log('🔍 Aguardando elemento de vídeo...', { 
-        mode: this.mode, 
-        videoElement: !!this.videoElement?.nativeElement,
-        videoElement3d: !!this.videoElement3d?.nativeElement 
-      })
-      
       while (!targetVideo?.nativeElement && retries < maxRetries) {
         await new Promise(resolve => setTimeout(resolve, 150))
         retries++
         this.cdr.detectChanges()
-        
-        if (retries % 5 === 0) {
-          console.log(`⏳ Tentativa ${retries}/${maxRetries}...`, { 
-            videoElement: !!this.videoElement?.nativeElement,
-            videoElement3d: !!this.videoElement3d?.nativeElement 
-          })
-        }
       }
 
       const video = targetVideo?.nativeElement
@@ -195,7 +178,6 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
       }
       
       this.cdr.detectChanges()
-      console.log('✅ Câmera iniciada com sucesso')
     } catch (error: any) {
       console.error('❌ Erro ao acessar a câmera:', error)
       this.error = error.message || 'Erro ao acessar a câmera. Verifique as permissões.'
@@ -290,7 +272,10 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
     }
     
     utterance.onerror = (error) => {
-      console.warn('Erro na síntese de voz:', error)
+      // Ignorar erro 'interrupted' que é normal quando uma nova fala cancela uma anterior
+      if (error.error !== 'interrupted') {
+        console.warn('Erro na síntese de voz:', error)
+      }
       this.currentSpeechUtterance = null
     }
     
@@ -345,8 +330,6 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
           // Verificar se há face na imagem
           const hasFace = await firstValueFrom(this.faceService.detectFaces(uploadResult.key))
           
-          console.log(`🔍 Validação #${validationAttempts}: Face detectada = ${hasFace}`)
-          
           if (hasFace) {
             this.faceDetected = true
             this.currentPhase = 'validating'
@@ -379,7 +362,6 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
             setTimeout(() => {
               clearInterval(countdownInterval)
               if (this.faceDetected && !this.sessionActive && this.isOpen) {
-                console.log('🚀 Iniciando liveness automaticamente após detecção...')
                 this.startLiveness3D()
               }
             }, 3000)
@@ -502,7 +484,6 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
     this.speakInstruction('Gravação iniciada. Olhe para a câmera e mantenha-se preparado. Vou pedir três movimentos.')
     
     this.livenessStart.emit()
-    console.log('✅ Liveness 3D iniciado')
     
     // Iniciar sequência de movimentos após 3 segundos
     setTimeout(() => {
@@ -611,7 +592,6 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
       if (this.sessionActive && this.isOpen) {
         // Se ainda não completou todas as etapas, aguardar um pouco mais
         if (this.currentLivenessStep !== 'completed') {
-          console.log('⏱️ Aguardando conclusão das etapas...')
           // Aguardar mais 5 segundos
           this.autoFinalizeTimer = window.setTimeout(() => {
             if (this.sessionActive && this.isOpen) {
@@ -626,7 +606,6 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
   }
 
   private processResultsAndFinalize(): void {
-    console.log('⏱️ Tempo mínimo de gravação atingido. Verificando se pode finalizar...')
     this.speakInstruction('Processando resultados. Aguarde um momento.')
     this.currentPhase = 'processing'
     this.cdr.detectChanges()
@@ -634,7 +613,6 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
     // Aguardar um pouco antes de finalizar completamente
     setTimeout(() => {
       if (this.sessionActive && this.isOpen) {
-        console.log('✅ Finalizando automaticamente após tempo máximo')
         this.finalizeLivenessAutomatically()
       }
     }, 3000)
@@ -774,7 +752,6 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
       }
     } else if (this.faceDetected) {
       // Quando centralização está correta, preencher completamente (100%) - círculo verde pontilhado completo
-      console.log('✅ Face detectada - preenchendo anel verde 100%')
       return 100
     }
     // Sempre mostrar pelo menos os segmentos inativos (cinza) mesmo quando não há progresso
@@ -793,18 +770,6 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
     const progress = this.getLivenessProgress()
     this.livenessProgress = progress
     const activeSegments = Math.floor((progress / 100) * totalSegments)
-    
-    // Debug
-    if (progress > 0 || this.mode === '3d') {
-      console.log('🔄 Gerando segmentos do anel:', { 
-        progress, 
-        activeSegments, 
-        totalSegments, 
-        faceDetected: this.faceDetected,
-        sessionActive: this.sessionActive,
-        mode: this.mode
-      })
-    }
     
     const segments: Array<{x1: number, y1: number, x2: number, y2: number, isActive: boolean}> = []
     
@@ -845,8 +810,6 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
     
     if (!svg || svg.length < 100) {
       console.error('❌ SVG não gerado corretamente!', { svgLength: svg?.length, segmentsCount: segments.length })
-    } else {
-      console.log('✅ SVG gerado:', { svgLength: svg.length, segmentsCount: segments.length, progress })
     }
     
     return svg
@@ -861,11 +824,6 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
   getProgressSegmentsSVG(): SafeHtml {
     const svgString = this.getProgressSegmentsSVGString()
     const sanitized = this.sanitizer.sanitize(1, svgString) || ''
-    
-    // Debug: verificar se está gerando SVG
-    if (!sanitized && this.livenessProgress > 0) {
-      console.log('⚠️ SVG vazio gerado, progresso:', this.livenessProgress)
-    }
     
     return sanitized as SafeHtml
   }

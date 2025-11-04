@@ -5,6 +5,8 @@ import { FaceRecognitionService } from '../../core/services/face-recognition.ser
 import { StartLivenessRequest, LivenessSessionResponse, GetLivenessResultRequest, LivenessResultResponse } from '../../shared/models/transaction.model'
 import { CameraModalComponent } from '../../shared/components/camera-modal/camera-modal.component'
 import { environment } from '../../../environments/environment'
+import awsmobile from '../../../aws-exports'
+import { Amplify } from 'aws-amplify'
 
 @Component({
   selector: 'app-capture3d',
@@ -29,18 +31,31 @@ export class Capture3dComponent implements OnInit, OnDestroy {
   
   // Widget AWS Face Liveness (Web Component)
   showLivenessWidget = false
+  // O widget espera URLs completas com http:// ou https://
   livenessSessionUrl = `${environment.apiUrl}/liveness/session`
   livenessResultsUrl = `${environment.apiUrl}/liveness/results`
-  awsRegion = environment.aws?.region || 'us-east-1'
-  identityPoolId = environment.aws?.identityPoolId || ''
+  awsRegion = awsmobile.aws_project_region || environment.aws?.region || 'us-east-1'
+  identityPoolId = awsmobile.aws_cognito_identity_pool_id || environment.aws?.identityPoolId || ''
+  
+  // Flag para rastrear se o widget foi inicializado
+  widgetInitialized = false
   
   private livenessSession?: LivenessSessionResponse
   private sessionExpiryTimer?: number
   private widgetEventListeners: { type: string; handler: (e: any) => void }[] = []
+  private awsConfigured = false
+
+  // Declaração de tipo para AWS SDK global
+  private get AWS(): any {
+    return (window as any).AWS
+  }
 
   constructor(
     private faceService: FaceRecognitionService
-  ) {}
+  ) {
+    // Configurar AWS Amplify na inicialização do componente
+    this.configureAWS()
+  }
 
   ngOnInit(): void {
     // Escutar eventos customizados do widget
@@ -52,10 +67,204 @@ export class Capture3dComponent implements OnInit, OnDestroy {
     this.removeWidgetEventListeners()
   }
 
+  /**
+   * Carrega o AWS SDK dinamicamente se não estiver disponível
+   */
+  private async loadAWSSDK(): Promise<void> {
+    // Se já está disponível, retornar imediatamente
+    if (this.AWS) {
+      return Promise.resolve()
+    }
+
+    // Tentar carregar dinamicamente
+    return new Promise<void>((resolve, reject) => {
+      let checkCount = 0
+      const maxChecks = 50 // 5 segundos (50 * 100ms)
+      
+      // Verificar periodicamente se o script do index.html carregou
+      const checkInterval = setInterval(() => {
+        checkCount++
+        if (this.AWS) {
+          clearInterval(checkInterval)
+          console.log('✅ AWS SDK encontrado após', checkCount * 100, 'ms')
+          resolve()
+          return
+        }
+        
+        // Se não encontrou após várias tentativas, tentar carregar dinamicamente
+        if (checkCount >= 20 && !document.querySelector('script[src*="aws-sdk"]')) {
+          clearInterval(checkInterval)
+          console.log('⚠️ AWS SDK não encontrado. Carregando dinamicamente...')
+          
+          // Tentar carregar via script dinâmico
+          const script = document.createElement('script')
+          script.src = 'https://sdk.amazonaws.com/js/aws-sdk-2.1000.0.min.js'
+          script.async = false // Não async para garantir ordem
+          script.onload = () => {
+            // Aguardar um pouco para o SDK estar disponível
+            setTimeout(() => {
+              if (this.AWS) {
+                console.log('✅ AWS SDK carregado dinamicamente com sucesso')
+                resolve()
+              } else {
+                reject(new Error('AWS SDK carregado mas não está disponível globalmente como window.AWS'))
+              }
+            }, 100)
+          }
+          script.onerror = () => {
+            reject(new Error('Erro ao carregar AWS SDK. Verifique sua conexão com a internet e se a URL está acessível.'))
+          }
+          document.head.appendChild(script)
+        }
+        
+        // Timeout final
+        if (checkCount >= maxChecks) {
+          clearInterval(checkInterval)
+          reject(new Error('Timeout ao aguardar AWS SDK. O script pode não estar carregando corretamente.'))
+        }
+      }, 100) // Verificar a cada 100ms
+    })
+  }
+
+  /**
+   * Configura AWS Amplify e SDK com Cognito Identity Pool para o widget Face Liveness
+   * O widget AWS Face Liveness precisa que o Amplify Auth esteja configurado
+   * Usando apenas Identity Pool (sem login de usuário) conforme aws-exports.ts
+   */
+  private async configureAWS(): Promise<void> {
+    if (this.awsConfigured) {
+      return
+    }
+
+    try {
+      // Usar configuração do aws-exports.ts
+      const identityPoolId = awsmobile.aws_cognito_identity_pool_id || this.identityPoolId
+      const region = awsmobile.aws_project_region || this.awsRegion
+      
+      if (!identityPoolId) {
+        throw new Error('Identity Pool ID não configurado. Verifique aws-exports.ts ou environment.')
+      }
+
+      // Configurar Amplify com Identity Pool (autenticação anônima)
+      // O widget precisa do Amplify configurado para funcionar
+      try {
+        Amplify.configure({
+          Auth: {
+            Cognito: {
+              identityPoolId: identityPoolId
+            }
+          }
+        })
+        
+        // Garantir que Amplify está disponível globalmente
+        if (!(window as any).Amplify) {
+          (window as any).Amplify = Amplify
+        }
+        
+        // Criar stub do Auth para o widget (usando apenas Identity Pool, sem login de usuário)
+        // O widget tenta chamar Auth.loginWith(), mas não precisamos de login de usuário
+        // O stub será atualizado após o AWS SDK ser configurado
+        if (!(window as any).Auth) {
+          (window as any).Auth = {
+            loginWith: async () => {
+              // Para Identity Pool, não precisamos de login de usuário
+              // Retornar uma Promise resolvida (o widget precisa disso)
+              return Promise.resolve({})
+            },
+            currentCredentials: async () => {
+              // Retornar credenciais atuais do Identity Pool quando disponíveis
+              const aws = (window as any).AWS
+              if (aws?.config?.credentials) {
+                return Promise.resolve(aws.config.credentials)
+              }
+              return Promise.resolve(null)
+            },
+            currentUserInfo: async () => {
+              // Para Identity Pool anônimo, não há usuário
+              return Promise.resolve(null)
+            }
+          }
+        }
+        
+        console.log('✅ Amplify configurado com Identity Pool')
+      } catch (amplifyError: any) {
+        console.warn('⚠️ Erro ao configurar Amplify:', amplifyError?.message || amplifyError)
+        // Continuar para configurar AWS SDK também
+      }
+
+      // Tentar carregar o AWS SDK se não estiver disponível
+      try {
+        await this.loadAWSSDK()
+      } catch (loadError: any) {
+        console.warn('⚠️ Erro ao carregar AWS SDK:', loadError?.message || loadError)
+        throw new Error(`AWS SDK não está disponível: ${loadError?.message || 'Erro desconhecido'}`)
+      }
+
+      // Verificar se AWS SDK está disponível após carregamento
+      if (!this.AWS) {
+        throw new Error('AWS SDK não está disponível após tentativa de carregamento.')
+      }
+
+      // Configurar AWS SDK com Cognito Identity Pool
+      // O widget AWS Face Liveness usa o AWS SDK configurado globalmente
+      this.AWS.config.region = region
+      
+      // Configurar credenciais usando Cognito Identity Pool (acesso anônimo)
+      // O widget irá usar essas credenciais para autenticar com o serviço Face Liveness
+      this.AWS.config.credentials = new this.AWS.CognitoIdentityCredentials({
+        IdentityPoolId: identityPoolId
+      })
+
+      // Obter credenciais temporárias (necessário para autenticação)
+      try {
+        await new Promise<void>((resolve, reject) => {
+          (this.AWS.config.credentials as any).get((err: any) => {
+            if (err) {
+              reject(err)
+            } else {
+              resolve()
+            }
+          })
+        })
+        
+        this.awsConfigured = true
+        console.log('✅ AWS SDK configurado com sucesso usando Cognito Identity Pool')
+      } catch (credentialsError: any) {
+        console.warn('⚠️ Erro ao obter credenciais do Identity Pool:', credentialsError?.message || credentialsError)
+        console.warn('💡 Verifique se o Identity Pool permite acesso anônimo (unauthenticated access)')
+        // Continuar mesmo assim - o widget pode tentar obter credenciais depois
+        this.awsConfigured = true
+      }
+    } catch (error: any) {
+      console.error('❌ Erro ao configurar AWS SDK:', error)
+      this.livenessError = `Erro ao configurar AWS: ${error?.message || error}. Verifique aws-exports.ts e o Identity Pool ID.`
+      // Não marcar como configurado para tentar novamente
+    }
+  }
+
   private setupWidgetEventListeners(): void {
+    // Evento quando a sessão é criada pelo widget
+    const sessionHandler = (e: CustomEvent) => {
+      console.log('✅ Widget: Sessão criada', e.detail)
+      const sessionData = e.detail as any
+      
+      if (sessionData?.sessionId) {
+        this.livenessSession = {
+          sessionId: sessionData.sessionId,
+          streamingUrl: sessionData.streamingUrl || '',
+          transactionId: sessionData.transactionId || crypto.randomUUID() || Date.now().toString(),
+          expiresAt: sessionData.expiresAt || new Date(Date.now() + 3 * 60 * 1000).toISOString()
+        }
+        
+        // Configurar timer de expiração
+        this.setupSessionExpiry(sessionData.sessionId)
+        console.log('✅ Sessão configurada:', this.livenessSession)
+      }
+    }
+    
     // Evento quando liveness é concluído
     const completeHandler = (e: CustomEvent) => {
-      console.log('✅ Widget: Liveness completo', e.detail)
+      console.log('✅ Widget: Liveness completado', e.detail)
       const result = e.detail as any
       
       // Converter resposta do widget para LivenessResultResponse
@@ -74,6 +283,8 @@ export class Capture3dComponent implements OnInit, OnDestroy {
         qualityAssessment: result.qualityAssessment || null
       }
       
+      console.log('✅ Resultado do liveness:', this.livenessResult)
+      
       this.sessionActive = false
       this.showLivenessWidget = false
       this.livenessLoading = false
@@ -85,27 +296,32 @@ export class Capture3dComponent implements OnInit, OnDestroy {
       this.livenessError = e.detail?.message || 'Erro no widget de liveness'
       this.livenessLoading = false
       this.showLivenessWidget = false
+      this.sessionActive = false
     }
     
-    // Eventos adicionais para debug
-    const sessionHandler = (e: CustomEvent) => {
-      console.log('📡 Widget: Sessão criada/atualizada', e.detail)
-    }
-    
+    // Evento de progresso
     const progressHandler = (e: CustomEvent) => {
       console.log('📊 Widget: Progresso', e.detail)
+      // Pode usar para atualizar barra de progresso se necessário
     }
 
+    // Escutar eventos do widget
     document.addEventListener('liveness-complete', completeHandler as EventListener)
     document.addEventListener('liveness-error', errorHandler as EventListener)
     document.addEventListener('liveness-session', sessionHandler as EventListener)
     document.addEventListener('liveness-progress', progressHandler as EventListener)
+    
+    // Eventos alternativos que o widget pode disparar
+    document.addEventListener('session-created', sessionHandler as EventListener)
+    document.addEventListener('session-ready', sessionHandler as EventListener)
 
     this.widgetEventListeners = [
       { type: 'liveness-complete', handler: completeHandler as EventListener },
       { type: 'liveness-error', handler: errorHandler as EventListener },
       { type: 'liveness-session', handler: sessionHandler as EventListener },
-      { type: 'liveness-progress', handler: progressHandler as EventListener }
+      { type: 'liveness-progress', handler: progressHandler as EventListener },
+      { type: 'session-created', handler: sessionHandler as EventListener },
+      { type: 'session-ready', handler: sessionHandler as EventListener }
     ]
   }
 
@@ -132,46 +348,34 @@ export class Capture3dComponent implements OnInit, OnDestroy {
     this.livenessError = null
 
     try {
-      console.log('🔄 Criando sessão de liveness antes de inicializar widget...')
-      
-      // Criar sessão explicitamente antes de mostrar o widget
-      const sessionRequest: StartLivenessRequest = {}
-      const sessionResponse = await this.faceService.startLivenessSession(sessionRequest).toPromise()
-      
-      if (sessionResponse) {
-        this.livenessSession = sessionResponse
-        console.log('✅ Sessão criada:', sessionResponse.sessionId)
-        
-        // Configurar timer de expiração
-        this.setupSessionExpiry(sessionResponse.sessionId)
-        
-        // Agora mostrar o widget - ele usará a sessão via create-session-url
-        this.showLivenessWidget = true
-        this.sessionActive = true
-        this.livenessLoading = false
-        
-        console.log('✅ Widget AWS Face Liveness iniciado. WebRTC será gerenciado automaticamente pelo widget.')
-        console.log('📋 SessionId:', sessionResponse.sessionId)
-        console.log('🌐 Session URL:', this.livenessSessionUrl)
-        console.log('📊 Results URL:', this.livenessResultsUrl)
-        
-        // Aguardar widget montar e verificar se está funcionando
-        setTimeout(() => {
-          const widget = document.querySelector('face-liveness-widget')
-          if (widget) {
-            console.log('✅ Widget encontrado no DOM:', widget)
-            console.log('🔍 Widget attributes:', {
-              region: widget.getAttribute('region'),
-              createSessionUrl: widget.getAttribute('create-session-url'),
-              resultsUrl: widget.getAttribute('results-url')
-            })
-          } else {
-            console.warn('⚠️ Widget não encontrado no DOM após 500ms')
-          }
-        }, 500)
-      } else {
-        throw new Error('Falha ao criar sessão de liveness')
+      // Garantir que AWS Amplify está configurado antes de inicializar o widget
+      if (!this.awsConfigured) {
+        await this.configureAWS()
+        // Aguardar um pouco para garantir que a configuração foi aplicada
+        await new Promise(resolve => setTimeout(resolve, 500))
       }
+      
+      // IMPORTANTE: O widget AWS Face Liveness deve criar a sessão sozinho
+      // Não criar sessão manualmente - deixar o widget fazer isso via create-session-url
+      // Isso garante que o widget tenha controle total do ciclo de vida da sessão
+      
+      console.log('📋 Iniciando widget Face Liveness...')
+      console.log('📋 URLs configuradas:', {
+        createSessionUrl: this.livenessSessionUrl,
+        resultsUrl: this.livenessResultsUrl,
+        identityPoolId: this.identityPoolId ? '***' : 'NÃO CONFIGURADO'
+      })
+      
+      // Mostrar o widget - ele criará a sessão automaticamente via create-session-url
+      this.showLivenessWidget = true
+      this.sessionActive = true
+      this.livenessLoading = false
+      
+      // Aguardar widget montar e inicializar
+      setTimeout(() => {
+        this.initializeWidget()
+      }, 500)
+      
     } catch (err: any) {
       console.error('❌ Erro ao iniciar liveness:', err)
       this.livenessError = err.message || 'Erro ao iniciar verificação 3D.'
@@ -204,11 +408,9 @@ export class Capture3dComponent implements OnInit, OnDestroy {
   async onLivenessComplete(event: any): Promise<void> {
     // Se foi finalização automática, buscar resultados
     if (event?.autoFinalized && this.livenessSession) {
-      console.log('🔄 Buscando resultados automaticamente...')
       await this.fetchResultsAutomatically()
     } else if (event?.manualStop && this.livenessSession) {
       // Se foi parada manual, também buscar resultados
-      console.log('🔄 Buscando resultados após parada manual...')
       await this.fetchResultsAutomatically()
     } else if (event) {
       // Se o resultado já veio completo
@@ -230,27 +432,20 @@ export class Capture3dComponent implements OnInit, OnDestroy {
         transactionId: this.livenessSession.transactionId
       }
       
-      // Iniciar polling imediatamente sem delay
-      console.log('🔄 Iniciando busca de resultados imediatamente...')
-      
       // Fazer polling para aguardar processamento completo
       const result = await this.pollForResults(resultRequest)
       
       if (result) {
         this.livenessResult = result
-        console.log('✅ Resultado obtido automaticamente:', result)
         
         // Se ainda está CREATED ou sem imagens, fazer retry imediato
         if (result.status === 'CREATED' || (!result.referenceImageUrl && result.auditImageUrls?.length === 0)) {
-          console.log('⚠️ Status ainda CREATED ou sem imagens. Fazendo retry imediato...')
-          
           // Aguardar apenas 1 segundo antes do retry (tempo para backend processar)
           await new Promise(resolve => setTimeout(resolve, 1000))
           
           const retryResult = await this.faceService.getLivenessResult(resultRequest).toPromise()
           if (retryResult) {
             this.livenessResult = retryResult
-            console.log('✅ Resultado após retry:', retryResult)
           }
         }
       } else {
@@ -280,17 +475,33 @@ export class Capture3dComponent implements OnInit, OnDestroy {
         const result = await this.faceService.getLivenessResult(request).toPromise()
         
         if (result) {
-          console.log(`📊 Tentativa ${attempt + 1}/${maxAttempts}: Status=${result.status}, Confiança=${result.confidence}, HasImages=${!!(result.referenceImageUrl || result.auditImageUrls?.length)}`)
+          // Garantir que status seja string (pode vir como objeto)
+          let statusStr: string
+          if (typeof result.status === 'string') {
+            statusStr = result.status
+          } else if (result.status && typeof result.status === 'object') {
+            // Se for objeto, tentar extrair valor ou stringificar
+            statusStr = (result.status as any)?.value || JSON.stringify(result.status) || 'UNKNOWN'
+          } else {
+            statusStr = String(result.status || 'UNKNOWN')
+          }
           
           // Se status é SUCCEEDED ou FAILED, retornar imediatamente
-          if (result.status === 'SUCCEEDED' || result.status === 'FAILED' || result.status === 'EXPIRED') {
+          if (statusStr === 'SUCCEEDED' || statusStr === 'FAILED' || statusStr === 'EXPIRED') {
             this.processingProgress = 100
+            // Normalizar status antes de retornar
+            result.status = statusStr
             return result
+          }
+          
+          // Log de debug se status for CREATED
+          if (statusStr === 'CREATED') {
+            console.warn(`⚠️ Status ainda CREATED após ${attempt + 1} tentativas. Widget pode não ter transmitido vídeo via WebRTC.`)
+            console.warn('🔍 Verificar: Widget inicializado? WebRTC conectou? Cognito configurado?')
           }
           
           // Se tem imagens mesmo com status CREATED, pode ser que esteja processando ainda
           if (result.referenceImageUrl || (result.auditImageUrls && result.auditImageUrls.length > 0)) {
-            console.log('✅ Imagens disponíveis, retornando resultado mesmo com status CREATED')
             this.processingProgress = 100
             return result
           }
@@ -330,7 +541,6 @@ export class Capture3dComponent implements OnInit, OnDestroy {
         const result = await this.faceService.getLivenessResult(resultRequest).toPromise()
         if (result) {
           this.livenessResult = result
-          console.log('✅ Resultado obtido:', result)
         } else {
           this.livenessError = 'Não foi possível obter resultado da verificação.'
         }
@@ -374,6 +584,113 @@ export class Capture3dComponent implements OnInit, OnDestroy {
     if (this.sessionExpiryTimer) {
       clearTimeout(this.sessionExpiryTimer)
       this.sessionExpiryTimer = undefined
+    }
+    this.widgetInitialized = false
+  }
+
+  /**
+   * Inicializa e verifica o widget AWS Face Liveness
+   */
+  private async initializeWidget(): Promise<void> {
+    const widget = document.querySelector('face-liveness-widget') as any
+    
+    if (!widget) {
+      console.error('❌ Widget não encontrado no DOM após 500ms')
+      this.livenessError = 'Widget não foi carregado corretamente. Verifique se o arquivo widget.js está presente em /assets/liveness/'
+      return
+    }
+
+    console.log('✅ Widget encontrado no DOM:', widget)
+
+    // Verificar se AWS SDK está configurado globalmente
+    try {
+      const awsConfig = (window as any).AWS?.config
+      if (!awsConfig) {
+        console.warn('⚠️ AWS SDK não encontrado. Tentando carregar...')
+        await this.loadAWSSDK()
+      }
+
+      if (!awsConfig?.credentials) {
+        console.warn('⚠️ Credenciais AWS não configuradas. Tentando configurar...')
+        await this.configureAWS()
+      }
+
+      // Aguardar um pouco para garantir que as credenciais foram obtidas
+      await new Promise(resolve => setTimeout(resolve, 1000))
+
+      const finalAwsConfig = (window as any).AWS?.config
+      if (finalAwsConfig?.credentials) {
+        console.log('✅ AWS SDK configurado e credenciais disponíveis')
+      } else {
+        console.error('❌ AWS SDK ainda não configurado após tentativas')
+        this.livenessError = 'Erro ao configurar AWS SDK. Verifique o Cognito Identity Pool ID e as credenciais.'
+        return
+      }
+    } catch (e: any) {
+      console.error('❌ Erro ao verificar/configurar AWS SDK:', e)
+      this.livenessError = `Erro ao configurar AWS: ${e?.message || 'Erro desconhecido'}`
+      return
+    }
+
+    // Verificar se o widget está inicializado corretamente
+    // O widget AWS Face Liveness deve ter certos atributos/estados
+    try {
+      // Verificar se o widget tem os atributos necessários
+      const region = widget.getAttribute('region') || this.awsRegion
+      const createSessionUrl = widget.getAttribute('create-session-url') || this.livenessSessionUrl
+      const resultsUrl = widget.getAttribute('results-url') || this.livenessResultsUrl
+      const identityPoolId = widget.getAttribute('identity-pool-id') || this.identityPoolId
+
+      console.log('📋 Configuração do widget:', {
+        region,
+        createSessionUrl,
+        resultsUrl,
+        identityPoolId: identityPoolId ? '***' : 'NÃO CONFIGURADO'
+      })
+
+      if (!identityPoolId || identityPoolId.trim() === '') {
+        console.error('❌ Identity Pool ID não configurado!')
+        this.livenessError = 'Identity Pool ID não configurado. Verifique aws-exports.ts'
+        return
+      }
+
+      // Verificar se o widget está pronto (ele pode ter um método ou evento)
+      // O widget AWS dispara eventos quando está pronto
+      let widgetReady = false
+      const readyTimeout = setTimeout(() => {
+        if (!widgetReady) {
+          console.warn('⚠️ Widget não sinalizou que está pronto após 5 segundos')
+          console.warn('🔍 Possíveis problemas:')
+          console.warn('   1. Widget não conseguiu inicializar')
+          console.warn('   2. WebRTC não está disponível (requer HTTPS ou localhost)')
+          console.warn('   3. Cognito Identity Pool não tem permissões para Face Liveness')
+          console.warn('   4. URL de criação de sessão não está acessível ou formato incorreto')
+        }
+      }, 5000)
+
+      // Escutar evento de ready do widget (se existir)
+      const readyHandler = () => {
+        widgetReady = true
+        clearTimeout(readyTimeout)
+        console.log('✅ Widget sinalizou que está pronto')
+        this.widgetInitialized = true
+      }
+
+      widget.addEventListener('ready', readyHandler)
+      widget.addEventListener('liveness-ready', readyHandler)
+      widget.addEventListener('session-ready', readyHandler)
+
+      // Timeout adicional para verificar se o widget está transmitindo vídeo
+      setTimeout(() => {
+        if (this.sessionActive && !this.widgetInitialized) {
+          console.warn('⚠️ Widget pode não estar transmitindo vídeo via WebRTC')
+          console.warn('🔍 Verificar no console do navegador erros relacionados a WebRTC ou Cognito')
+        }
+      }, 10000)
+
+    } catch (e: any) {
+      console.error('❌ Erro ao inicializar widget:', e)
+      this.livenessError = `Erro ao inicializar widget: ${e?.message || 'Erro desconhecido'}`
     }
   }
 }
