@@ -60,6 +60,7 @@
     mode="3d"
     [processingResults]="processingResults"
     [processingProgress]="processingProgress"
+    [useRealWidget]="showLivenessWidget"
     (close)="closeCameraModal()"
     (livenessStart)="onLivenessStart()"
     (livenessComplete)="onLivenessComplete($event)"
@@ -67,13 +68,95 @@
 
   <!-- Widget AWS Face Liveness (Web Component) -->
   <div class="widget-container" *ngIf="showLivenessWidget">
+    <!-- Mensagem importante para o usuário -->
+    <div class="widget-instruction" *ngIf="!widgetInitialized && showLivenessWidget">
+      <div class="instruction-card">
+        <div class="instruction-icon">⚠️</div>
+        <h3 class="instruction-title">Ação Necessária - Leia com Atenção!</h3>
+        <p class="instruction-text">
+          O widget AWS Face Liveness <strong>NÃO inicia automaticamente</strong>. 
+          Você <strong>DEVE clicar no botão "Iniciar Verificação"</strong> dentro do widget abaixo.
+        </p>
+        <div class="instruction-steps">
+          <p class="instruction-step">1️⃣ Procure o botão "Iniciar Verificação" dentro do widget</p>
+          <p class="instruction-step">2️⃣ Clique no botão para iniciar a gravação</p>
+          <p class="instruction-step">3️⃣ Aguarde o sistema detectar automaticamente quando a gravação começar</p>
+        </div>
+        <p class="instruction-subtext">
+          ⚠️ Se você não clicar no botão, o vídeo não será transmitido e o score ficará zerado!
+        </p>
+      </div>
+    </div>
+    
     <face-liveness-widget
       [attr.region]="awsRegion"
       [attr.create-session-url]="livenessSessionUrl"
       [attr.results-url]="livenessResultsUrl"
-      [attr.identity-pool-id]="identityPoolId">
+      [attr.identity-pool-id]="identityPoolId"
+      [attr.session-id]="livenessSession?.sessionId || null">
     </face-liveness-widget>
   </div>
+
+  <!-- Tela de Processamento (exibida na página principal após fechar modal) -->
+  <section class="processing-section" *ngIf="processingResults && !livenessResult">
+    <div class="processing-card">
+      <div class="processing-content">
+        <div class="processing-animation">
+          <div class="processing-icon-wrapper">
+            <div class="processing-icon">
+              <svg viewBox="0 0 100 100" class="processing-svg">
+                <circle cx="50" cy="50" r="40" fill="none" stroke="rgba(34, 197, 94, 0.3)" stroke-width="4" />
+                <circle cx="50" cy="50" r="40" fill="none" stroke="#22c55e" stroke-width="4" 
+                        [attr.stroke-dasharray]="251.2"
+                        [attr.stroke-dashoffset]="251.2 - (251.2 * processingProgress / 100)"
+                        stroke-linecap="round"
+                        transform="rotate(-90 50 50)"
+                        class="processing-circle" />
+              </svg>
+              <div class="processing-checkmark" *ngIf="processingProgress >= 100">✓</div>
+            </div>
+          </div>
+          
+          <h2 class="processing-title">Gerando Resultados</h2>
+          <p class="processing-subtitle">Processando análise facial e verificando liveness...</p>
+          
+          <!-- Barra de progresso animada -->
+          <div class="progress-bar-container">
+            <div class="progress-bar-background">
+              <div class="progress-bar-fill" [style.width.%]="processingProgress">
+                <div class="progress-bar-shine"></div>
+              </div>
+            </div>
+            <div class="progress-percentage">{{ processingProgress }}%</div>
+          </div>
+          
+          <!-- Mensagens de status -->
+          <div class="processing-status-messages">
+            <div class="status-message" *ngIf="processingProgress < 30">
+              <span class="status-dot"></span>
+              <span>Conectando com AWS Rekognition...</span>
+            </div>
+            <div class="status-message" *ngIf="processingProgress >= 30 && processingProgress < 60">
+              <span class="status-dot"></span>
+              <span>Processando frames de vídeo...</span>
+            </div>
+            <div class="status-message" *ngIf="processingProgress >= 60 && processingProgress < 90">
+              <span class="status-dot"></span>
+              <span>Analisando liveness e gerando imagens...</span>
+            </div>
+            <div class="status-message" *ngIf="processingProgress >= 90 && processingProgress < 100">
+              <span class="status-dot"></span>
+              <span>Finalizando análise...</span>
+            </div>
+            <div class="status-message success" *ngIf="processingProgress >= 100">
+              <span class="status-dot success"></span>
+              <span>Análise concluída!</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
 
   <!-- Resultado do Liveness -->
   <section class="result-section" *ngIf="livenessResult">

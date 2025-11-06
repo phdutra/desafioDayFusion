@@ -43,3 +43,8 @@ selfie*.png
 
 # Documentation
 doc/
+
+# Scripts de setup (devem ser versionados)
+!backend/setup-https-cert.sh
+!**/setup-*.sh
+!**/clean-and-start*.sh

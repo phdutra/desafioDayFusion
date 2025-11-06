@@ -72,7 +72,8 @@ builder.Services.AddCors(options =>
         policy.WithOrigins("http://localhost:4200", "https://localhost:4200")
               .AllowAnyHeader()
               .AllowAnyMethod()
-              .AllowCredentials();
+              .AllowCredentials()
+              .WithExposedHeaders("*"); // Permitir todos os headers para CORS
     });
 });
 
@@ -137,11 +138,8 @@ if (app.Environment.IsDevelopment())
     });
 }
 
-// Avoid HTTPS redirection in Development to prevent swagger.json fetch issues on HTTP
-if (!app.Environment.IsDevelopment())
-{
-    app.UseHttpsRedirection();
-}
+// Enable HTTPS redirection for WebRTC (required for liveness)
+app.UseHttpsRedirection();
 app.UseCors("AllowFrontend");
 app.UseAuthentication();
 app.UseAuthorization();

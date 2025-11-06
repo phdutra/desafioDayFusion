@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, ViewChild, CUSTOM_ELEMENTS_SCHEMA } from '@angular/core'
+import { Component, OnInit, OnDestroy, ViewChild, CUSTOM_ELEMENTS_SCHEMA, ChangeDetectorRef } from '@angular/core'
 import { CommonModule } from '@angular/common'
 import { FormsModule } from '@angular/forms'
 import { FaceRecognitionService } from '../../core/services/face-recognition.service'
@@ -40,7 +40,7 @@ export class Capture3dComponent implements OnInit, OnDestroy {
   // Flag para rastrear se o widget foi inicializado
   widgetInitialized = false
   
-  private livenessSession?: LivenessSessionResponse
+  livenessSession?: LivenessSessionResponse
   private sessionExpiryTimer?: number
   private widgetEventListeners: { type: string; handler: (e: any) => void }[] = []
   private awsConfigured = false
@@ -51,7 +51,8 @@ export class Capture3dComponent implements OnInit, OnDestroy {
   }
 
   constructor(
-    private faceService: FaceRecognitionService
+    private faceService: FaceRecognitionService,
+    private cdr: ChangeDetectorRef
   ) {
     // Configurar AWS Amplify na inicialização do componente
     this.configureAWS()
@@ -244,9 +245,10 @@ export class Capture3dComponent implements OnInit, OnDestroy {
 
   private setupWidgetEventListeners(): void {
     // Evento quando a sessão é criada pelo widget
-    const sessionHandler = (e: CustomEvent) => {
-      console.log('✅ Widget: Sessão criada', e.detail)
-      const sessionData = e.detail as any
+    const sessionHandler = (e: Event) => {
+      const customEvent = e as CustomEvent
+      console.log('✅ Widget: Sessão criada', customEvent.detail)
+      const sessionData = customEvent.detail as any
       
       if (sessionData?.sessionId) {
         this.livenessSession = {
@@ -263,65 +265,160 @@ export class Capture3dComponent implements OnInit, OnDestroy {
     }
     
     // Evento quando liveness é concluído
-    const completeHandler = (e: CustomEvent) => {
-      console.log('✅ Widget: Liveness completado', e.detail)
-      const result = e.detail as any
+    const completeHandler = async (e: Event) => {
+      const customEvent = e as CustomEvent
+      console.log('✅ Widget: Liveness completado', customEvent.detail)
+      const result = customEvent.detail as any
       
-      // Converter resposta do widget para LivenessResultResponse
-      this.livenessResult = {
-        sessionId: result.sessionId || this.livenessSession?.sessionId || '',
-        status: result.status || '',
-        livenessDecision: result.livenessDecision || '',
-        confidence: result.confidence || 0,
-        transactionId: this.livenessSession?.transactionId || '',
-        message: result.message || '',
-        referenceImageUrl: result.referenceImageUrl || null,
-        auditImageUrls: result.auditImageUrls || [],
-        lowScoreReasons: result.lowScoreReasons || [],
-        recommendations: result.recommendations || [],
-        qualityScore: result.qualityScore || null,
-        qualityAssessment: result.qualityAssessment || null
+      // IMPORTANTE: Se o widget finalizou, buscar resultados do backend para garantir score correto
+      // O widget pode não enviar todos os dados corretamente
+      if (this.livenessSession?.sessionId) {
+        console.log('📡 Buscando resultados do backend após widget finalizar...')
+        
+        // Mostrar tela de processamento
+        this.processingResults = true
+        this.processingProgress = 10
+        this.sessionActive = false
+        this.showLivenessWidget = false
+        this.livenessLoading = false
+        
+        // Buscar resultados do backend (que tem o score correto)
+        try {
+          const resultRequest: GetLivenessResultRequest = {
+            sessionId: this.livenessSession.sessionId,
+            transactionId: this.livenessSession.transactionId
+          }
+          
+          // IMPORTANTE: Quando o widget dispara liveness-complete, pode ser que o status ainda esteja IN_PROGRESS
+          // Aguardar mais tempo para o backend processar completamente antes de buscar resultados
+          console.log('⏳ Aguardando 5 segundos antes de buscar resultados (tempo para widget finalizar processamento)...')
+          await new Promise(resolve => setTimeout(resolve, 5000))
+          
+          const backendResult = await this.pollForResults(resultRequest)
+          
+          if (backendResult) {
+            this.livenessResult = backendResult
+            console.log('✅ Resultado do backend recebido:', {
+              status: this.livenessResult.status,
+              confidence: this.livenessResult.confidence,
+              confidencePercent: (this.livenessResult.confidence * 100).toFixed(1) + '%',
+              hasImages: !!this.livenessResult.referenceImageUrl || (this.livenessResult.auditImageUrls?.length || 0) > 0
+            })
+          } else {
+            // Se não conseguiu do backend, usar dados do widget (mesmo que incompletos)
+            console.warn('⚠️ Não foi possível obter resultado do backend, usando dados do widget')
+            this.livenessResult = {
+              sessionId: result.sessionId || this.livenessSession?.sessionId || '',
+              status: result.status || '',
+              livenessDecision: result.livenessDecision || '',
+              confidence: result.confidence || 0,
+              transactionId: this.livenessSession?.transactionId || '',
+              message: result.message || '',
+              referenceImageUrl: result.referenceImageUrl || null,
+              auditImageUrls: result.auditImageUrls || [],
+              lowScoreReasons: result.lowScoreReasons || [],
+              recommendations: result.recommendations || [],
+              qualityScore: result.qualityScore || null,
+              qualityAssessment: result.qualityAssessment || null
+            }
+          }
+        } catch (err: any) {
+          console.error('❌ Erro ao buscar resultado do backend:', err)
+          // Usar dados do widget mesmo com erro
+          this.livenessResult = {
+            sessionId: result.sessionId || this.livenessSession?.sessionId || '',
+            status: result.status || '',
+            livenessDecision: result.livenessDecision || '',
+            confidence: result.confidence || 0,
+            transactionId: this.livenessSession?.transactionId || '',
+            message: result.message || 'Erro ao obter resultado completo',
+            referenceImageUrl: result.referenceImageUrl || null,
+            auditImageUrls: result.auditImageUrls || [],
+            lowScoreReasons: result.lowScoreReasons || [],
+            recommendations: result.recommendations || [],
+            qualityScore: result.qualityScore || null,
+            qualityAssessment: result.qualityAssessment || null
+          }
+        } finally {
+          this.processingResults = false
+          this.processingProgress = 0
+          this.closeCameraModal()
+        }
+      } else {
+        // Se não tem sessão, usar dados do widget diretamente
+        console.warn('⚠️ Sessão não configurada, usando dados do widget diretamente')
+        this.livenessResult = {
+          sessionId: result.sessionId || '',
+          status: result.status || '',
+          livenessDecision: result.livenessDecision || '',
+          confidence: result.confidence || 0,
+          transactionId: '',
+          message: result.message || '',
+          referenceImageUrl: result.referenceImageUrl || null,
+          auditImageUrls: result.auditImageUrls || [],
+          lowScoreReasons: result.lowScoreReasons || [],
+          recommendations: result.recommendations || [],
+          qualityScore: result.qualityScore || null,
+          qualityAssessment: result.qualityAssessment || null
+        }
+        
+        this.sessionActive = false
+        this.showLivenessWidget = false
+        this.livenessLoading = false
+        this.closeCameraModal()
       }
-      
-      console.log('✅ Resultado do liveness:', this.livenessResult)
-      
-      this.sessionActive = false
-      this.showLivenessWidget = false
-      this.livenessLoading = false
     }
 
     // Evento quando ocorre erro
-    const errorHandler = (e: CustomEvent) => {
-      console.error('❌ Widget: Erro no liveness', e.detail)
-      this.livenessError = e.detail?.message || 'Erro no widget de liveness'
+    const errorHandler = (e: Event) => {
+      const customEvent = e as CustomEvent
+      console.error('❌ Widget: Erro no liveness', customEvent.detail)
+      this.livenessError = customEvent.detail?.message || 'Erro no widget de liveness'
       this.livenessLoading = false
       this.showLivenessWidget = false
       this.sessionActive = false
     }
     
     // Evento de progresso
-    const progressHandler = (e: CustomEvent) => {
-      console.log('📊 Widget: Progresso', e.detail)
+    const progressHandler = (e: Event) => {
+      const customEvent = e as CustomEvent
+      console.log('📊 Widget: Progresso', customEvent.detail)
       // Pode usar para atualizar barra de progresso se necessário
+    }
+    
+    // Evento quando usuário inicia a verificação (clica no botão dentro do widget)
+    const userActivityHandler = (e: Event) => {
+      const customEvent = e as CustomEvent
+      console.log('✅ Widget: Usuário iniciou verificação (clicou no botão)', customEvent.detail)
+      this.widgetInitialized = true
+      this.livenessError = null // Limpar erro quando usuário inicia
+      // Marcar que o widget está realmente ativo
+      this.sessionActive = true
     }
 
     // Escutar eventos do widget
-    document.addEventListener('liveness-complete', completeHandler as EventListener)
-    document.addEventListener('liveness-error', errorHandler as EventListener)
-    document.addEventListener('liveness-session', sessionHandler as EventListener)
-    document.addEventListener('liveness-progress', progressHandler as EventListener)
+    document.addEventListener('liveness-complete', completeHandler)
+    document.addEventListener('liveness-error', errorHandler)
+    document.addEventListener('liveness-session', sessionHandler)
+    document.addEventListener('liveness-progress', progressHandler)
+    document.addEventListener('user-activity-started', userActivityHandler)
+    document.addEventListener('liveness-started', userActivityHandler)
+    document.addEventListener('recording-started', userActivityHandler)
     
     // Eventos alternativos que o widget pode disparar
-    document.addEventListener('session-created', sessionHandler as EventListener)
-    document.addEventListener('session-ready', sessionHandler as EventListener)
+    document.addEventListener('session-created', sessionHandler)
+    document.addEventListener('session-ready', sessionHandler)
 
     this.widgetEventListeners = [
-      { type: 'liveness-complete', handler: completeHandler as EventListener },
-      { type: 'liveness-error', handler: errorHandler as EventListener },
-      { type: 'liveness-session', handler: sessionHandler as EventListener },
-      { type: 'liveness-progress', handler: progressHandler as EventListener },
-      { type: 'session-created', handler: sessionHandler as EventListener },
-      { type: 'session-ready', handler: sessionHandler as EventListener }
+      { type: 'liveness-complete', handler: completeHandler },
+      { type: 'liveness-error', handler: errorHandler },
+      { type: 'liveness-session', handler: sessionHandler },
+      { type: 'liveness-progress', handler: progressHandler },
+      { type: 'user-activity-started', handler: userActivityHandler },
+      { type: 'liveness-started', handler: userActivityHandler },
+      { type: 'recording-started', handler: userActivityHandler },
+      { type: 'session-created', handler: sessionHandler },
+      { type: 'session-ready', handler: sessionHandler }
     ]
   }
 
@@ -338,9 +435,34 @@ export class Capture3dComponent implements OnInit, OnDestroy {
   }
 
   closeCameraModal(): void {
+    console.log('🚪 Fechando modal da câmera...')
+    console.log('📊 Estado antes de fechar:', {
+      showCameraModal: this.showCameraModal,
+      processingResults: this.processingResults,
+      sessionActive: this.sessionActive,
+      showLivenessWidget: this.showLivenessWidget
+    })
+    
+    // Forçar fechamento do modal
     this.showCameraModal = false
     this.showLivenessWidget = false
-    this.cleanup()
+    this.sessionActive = false
+    
+    // IMPORTANTE: Não limpar sessão aqui se estiver processando resultados
+    // A sessão é necessária para buscar resultados do backend
+    if (!this.processingResults) {
+      this.cleanup()
+    } else {
+      console.log('📊 Processamento em andamento, mantendo sessão ativa')
+    }
+    
+    // Forçar detecção de mudanças para garantir que o modal feche
+    this.cdr.detectChanges()
+    
+    console.log('✅ Modal fechado. Estado após:', {
+      showCameraModal: this.showCameraModal,
+      processingResults: this.processingResults
+    })
   }
 
   async onLivenessStart(): Promise<void> {
@@ -376,6 +498,42 @@ export class Capture3dComponent implements OnInit, OnDestroy {
         this.initializeWidget()
       }, 500)
       
+      // BACKUP: Aguardar até 5 segundos para capturar evento de sessão do widget
+      // Se não receber em 5 segundos, criar sessão manualmente como fallback
+      setTimeout(async () => {
+        if (!this.livenessSession?.sessionId && this.showLivenessWidget) {
+          console.warn('⚠️ Widget não criou sessão em 5 segundos. Criando sessão manualmente como fallback...')
+          try {
+            const sessionRequest: StartLivenessRequest = {
+              transactionId: crypto.randomUUID()
+            }
+            
+            const sessionResponse = await this.faceService.startLivenessSession(sessionRequest).toPromise()
+            
+            if (sessionResponse?.sessionId) {
+              console.log('✅ Sessão criada manualmente (fallback):', sessionResponse.sessionId)
+              this.livenessSession = {
+                sessionId: sessionResponse.sessionId,
+                streamingUrl: sessionResponse.streamingUrl || '',
+                transactionId: sessionResponse.transactionId || crypto.randomUUID(),
+                expiresAt: sessionResponse.expiresAt || new Date(Date.now() + 3 * 60 * 1000).toISOString()
+              }
+              
+              // Configurar timer de expiração
+              this.setupSessionExpiry(sessionResponse.sessionId)
+              
+              // Atualizar widget com sessionId se possível
+              const widget = document.querySelector('face-liveness-widget') as any
+              if (widget && widget.setAttribute) {
+                widget.setAttribute('session-id', sessionResponse.sessionId)
+              }
+            }
+          } catch (fallbackError: any) {
+            console.error('❌ Erro ao criar sessão manual (fallback):', fallbackError)
+          }
+        }
+      }, 5000)
+      
     } catch (err: any) {
       console.error('❌ Erro ao iniciar liveness:', err)
       this.livenessError = err.message || 'Erro ao iniciar verificação 3D.'
@@ -406,65 +564,305 @@ export class Capture3dComponent implements OnInit, OnDestroy {
   }
 
   async onLivenessComplete(event: any): Promise<void> {
-    // Se foi finalização automática, buscar resultados
-    if (event?.autoFinalized && this.livenessSession) {
+    console.log('📥 onLivenessComplete chamado com evento:', event)
+    console.log('📊 Estado atual:', {
+      hasSession: !!this.livenessSession,
+      sessionId: this.livenessSession?.sessionId,
+      sessionActive: this.sessionActive,
+      showCameraModal: this.showCameraModal,
+      showLivenessWidget: this.showLivenessWidget,
+      widgetInitialized: this.widgetInitialized,
+      isTimeout: event?.timeout
+    })
+    
+    // Se foi timeout de segurança, logar informação adicional
+    if (event?.timeout) {
+      console.warn('⚠️ Finalização via timeout de segurança - widget AWS não respondeu')
+      console.warn('📋 Tentando buscar resultados do backend mesmo sem evento do widget')
+    }
+    
+    // VERIFICAÇÃO CRÍTICA: Se o widget não foi inicializado (usuário não clicou no botão),
+    // não fechar o modal e mostrar erro
+    if (!this.widgetInitialized && event?.autoFinalized) {
+      console.error('❌ Widget não foi inicializado - usuário não clicou no botão "Iniciar Verificação"')
+      console.error('⚠️ Modal NÃO será fechado para dar oportunidade ao usuário clicar no botão')
+      this.livenessError = '⚠️ Por favor, clique no botão "Iniciar Verificação" dentro do widget para começar a gravação. O widget não funciona automaticamente.'
+      // NÃO fechar o modal - deixar usuário tentar novamente
+      return
+    }
+    
+    // PRIORIDADE 1: Se foi finalização automática ou manual, SEMPRE buscar resultados do backend
+    if (event?.autoFinalized || event?.manualStop) {
+      console.log('🔄 Finalização automática/manual detectada, buscando resultados...')
+      
+      // Verificar se temos sessão - se não tiver, pode ser que o widget ainda não criou
+      if (!this.livenessSession?.sessionId) {
+        console.warn('⚠️ Sessão não encontrada imediatamente, aguardando 1 segundo...')
+        // Aguardar mais tempo - o widget pode estar criando a sessão
+        await new Promise(resolve => setTimeout(resolve, 1000))
+        
+        // Verificar novamente após aguardar
+        if (!this.livenessSession?.sessionId) {
+          console.error('❌ Sessão ainda não disponível após aguardar. Verificando múltiplas fontes...')
+          
+          // Tentar buscar sessão do widget se disponível
+          const widget = document.querySelector('face-liveness-widget') as any
+          if (widget) {
+            // Tentar diferentes formas de obter sessionId do widget
+            const widgetSessionId = widget.getAttribute('session-id') 
+              || widget.getAttribute('sessionId')
+              || widget.sessionId
+              || (widget as any).sessionId
+              || widget.shadowRoot?.querySelector('[data-session-id]')?.getAttribute('data-session-id')
+            
+            if (widgetSessionId) {
+              console.log('✅ Sessão encontrada no widget:', widgetSessionId)
+              // Criar sessão temporária se não existir
+              if (!this.livenessSession) {
+                this.livenessSession = {
+                  sessionId: widgetSessionId,
+                  streamingUrl: '',
+                  transactionId: crypto.randomUUID(),
+                  expiresAt: new Date(Date.now() + 3 * 60 * 1000).toISOString()
+                }
+                console.log('✅ Sessão criada a partir do widget:', this.livenessSession)
+              } else {
+                this.livenessSession.sessionId = widgetSessionId
+                console.log('✅ Sessão atualizada com sessionId do widget')
+              }
+            } else {
+              console.warn('⚠️ Widget encontrado mas não tem sessionId visível')
+            }
+          } else {
+            console.warn('⚠️ Widget não encontrado no DOM')
+          }
+          
+          // Se ainda não encontrou, verificar eventos anteriores que podem ter criado sessão
+          // Mas se não encontrou até agora, provavelmente não há sessão real
+          if (!this.livenessSession?.sessionId) {
+            console.error('❌ Não foi possível encontrar sessão em nenhuma fonte')
+          }
+        }
+      }
+      
+      if (this.livenessSession?.sessionId) {
+        console.log('✅ Sessão disponível, iniciando busca de resultados...')
+        await this.fetchResultsAutomatically()
+      } else {
+        // Se não encontrou sessão, pode ser que seja simulação (useRealWidget = false)
+        // Nesse caso, criar uma sessão no backend AGORA para poder buscar resultados
+        console.warn('⚠️ Sessão não encontrada. Tentando criar sessão no backend...')
+        
+        try {
+          const sessionRequest: StartLivenessRequest = {
+            transactionId: crypto.randomUUID()
+          }
+          
+          const sessionResponse = await this.faceService.startLivenessSession(sessionRequest).toPromise()
+          
+          if (sessionResponse?.sessionId) {
+            console.log('✅ Sessão criada no backend:', sessionResponse.sessionId)
+            this.livenessSession = {
+              sessionId: sessionResponse.sessionId,
+              streamingUrl: sessionResponse.streamingUrl || '',
+              transactionId: sessionResponse.transactionId || crypto.randomUUID(),
+              expiresAt: sessionResponse.expiresAt || new Date(Date.now() + 3 * 60 * 1000).toISOString()
+            }
+            
+            // Configurar timer de expiração
+            this.setupSessionExpiry(sessionResponse.sessionId)
+            
+            // Agora buscar resultados (mesmo que seja uma sessão nova, pode ter dados se o widget já processou)
+            console.log('📡 Buscando resultados com sessão recém-criada...')
+            await this.fetchResultsAutomatically()
+          } else {
+            throw new Error('Sessão criada mas sem sessionId')
+          }
+        } catch (createError: any) {
+          console.error('❌ Erro ao criar sessão no backend:', createError)
+          // Mesmo sem sessão, fechar modal e limpar estado
+          this.sessionActive = false
+          this.processingResults = false
+          this.livenessError = 'Não foi possível obter sessão para buscar resultados. Por favor, tente novamente.'
+          this.closeCameraModal()
+        }
+      }
+      return // IMPORTANTE: retornar aqui para não continuar processamento
+    }
+    
+    // PRIORIDADE 2: Se o evento tem sessionId (resultado completo do widget)
+    if (event && event.sessionId) {
+      console.log('📡 Resultado com sessionId recebido, verificando se precisa buscar do backend...')
+      
+      // Se o confidence está zerado ou não tem imagens, buscar do backend
+      if ((!event.confidence || event.confidence === 0) || (!event.referenceImageUrl && (!event.auditImageUrls || event.auditImageUrls.length === 0))) {
+        console.log('⚠️ Resultado incompleto detectado, buscando do backend...')
+        if (this.livenessSession?.sessionId) {
+          await this.fetchResultsAutomatically()
+        } else {
+          // Usar resultado recebido mesmo que incompleto
+          console.warn('⚠️ Sessão não disponível, usando resultado incompleto do widget')
+          this.livenessResult = event
+          this.sessionActive = false
+          this.closeCameraModal()
+        }
+      } else {
+        // Resultado completo, usar diretamente
+        console.log('✅ Resultado completo recebido, usando diretamente')
+        this.livenessResult = event
+        this.sessionActive = false
+        this.closeCameraModal()
+      }
+      return
+    }
+    
+    // PRIORIDADE 3: Evento sem dados específicos, mas pode ter sessão ativa
+    console.warn('⚠️ Evento sem dados específicos detectado:', event)
+    if (this.livenessSession?.sessionId) {
+      console.log('🔄 Tentando buscar resultados do backend mesmo sem evento específico...')
       await this.fetchResultsAutomatically()
-    } else if (event?.manualStop && this.livenessSession) {
-      // Se foi parada manual, também buscar resultados
-      await this.fetchResultsAutomatically()
-    } else if (event) {
-      // Se o resultado já veio completo
-      this.livenessResult = event
+    } else {
+      console.error('❌ Não há sessão disponível e evento não contém dados úteis')
       this.sessionActive = false
+      this.processingResults = false
       this.closeCameraModal()
     }
   }
 
   private async fetchResultsAutomatically(): Promise<void> {
-    if (!this.livenessSession?.sessionId) return
+    if (!this.livenessSession?.sessionId) {
+      console.warn('⚠️ fetchResultsAutomatically: Sessão não disponível')
+      return
+    }
 
+    console.log('🔄 fetchResultsAutomatically iniciado para sessão:', this.livenessSession.sessionId)
+    console.log('📊 Estado antes de buscar resultados:', {
+      showCameraModal: this.showCameraModal,
+      processingResults: this.processingResults,
+      sessionActive: this.sessionActive
+    })
+    
+    // IMPORTANTE: Mostrar tela de processamento ANTES de fechar o modal
     this.livenessLoading = true
     this.processingResults = true
     this.processingProgress = 0
+    
+    // Fechar modal IMEDIATAMENTE após iniciar processamento para garantir que a tela seja mostrada
+    // O modal deve fechar ANTES de iniciar o polling
+    if (this.showCameraModal) {
+      console.log('🚪 Fechando modal antes de buscar resultados...')
+      this.closeCameraModal()
+      // Aguardar um frame para garantir que o Angular processe a mudança
+      await new Promise(resolve => setTimeout(resolve, 0))
+    } else {
+      console.log('ℹ️ Modal já está fechado')
+    }
+    
     try {
       const resultRequest: GetLivenessResultRequest = {
         sessionId: this.livenessSession.sessionId,
         transactionId: this.livenessSession.transactionId
       }
       
+      console.log('📡 Buscando resultados do backend...', resultRequest)
+      
       // Fazer polling para aguardar processamento completo
       const result = await this.pollForResults(resultRequest)
       
       if (result) {
+        console.log('✅ Resultado recebido do backend:', {
+          sessionId: result.sessionId,
+          status: result.status,
+          confidence: result.confidence,
+          hasReferenceImage: !!result.referenceImageUrl,
+          auditImagesCount: result.auditImageUrls?.length || 0
+        })
+        
         this.livenessResult = result
         
         // Se ainda está CREATED ou sem imagens, fazer retry imediato
         if (result.status === 'CREATED' || (!result.referenceImageUrl && result.auditImageUrls?.length === 0)) {
+          console.log('⚠️ Status CREATED ou sem imagens, fazendo retry...')
+          console.log('⚠️ Se o status continuar CREATED, significa que o widget não iniciou a transmissão')
+          console.log('⚠️ O usuário precisa clicar no botão "Iniciar Verificação" dentro do widget')
+          
           // Aguardar apenas 1 segundo antes do retry (tempo para backend processar)
           await new Promise(resolve => setTimeout(resolve, 1000))
           
           const retryResult = await this.faceService.getLivenessResult(resultRequest).toPromise()
           if (retryResult) {
+            console.log('✅ Resultado do retry recebido:', retryResult)
+            
+            // Se ainda está CREATED após retry, o widget realmente não iniciou
+            if (retryResult.status === 'CREATED') {
+              console.error('❌ Status ainda CREATED após retry - widget não iniciou a transmissão')
+              console.error('💡 O usuário precisa clicar no botão "Iniciar Verificação" dentro do widget')
+              this.livenessError = '⚠️ Widget não iniciou a gravação. Por favor, clique no botão "Iniciar Verificação" dentro do widget e tente novamente.'
+              // Não fechar modal se ainda está CREATED
+              this.processingResults = false
+              this.processingProgress = 0
+              this.showCameraModal = true // Reabrir modal para usuário tentar novamente
+              this.showLivenessWidget = true
+              return
+            }
+            
             this.livenessResult = retryResult
+          } else {
+            console.warn('⚠️ Retry não retornou resultado')
           }
         }
       } else {
+        console.error('❌ Não foi possível obter resultado da verificação')
         this.livenessError = 'Não foi possível obter resultado da verificação.'
       }
     } catch (err: any) {
-      console.error('Erro ao buscar resultado automaticamente:', err)
+      console.error('❌ Erro ao buscar resultado automaticamente:', err)
       this.livenessError = err.message || 'Erro ao obter resultado da verificação.'
     } finally {
       this.livenessLoading = false
       this.processingResults = false
       this.processingProgress = 0
       this.sessionActive = false
-      this.closeCameraModal()
+      
+      // IMPORTANTE: Garantir que modal feche após resultado estar pronto
+      // Verificar se a fala terminou antes de fechar
+      this.waitForSpeechToFinishAndCloseModal()
     }
+  }
+  
+  // Aguarda a fala terminar antes de fechar o modal
+  private waitForSpeechToFinishAndCloseModal(): void {
+    const maxWaitTime = 5000 // 5 segundos máximo
+    const checkInterval = 500 // Verificar a cada 500ms
+    let elapsedTime = 0
+    
+    const checkSpeech = setInterval(() => {
+      elapsedTime += checkInterval
+      const speechSynthesis = window.speechSynthesis
+      const isSpeaking = speechSynthesis?.speaking || speechSynthesis?.pending
+      
+      if (!isSpeaking || elapsedTime >= maxWaitTime) {
+        clearInterval(checkSpeech)
+        if (this.showCameraModal) {
+          console.log('🚪 Fechando modal após resultado estar pronto e fala terminar')
+          console.log('📊 Estado da fala:', {
+            speaking: speechSynthesis?.speaking,
+            pending: speechSynthesis?.pending,
+            elapsedTime,
+            maxWaitTime
+          })
+          this.closeCameraModal()
+        }
+      } else if (elapsedTime % 2000 === 0) {
+        // Log a cada 2 segundos
+        console.log(`⏳ Aguardando fala terminar... (${elapsedTime}ms/${maxWaitTime}ms)`)
+      }
+    }, checkInterval)
   }
 
   // Polling para aguardar resultados prontos
-  private async pollForResults(request: GetLivenessResultRequest, maxAttempts: number = 15, interval: number = 2000): Promise<LivenessResultResponse | null> {
+  // Aumentado para aguardar mais tempo quando status é IN_PROGRESS (widget está processando)
+  private async pollForResults(request: GetLivenessResultRequest, maxAttempts: number = 30, interval: number = 2000): Promise<LivenessResultResponse | null> {
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       try {
         // Atualizar progresso (começa em 10%, vai até 90% durante o polling)
@@ -475,6 +873,32 @@ export class Capture3dComponent implements OnInit, OnDestroy {
         const result = await this.faceService.getLivenessResult(request).toPromise()
         
         if (result) {
+          // Log detalhado do resultado recebido
+          console.log(`📊 [Polling #${attempt + 1}] Resultado recebido:`, {
+            sessionId: result.sessionId,
+            status: result.status,
+            confidence: result.confidence,
+            confidenceType: typeof result.confidence,
+            livenessDecision: result.livenessDecision,
+            hasReferenceImage: !!result.referenceImageUrl,
+            auditImagesCount: result.auditImageUrls?.length || 0,
+            fullResult: result
+          })
+          
+          // Garantir que confidence seja número (pode vir como null, undefined, ou string)
+          if (result.confidence === null || result.confidence === undefined) {
+            console.warn(`⚠️ [Polling #${attempt + 1}] Confidence é null/undefined, tentando extrair do backend...`)
+            // Se confidence não veio, pode estar em outro campo ou precisar recalcular
+            // O backend sempre retorna confidence, então isso não deveria acontecer
+          } else if (typeof result.confidence === 'string') {
+            // Se vier como string, converter para número
+            result.confidence = parseFloat(result.confidence) || 0
+            console.log(`🔄 [Polling #${attempt + 1}] Confidence convertido de string para número:`, result.confidence)
+          } else if (typeof result.confidence !== 'number') {
+            console.warn(`⚠️ [Polling #${attempt + 1}] Confidence não é número válido:`, result.confidence, 'tipo:', typeof result.confidence)
+            result.confidence = 0
+          }
+          
           // Garantir que status seja string (pode vir como objeto)
           let statusStr: string
           if (typeof result.status === 'string') {
@@ -486,23 +910,58 @@ export class Capture3dComponent implements OnInit, OnDestroy {
             statusStr = String(result.status || 'UNKNOWN')
           }
           
+          // Log do score final
+          console.log(`📈 [Polling #${attempt + 1}] Score final: ${(result.confidence * 100).toFixed(1)}% (${result.confidence}), Status: ${statusStr}`)
+          
           // Se status é SUCCEEDED ou FAILED, retornar imediatamente
           if (statusStr === 'SUCCEEDED' || statusStr === 'FAILED' || statusStr === 'EXPIRED') {
             this.processingProgress = 100
             // Normalizar status antes de retornar
             result.status = statusStr
+            console.log(`✅ [Polling #${attempt + 1}] Resultado final obtido:`, {
+              status: statusStr,
+              confidence: result.confidence,
+              confidencePercent: (result.confidence * 100).toFixed(1) + '%'
+            })
             return result
+          }
+          
+          // Se status é IN_PROGRESS, o vídeo está sendo transmitido - continuar polling com mais tempo
+          if (statusStr === 'IN_PROGRESS') {
+            console.log(`✅ [Polling #${attempt + 1}] Status IN_PROGRESS detectado - vídeo está sendo transmitido e processado!`)
+            console.log(`⏳ Aguardando processamento completo (pode levar até 2 minutos)...`)
+            // Continuar polling - não retornar ainda, aguardar SUCCEEDED ou FAILED
+            // Aumentar intervalo quando IN_PROGRESS para dar mais tempo ao backend processar
+            if (attempt < maxAttempts - 1) {
+              await new Promise(resolve => setTimeout(resolve, interval * 1.5)) // 3 segundos em vez de 2
+            }
+            continue // Continuar loop sem incrementar tentativa aqui (já incrementa no for)
           }
           
           // Log de debug se status for CREATED
           if (statusStr === 'CREATED') {
             console.warn(`⚠️ Status ainda CREATED após ${attempt + 1} tentativas. Widget pode não ter transmitido vídeo via WebRTC.`)
             console.warn('🔍 Verificar: Widget inicializado? WebRTC conectou? Cognito configurado?')
+            console.warn('💡 IMPORTANTE: O widget AWS Face Liveness REQUER que você clique no botão "Iniciar Verificação" dentro do widget!')
+            
+            // Se já passou 5 tentativas (10 segundos) e ainda está CREATED, pode ser que o widget não iniciou
+            if (attempt >= 5) {
+              console.error('❌ Widget não iniciou transmissão após 10 segundos. Provável causa: usuário não clicou no botão "Iniciar Verificação"')
+            }
           }
           
           // Se tem imagens mesmo com status CREATED, pode ser que esteja processando ainda
           if (result.referenceImageUrl || (result.auditImageUrls && result.auditImageUrls.length > 0)) {
             this.processingProgress = 100
+            console.log(`✅ [Polling #${attempt + 1}] Resultado com imagens retornado (mesmo com status ${statusStr})`)
+            return result
+          }
+          
+          // Se é a última tentativa, retornar resultado mesmo sem imagens
+          if (attempt === maxAttempts - 1) {
+            console.log(`⚠️ [Polling #${attempt + 1}] Última tentativa - retornando resultado mesmo sem imagens`)
+            this.processingProgress = 100
+            result.status = statusStr
             return result
           }
         }
@@ -512,7 +971,7 @@ export class Capture3dComponent implements OnInit, OnDestroy {
           await new Promise(resolve => setTimeout(resolve, interval))
         }
       } catch (err) {
-        console.error(`Erro na tentativa ${attempt + 1}:`, err)
+        console.error(`❌ Erro na tentativa ${attempt + 1}:`, err)
         // Continuar tentando mesmo com erro
         if (attempt < maxAttempts - 1) {
           await new Promise(resolve => setTimeout(resolve, interval))
@@ -520,10 +979,96 @@ export class Capture3dComponent implements OnInit, OnDestroy {
       }
     }
     
-    // Se chegou aqui, tentar uma última vez
+    // Se chegou aqui, fazer tentativas adicionais com intervalo maior para status IN_PROGRESS
+    // Pode ser que o processamento esteja demorando mais que o esperado
+    console.log('🔄 Tentativas padrão esgotadas, fazendo tentativas adicionais com intervalo maior...')
+    
+    // Tentativas adicionais com intervalo maior (5 segundos) para aguardar processamento completo
+    for (let extraAttempt = 0; extraAttempt < 20; extraAttempt++) {
+      try {
+        await new Promise(resolve => setTimeout(resolve, 5000)) // 5 segundos entre tentativas
+        
+        const finalResult = await this.faceService.getLivenessResult(request).toPromise()
+        if (finalResult) {
+          // Validar confidence
+          if (finalResult.confidence === null || finalResult.confidence === undefined) {
+            console.warn(`⚠️ [Extra Attempt #${extraAttempt + 1}] Confidence é null/undefined`)
+          } else if (typeof finalResult.confidence === 'string') {
+            finalResult.confidence = parseFloat(finalResult.confidence) || 0
+          } else if (typeof finalResult.confidence !== 'number') {
+            finalResult.confidence = 0
+          }
+          
+          // Normalizar status
+          let statusStr: string
+          if (typeof finalResult.status === 'string') {
+            statusStr = finalResult.status
+          } else if (finalResult.status && typeof finalResult.status === 'object') {
+            statusStr = (finalResult.status as any)?.value || JSON.stringify(finalResult.status) || 'UNKNOWN'
+          } else {
+            statusStr = String(finalResult.status || 'UNKNOWN')
+          }
+          
+          finalResult.status = statusStr
+          
+          console.log(`📊 [Extra Attempt #${extraAttempt + 1}] Resultado:`, {
+            status: statusStr,
+            confidence: finalResult.confidence,
+            confidencePercent: (finalResult.confidence * 100).toFixed(1) + '%',
+            hasImages: !!finalResult.referenceImageUrl || (finalResult.auditImageUrls?.length || 0) > 0
+          })
+          
+          // Se status é SUCCEEDED ou FAILED, retornar imediatamente
+          if (statusStr === 'SUCCEEDED' || statusStr === 'FAILED') {
+            console.log(`✅ [Extra Attempt #${extraAttempt + 1}] Status final obtido: ${statusStr}`)
+            this.processingProgress = 100
+            return finalResult
+          }
+          
+          // Se ainda está IN_PROGRESS, continuar tentando
+          if (statusStr === 'IN_PROGRESS') {
+            console.log(`⏳ [Extra Attempt #${extraAttempt + 1}] Ainda IN_PROGRESS, continuando aguardar...`)
+            continue
+          }
+          
+          // Se expirou, retornar mesmo assim
+          if (statusStr === 'EXPIRED') {
+            console.warn(`⚠️ [Extra Attempt #${extraAttempt + 1}] Sessão expirada`)
+            this.processingProgress = 100
+            return finalResult
+          }
+        }
+      } catch (err) {
+        console.error(`❌ Erro na tentativa extra ${extraAttempt + 1}:`, err)
+        // Continuar tentando
+      }
+    }
+    
+    // Se chegou aqui, fazer uma última tentativa
+    console.log('🔄 Fazendo última tentativa final de busca de resultados...')
     try {
-      return await this.faceService.getLivenessResult(request).toPromise() || null
-    } catch {
+      const finalResult = await this.faceService.getLivenessResult(request).toPromise()
+      if (finalResult) {
+        // Validar confidence na última tentativa
+        if (finalResult.confidence === null || finalResult.confidence === undefined) {
+          console.warn('⚠️ Confidence é null/undefined na última tentativa')
+        } else if (typeof finalResult.confidence === 'string') {
+          finalResult.confidence = parseFloat(finalResult.confidence) || 0
+        } else if (typeof finalResult.confidence !== 'number') {
+          finalResult.confidence = 0
+        }
+        
+        console.log('📊 Última tentativa final - resultado:', {
+          status: finalResult.status,
+          confidence: finalResult.confidence,
+          confidencePercent: (finalResult.confidence * 100).toFixed(1) + '%'
+        })
+        
+        return finalResult
+      }
+      return null
+    } catch (err) {
+      console.error('❌ Erro na última tentativa:', err)
       return null
     }
   }
@@ -658,21 +1203,14 @@ export class Capture3dComponent implements OnInit, OnDestroy {
       // O widget AWS dispara eventos quando está pronto
       let widgetReady = false
       const readyTimeout = setTimeout(() => {
-        if (!widgetReady) {
-          console.warn('⚠️ Widget não sinalizou que está pronto após 5 segundos')
-          console.warn('🔍 Possíveis problemas:')
-          console.warn('   1. Widget não conseguiu inicializar')
-          console.warn('   2. WebRTC não está disponível (requer HTTPS ou localhost)')
-          console.warn('   3. Cognito Identity Pool não tem permissões para Face Liveness')
-          console.warn('   4. URL de criação de sessão não está acessível ou formato incorreto')
-        }
+        // Silencioso: não poluir console; erros reais já são tratados abaixo
       }, 5000)
 
       // Escutar evento de ready do widget (se existir)
       const readyHandler = () => {
         widgetReady = true
         clearTimeout(readyTimeout)
-        console.log('✅ Widget sinalizou que está pronto')
+        // Widget pronto
         this.widgetInitialized = true
       }
 
@@ -680,13 +1218,134 @@ export class Capture3dComponent implements OnInit, OnDestroy {
       widget.addEventListener('liveness-ready', readyHandler)
       widget.addEventListener('session-ready', readyHandler)
 
-      // Timeout adicional para verificar se o widget está transmitindo vídeo
-      setTimeout(() => {
-        if (this.sessionActive && !this.widgetInitialized) {
-          console.warn('⚠️ Widget pode não estar transmitindo vídeo via WebRTC')
-          console.warn('🔍 Verificar no console do navegador erros relacionados a WebRTC ou Cognito')
+      // Verificação periódica de WebRTC e transmissão de vídeo
+      let checkCount = 0
+      const maxChecks = 30 // 30 segundos (1 segundo cada) - mais tempo para usuário clicar
+      let userNotifiedToClick = false
+      
+      const checkWebRTC = setInterval(() => {
+        checkCount++
+        
+        // Verificar se há elementos de vídeo dentro do widget
+        const widget = document.querySelector('face-liveness-widget') as any
+        if (widget) {
+          // IMPORTANTE: Widget AWS Face Liveness usa Shadow DOM
+          // Tentar acessar shadowRoot se disponível
+          const shadowRoot = widget.shadowRoot || widget.shadowRootElement
+          const widgetElement = shadowRoot || widget
+          
+          // Verificar se há botão "Iniciar Verificação" visível (widget ainda não iniciou)
+          let buttons: NodeListOf<HTMLElement> | HTMLElement[] = []
+          try {
+            // Tentar querySelector normal primeiro
+            buttons = widgetElement.querySelectorAll('button')
+            
+            // Se não encontrou e tem shadowRoot, tentar dentro do shadow
+            if (buttons.length === 0 && shadowRoot) {
+              buttons = shadowRoot.querySelectorAll('button')
+            }
+          } catch (e) {
+            console.warn('⚠️ Erro ao acessar botões do widget (pode estar em Shadow DOM):', e)
+          }
+          
+          const startButton = Array.from(buttons).find((btn: any) => {
+            const text = btn.textContent?.toLowerCase() || btn.innerText?.toLowerCase() || ''
+            return text.includes('iniciar') || 
+                   text.includes('start') ||
+                   text.includes('verificação') ||
+                   text.includes('verification') ||
+                   text.includes('begin') ||
+                   text.includes('começar')
+          })
+          
+          if (startButton && !userNotifiedToClick && checkCount >= 3) {
+            // Notificar usuário após 3 segundos se botão ainda estiver visível
+            console.warn('⚠️ [Widget] Botão "Iniciar Verificação" ainda visível. Aguardando usuário clicar...')
+            console.warn('📋 Texto do botão encontrado:', startButton.textContent || startButton.innerText)
+            this.livenessError = 'Por favor, clique no botão "Iniciar Verificação" dentro do widget abaixo para começar a gravação.'
+            userNotifiedToClick = true
+          }
+          
+          // Buscar vídeos dentro do widget (incluindo shadow DOM)
+          let videoElements: NodeListOf<HTMLVideoElement> | HTMLVideoElement[] = []
+          try {
+            videoElements = widgetElement.querySelectorAll('video')
+            
+            // Se não encontrou e tem shadowRoot, tentar dentro do shadow
+            if (videoElements.length === 0 && shadowRoot) {
+              videoElements = shadowRoot.querySelectorAll('video')
+            }
+          } catch (e) {
+            console.warn('⚠️ Erro ao acessar vídeos do widget (pode estar em Shadow DOM):', e)
+          }
+          let hasActiveVideo = false
+          let hasWebRTCConnection = false
+          let hasLiveTracks = false
+          
+          videoElements.forEach((video: HTMLVideoElement) => {
+            if (video.srcObject && !video.paused && video.readyState >= 2) {
+              hasActiveVideo = true
+            }
+            // Verificar se há MediaStream (WebRTC)
+            if (video.srcObject instanceof MediaStream) {
+              hasWebRTCConnection = true
+              const tracks = video.srcObject.getTracks()
+              const videoTracks = tracks.filter(track => track.kind === 'video')
+              if (videoTracks.length > 0 && videoTracks[0].readyState === 'live') {
+                hasLiveTracks = true
+                if (checkCount % 5 === 0) {
+                  console.log(`✅ [WebRTC Check #${checkCount}] Vídeo detectado com WebRTC ativo:`, {
+                    videoTracks: videoTracks.length,
+                    trackState: videoTracks[0].readyState
+                  })
+                }
+              }
+            }
+          })
+          
+          if (hasActiveVideo && hasWebRTCConnection && hasLiveTracks) {
+            console.log(`✅ [WebRTC Check #${checkCount}] Widget está transmitindo vídeo via WebRTC`)
+            clearInterval(checkWebRTC)
+            this.widgetInitialized = true
+            this.livenessError = null // Limpar erro quando detectar transmissão
+          } else if (checkCount % 5 === 0) {
+            // Log a cada 5 segundos
+            console.warn(`⚠️ [WebRTC Check #${checkCount}] Widget ainda não está transmitindo vídeo:`, {
+              hasActiveVideo,
+              hasWebRTCConnection,
+              hasLiveTracks,
+              videoElementsCount: videoElements.length,
+              startButtonVisible: !!startButton,
+              widgetVisible: window.getComputedStyle(widget).display !== 'none',
+              widgetInDOM: widget.isConnected,
+              hasShadowRoot: !!widget.shadowRoot
+            })
+            
+            // Se passou 10 segundos e ainda não iniciou, alertar mais fortemente
+            if (checkCount >= 10 && startButton) {
+              this.livenessError = '⚠️ IMPORTANTE: Clique no botão "Iniciar Verificação" dentro do widget para começar a gravação! O widget não funciona automaticamente.'
+            } else if (checkCount >= 15 && !hasWebRTCConnection) {
+              // Se passou 15 segundos e não há conexão WebRTC, pode ser problema de configuração
+              this.livenessError = '⚠️ Widget não está conectando via WebRTC. Verifique: 1) HTTPS ou localhost, 2) Permissões do Cognito, 3) Clique no botão do widget.'
+            }
+          }
         }
-      }, 10000)
+        
+        // Parar após maxChecks
+        if (checkCount >= maxChecks) {
+          clearInterval(checkWebRTC)
+          if (!this.widgetInitialized) {
+            console.error('❌ Widget não iniciou transmissão de vídeo após 30 segundos')
+            console.error('🔍 Diagnóstico:')
+            console.error('   1. O widget AWS Face Liveness REQUER que o usuário clique em "Iniciar Verificação"')
+            console.error('   2. Verifique se está usando HTTPS ou localhost')
+            console.error('   3. Verifique se o Cognito Identity Pool tem permissões para Rekognition Face Liveness')
+            console.error('   4. Verifique se o widget tem acesso à câmera (permissões do navegador)')
+            console.error('   5. O widget pode estar dentro de um Shadow DOM - verifique se está visível')
+            this.livenessError = 'Widget não iniciou gravação. Por favor, clique no botão "Iniciar Verificação" dentro do widget e tente novamente.'
+          }
+        }
+      }, 1000) // Verificar a cada 1 segundo
 
     } catch (e: any) {
       console.error('❌ Erro ao inicializar widget:', e)

@@ -1,8 +1,9 @@
-import { Component, OnInit, OnDestroy, AfterViewInit, OnChanges, SimpleChanges, ViewChild, ElementRef, Input, Output, EventEmitter, ChangeDetectorRef } from '@angular/core'
+import { Component, OnInit, OnDestroy, AfterViewInit, OnChanges, SimpleChanges, ViewChild, ElementRef, Input, Output, EventEmitter, ChangeDetectorRef, NgZone } from '@angular/core'
 import { CommonModule } from '@angular/common'
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser'
 import { CameraService } from '../../../core/services/camera.service'
 import { FaceRecognitionService } from '../../../core/services/face-recognition.service'
+import { VoiceSynthesisService } from '../../../core/services/voice-synthesis.service'
 import { firstValueFrom } from 'rxjs'
 
 export type CameraMode = '2d' | '3d'
@@ -22,6 +23,7 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
   @Input() isOpen: boolean = false
   @Input() processingResults: boolean = false
   @Input() processingProgress: number = 0 // 0-100
+  @Input() useRealWidget: boolean = false // Se true, desabilita simulação e aguarda widget real
   
   @Output() close = new EventEmitter<void>()
   @Output() capture = new EventEmitter<string>()
@@ -52,11 +54,11 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
   // Progresso do anel segmentado (0-100)
   livenessProgress = 0
   phaseInstructions: string[] = []
-  private speechSynthesis: SpeechSynthesis | null = null
-  private currentSpeechUtterance: SpeechSynthesisUtterance | null = null
   private phaseCheckInterval?: number
   private autoFinalizeTimer?: number
   private livenessStepTimer?: number
+  private widgetCompletionTimeout?: number // Timeout de segurança para widget não responder
+  private livenessStepCallbacks: Map<string, () => void> = new Map()
   
   private stream?: MediaStream
   private validationInterval?: number
@@ -64,14 +66,11 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
   constructor(
     private cameraService: CameraService,
     private faceService: FaceRecognitionService,
+    private voiceService: VoiceSynthesisService,
     private cdr: ChangeDetectorRef,
-    private sanitizer: DomSanitizer
-  ) {
-    // Inicializar síntese de voz se disponível
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      this.speechSynthesis = window.speechSynthesis
-    }
-  }
+    private sanitizer: DomSanitizer,
+    private ngZone: NgZone
+  ) {}
 
   ngOnInit(): void {}
 
@@ -83,10 +82,20 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['isOpen']) {
+      console.log('🔄 camera-modal: ngOnChanges detectou mudança em isOpen:', {
+        previousValue: changes['isOpen'].previousValue,
+        currentValue: changes['isOpen'].currentValue,
+        isOpen: this.isOpen
+      })
+      
       if (this.isOpen) {
         setTimeout(() => this.initializeCamera(), 100)
       } else {
+        console.log('🚪 camera-modal: Fechando modal (isOpen = false), limpando recursos...')
+        this.sessionActive = false
         this.cleanup()
+        // Forçar detecção de mudanças para garantir que o modal desapareça
+        this.cdr.detectChanges()
       }
     }
   }
@@ -252,42 +261,13 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
     }
   }
 
-  // Instruções de voz
-  speakInstruction(text: string, lang: string = 'pt-BR'): void {
-    if (!this.speechSynthesis) return
-    
-    // Cancelar fala anterior se existir
-    if (this.currentSpeechUtterance) {
-      this.speechSynthesis.cancel()
-    }
-    
-    const utterance = new SpeechSynthesisUtterance(text)
-    utterance.lang = lang
-    utterance.rate = 1.0
-    utterance.pitch = 1.0
-    utterance.volume = 1.0
-    
-    utterance.onend = () => {
-      this.currentSpeechUtterance = null
-    }
-    
-    utterance.onerror = (error) => {
-      // Ignorar erro 'interrupted' que é normal quando uma nova fala cancela uma anterior
-      if (error.error !== 'interrupted') {
-        console.warn('Erro na síntese de voz:', error)
-      }
-      this.currentSpeechUtterance = null
-    }
-    
-    this.currentSpeechUtterance = utterance
-    this.speechSynthesis.speak(utterance)
+  // Instruções de voz - agora usa o serviço dedicado
+  speakInstruction(text: string, lang: string = 'pt-BR', cancelPrevious: boolean = true): void {
+    this.voiceService.speak(text, lang, cancelPrevious)
   }
 
   stopSpeaking(): void {
-    if (this.speechSynthesis) {
-      this.speechSynthesis.cancel()
-      this.currentSpeechUtterance = null
-    }
+    this.voiceService.stop()
   }
 
   // 3D Position Validation - Contínua
@@ -466,6 +446,49 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
       return
     }
 
+    // Se o widget real está sendo usado, aguardar widget iniciar gravação
+    // O widget real controla a UI e tem sua própria tela inicial com botão "Iniciar Verificação"
+    if (this.useRealWidget) {
+      this.sessionActive = true // Manter como ativo para não fechar modal prematuramente
+      this.currentPhase = 'recording'
+      this.currentLivenessStep = 'center'
+      
+      // IMPORTANTE: Emitir evento ANTES de iniciar widget para não bloquear voz
+      // Mas usar NgZone para garantir que voz continue funcionando após WebRTC iniciar
+      this.ngZone.run(() => {
+        this.livenessStart.emit()
+      })
+      
+      // CORREÇÃO: Iniciar sequência de liveness IMEDIATAMENTE após a fala começar
+      // Não aguardar a fala terminar - iniciar em paralelo
+      console.log('🚀 Iniciando sequência de liveness IMEDIATAMENTE (widget real)')
+      
+      // Aguardar widget iniciar gravação antes de começar instruções de voz
+      // O widget AWS tem uma tela inicial e só inicia gravação após usuário clicar "Iniciar Verificação"
+      this.waitForWidgetToStartRecording()
+      
+      // IMPORTANTE: Iniciar sequência de liveness assim que a primeira mensagem começar a falar
+      // Usar polling para detectar quando a voz INICIOU (não quando terminou)
+      // Isso garante que liveness inicia na sequência da fala
+      setTimeout(() => {
+        if (this.sessionActive && this.isOpen && this.useRealWidget && this.currentLivenessStep === 'center') {
+          console.log('🚀 [SYNC] Iniciando sequência de liveness após fala começar (2s)')
+          this.startLivenessSteps()
+        }
+      }, 2000) // 2 segundos - tempo para primeira mensagem começar a falar
+      
+      // BACKUP: Garantir que startLivenessSteps seja chamado mesmo se acima falhar
+      // Após 8 segundos (tempo suficiente para widget iniciar + margem), chamar startLivenessSteps
+      setTimeout(() => {
+        if (this.sessionActive && this.isOpen && this.useRealWidget && this.currentLivenessStep === 'center') {
+          console.log('🔄 [BACKUP] Chamando startLivenessSteps após timeout de segurança (8s)')
+          this.startLivenessSteps()
+        }
+      }, 8000)
+      
+      return
+    }
+
     // Validar posição antes de iniciar
     if (!this.faceDetected) {
       this.error = 'Posicione seu rosto corretamente antes de iniciar.'
@@ -480,103 +503,681 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
     this.currentPhase = 'recording'
     this.currentLivenessStep = 'center'
     
-    // Instruções iniciais de gravação
+    // Instruções iniciais de gravação - FALAR ANTES de emitir evento para evitar bloqueio
     this.speakInstruction('Gravação iniciada. Olhe para a câmera e mantenha-se preparado. Vou pedir três movimentos.')
     
-    this.livenessStart.emit()
+    // IMPORTANTE: Usar NgZone.run para garantir que voz continue funcionando após WebRTC iniciar
+    // O WebRTC pode interferir na síntese de voz, então precisamos garantir execução na zona correta
+    this.ngZone.run(() => {
+      this.livenessStart.emit()
+    })
     
     // Iniciar sequência de movimentos após 3 segundos
+    // IMPORTANTE: Chamar startLivenessSteps mesmo quando useRealWidget é true
+    // O waitForWidgetToStartRecording também chama, mas este garante que sempre será chamado
     setTimeout(() => {
-      this.startLivenessSteps()
+      if (this.sessionActive && this.isOpen) {
+        this.startLivenessSteps()
+      }
     }, 3000)
     
     // Iniciar verificação automática de conclusão (tempo total ajustado)
     this.startAutoFinalization()
   }
 
-  // Sequência de etapas do liveness: direita, esquerda, piscar e sorrir
+  // SOLUÇÃO ALTERNATIVA: Polling ativo + botões manuais
+  // Não depende de timers, callbacks ou voz - usa polling contínuo para verificar tempo
   startLivenessSteps(): void {
-    if (!this.sessionActive || !this.isOpen) return
-
-    // Etapa 1: Virar para direita
-    // PRIMEIRO: Falar a instrução e aguardar ela começar (usar evento onstart)
-    const utterance1 = this.createUtterance('Por favor, vire lentamente seu rosto para a direita.')
-    utterance1.onstart = () => {
-      // Quando a voz começar a falar, mostrar instrução visual após 1.2s
-      setTimeout(() => {
-        if (this.sessionActive && this.isOpen) {
-          this.currentLivenessStep = 'right'
-          this.cdr.detectChanges()
-        }
-      }, 1200)
+    console.log('🎬🎬🎬 startLivenessSteps CHAMADO (SOLUÇÃO POLLING)! 🎬🎬🎬')
+    console.log('📊 Estado no início:', {
+      sessionActive: this.sessionActive,
+      isOpen: this.isOpen,
+      useRealWidget: this.useRealWidget,
+      currentLivenessStep: this.currentLivenessStep,
+      currentPhase: this.currentPhase
+    })
+    
+    // Verificar se já está em execução (evitar duplicação)
+    if (this.currentLivenessStep !== 'center' && this.currentLivenessStep !== 'completed') {
+      console.warn('⚠️ startLivenessSteps já em execução (step atual:', this.currentLivenessStep, ') - ignorando chamada duplicada')
+      return
     }
-    this.speechSynthesis?.speak(utterance1)
+    
+    if (!this.sessionActive || !this.isOpen) {
+      console.warn('⚠️ startLivenessSteps cancelado - sessão não ativa ou modal fechado')
+      return
+    }
+    
+    const isRealWidget = this.useRealWidget
+    console.log('📋 Iniciando sequência de instruções com POLLING ATIVO (widget real:', isRealWidget, ')')
 
-    // Etapa 2: Virar para esquerda (após 6 segundos - 5s ação + 1s buffer)
-    this.livenessStepTimer = window.setTimeout(() => {
-      if (!this.sessionActive || !this.isOpen) return
-      
-      // Reset visual temporário
-      this.currentLivenessStep = 'center'
-      this.cdr.detectChanges()
-      
-      // PRIMEIRO: Falar a instrução
-      const utterance2 = this.createUtterance('Agora, vire lentamente seu rosto para a esquerda.')
-      utterance2.onstart = () => {
-        // Quando a voz começar, mostrar instrução visual após 1.2s
-        setTimeout(() => {
-          if (this.sessionActive && this.isOpen) {
-            this.currentLivenessStep = 'left'
-            this.cdr.detectChanges()
-          }
-        }, 1200)
+    // Definir sequência de etapas
+    this.livenessStepsSequence = [
+      {
+        step: 'right' as const,
+        text: 'Por favor, vire lentamente seu rosto para a direita.',
+        displayTime: 6000,
+        voiceText: 'Por favor, vire lentamente seu rosto para a direita.'
+      },
+      {
+        step: 'left' as const,
+        text: 'Agora, vire lentamente seu rosto para a esquerda.',
+        displayTime: 6000,
+        voiceText: 'Agora, vire lentamente seu rosto para a esquerda.'
+      },
+      {
+        step: 'blink_smile' as const,
+        text: 'Agora, piscar os olhos e sorrir.',
+        displayTime: 5000,
+        voiceText: 'Agora, piscar os olhos e sorrir.'
+      },
+      {
+        step: 'completed' as const,
+        text: 'Muito bem! Mantenha-se imóvel.',
+        displayTime: 3000,
+        voiceText: 'Muito bem! Mantenha-se imóvel. ' + (isRealWidget ? 'Aguardando processamento.' : 'Processando resultados.')
       }
-      this.speechSynthesis?.speak(utterance2)
+    ]
 
-      // Etapa 3: Piscar e sorrir (após mais 6 segundos)
-      this.livenessStepTimer = window.setTimeout(() => {
-        if (!this.sessionActive || !this.isOpen) return
-        
-        // Reset visual temporário
-        this.currentLivenessStep = 'center'
-        this.cdr.detectChanges()
-        
-        // PRIMEIRO: Falar a instrução
-        const utterance3 = this.createUtterance('Agora, piscar os olhos e sorrir.')
-        utterance3.onstart = () => {
-          // Quando a voz começar, mostrar instrução visual após 1.2s
-          setTimeout(() => {
-            if (this.sessionActive && this.isOpen) {
-              this.currentLivenessStep = 'blink_smile'
-              this.cdr.detectChanges()
-            }
-          }, 1200)
-        }
-        this.speechSynthesis?.speak(utterance3)
+    // Iniciar na primeira etapa
+    this.currentStepIndex = -1
+    this.advanceToNextStepViaPolling()
 
-        // Finalizar etapas após mais 4 segundos
-        this.livenessStepTimer = window.setTimeout(() => {
-          if (!this.sessionActive || !this.isOpen) return
-          this.currentLivenessStep = 'completed'
-          this.speakInstruction('Muito bem! Mantenha-se imóvel. Processando resultados.')
-          this.cdr.detectChanges()
-        }, 4000)
-      }, 6000)
-    }, 6000)
+    // Iniciar polling ativo (verifica a cada 500ms se precisa avançar)
+    this.startStepPolling()
   }
 
-  // Método auxiliar para criar utterance com configurações
-  private createUtterance(text: string): SpeechSynthesisUtterance {
-    const utterance = new SpeechSynthesisUtterance(text)
-    utterance.lang = 'pt-BR'
-    utterance.rate = 1.0
-    utterance.pitch = 1.0
-    utterance.volume = 1.0
-    return utterance
+  // Polling para detectar quando a primeira mensagem de voz termina
+  private startInitialMessagePolling(): void {
+    // Limpar polling anterior se existir
+    if (this.initialMessagePollingInterval) {
+      clearInterval(this.initialMessagePollingInterval)
+    }
+
+    console.log('🔄 Iniciando polling para detectar fim da primeira mensagem de voz...')
+    let checkCount = 0
+    
+    this.initialMessagePollingInterval = this.ngZone.runOutsideAngular(() => {
+      return window.setInterval(() => {
+        this.ngZone.run(() => {
+          checkCount++
+          
+          // Verificar se já passou tempo suficiente (primeira mensagem leva ~5-6s)
+          if (checkCount > 12) { // 6 segundos (500ms * 12)
+            console.log('⏰ [INITIAL POLLING] Tempo máximo atingido - chamando startLivenessSteps')
+            if (this.initialMessagePollingInterval) {
+              clearInterval(this.initialMessagePollingInterval)
+              this.initialMessagePollingInterval = undefined
+            }
+            if (this.sessionActive && this.isOpen && this.useRealWidget && this.currentLivenessStep === 'center') {
+              console.log('🚀 [INITIAL POLLING] Chamando startLivenessSteps')
+              this.startLivenessSteps()
+            }
+            return
+          }
+          
+          // Verificar se a voz terminou (SpeechSynthesis não está falando)
+          const speechSynthesis = window.speechSynthesis
+          if (speechSynthesis && !speechSynthesis.speaking && !speechSynthesis.pending) {
+            console.log(`✅ [INITIAL POLLING] Voz terminou detectada (check #${checkCount}) - chamando startLivenessSteps`)
+            
+            if (this.initialMessagePollingInterval) {
+              clearInterval(this.initialMessagePollingInterval)
+              this.initialMessagePollingInterval = undefined
+            }
+            
+            // Aguardar um pouco mais para garantir que a mensagem realmente terminou
+            setTimeout(() => {
+              if (this.sessionActive && this.isOpen && this.useRealWidget && this.currentLivenessStep === 'center') {
+                console.log('🚀 [INITIAL POLLING] Chamando startLivenessSteps após confirmação')
+                this.startLivenessSteps()
+              }
+            }, 500)
+          } else if (checkCount % 4 === 0) {
+            // Log a cada 2 segundos para debug
+            console.log(`🔍 [INITIAL POLLING] Check #${checkCount} - voz ainda falando:`, {
+              speaking: speechSynthesis?.speaking,
+              pending: speechSynthesis?.pending,
+              currentStep: this.currentLivenessStep
+            })
+          }
+        })
+      }, 500) // Verificar a cada 500ms
+    }) as any
+
+    console.log(`✅ Polling da mensagem inicial iniciado (interval ID: ${this.initialMessagePollingInterval})`)
+  }
+
+  // Polling ativo que verifica periodicamente se precisa avançar
+  private startStepPolling(): void {
+    // Limpar polling anterior se existir
+    if (this.stepPollingInterval) {
+      clearInterval(this.stepPollingInterval)
+    }
+
+    console.log('🔄 Iniciando polling ativo para verificar avanço de etapas...')
+    
+    this.stepPollingInterval = this.ngZone.runOutsideAngular(() => {
+      return window.setInterval(() => {
+        this.ngZone.run(() => {
+          this.checkAndAdvanceStep()
+        })
+      }, 500) // Verifica a cada 500ms
+    }) as any
+
+    console.log(`✅ Polling iniciado (interval ID: ${this.stepPollingInterval})`)
+  }
+
+  // Verifica se o tempo passou e avança automaticamente
+  private checkAndAdvanceStep(): void {
+    // Log periódico a cada 10 verificações (5 segundos) para debug
+    if (!this.lastPollingLog || Date.now() - this.lastPollingLog > 5000) {
+      console.log('🔍 [POLLING] Verificando avanço de etapa...', {
+        sessionActive: this.sessionActive,
+        isOpen: this.isOpen,
+        currentStepIndex: this.currentStepIndex,
+        sequenceLength: this.livenessStepsSequence.length,
+        currentStepStartTime: this.currentStepStartTime,
+        currentLivenessStep: this.currentLivenessStep
+      })
+      this.lastPollingLog = Date.now()
+    }
+    
+    if (!this.sessionActive || !this.isOpen || this.currentStepIndex < 0) {
+      return
+    }
+
+    if (this.currentStepIndex >= this.livenessStepsSequence.length) {
+      // Sequência concluída, parar polling
+      console.log('✅ Sequência concluída - parando polling')
+      if (this.stepPollingInterval) {
+        clearInterval(this.stepPollingInterval)
+        this.stepPollingInterval = undefined
+      }
+      return
+    }
+
+    if (!this.currentStepStartTime) {
+      console.warn('⚠️ [POLLING] currentStepStartTime não definido ainda')
+      return
+    }
+
+    const currentStep = this.livenessStepsSequence[this.currentStepIndex]
+    const elapsed = Date.now() - this.currentStepStartTime
+
+    if (elapsed >= currentStep.displayTime) {
+      console.log(`⏰ [POLLING] Tempo passou! (${elapsed}ms >= ${currentStep.displayTime}ms) - AVANÇANDO AUTOMATICAMENTE`)
+      
+      // Avançar para próxima etapa (ou finalizar se for a última)
+      this.advanceToNextStepViaPolling()
+    }
+  }
+  
+  private lastPollingLog?: number
+
+  // Avança para a próxima etapa
+  private advanceToNextStepViaPolling(): void {
+    console.log('🔄 advanceToNextStepViaPolling chamado')
+    console.log('📊 Estado antes de avançar:', {
+      currentStepIndex: this.currentStepIndex,
+      sequenceLength: this.livenessStepsSequence.length,
+      sessionActive: this.sessionActive,
+      isOpen: this.isOpen
+    })
+    
+    this.currentStepIndex++
+
+    if (this.currentStepIndex >= this.livenessStepsSequence.length) {
+      console.log('✅ Sequência de etapas concluída via polling')
+      if (this.stepPollingInterval) {
+        clearInterval(this.stepPollingInterval)
+        this.stepPollingInterval = undefined
+      }
+      
+      // IMPORTANTE: Quando todas as etapas são concluídas (incluindo 'completed'), verificar se deve finalizar
+      // Se o widget real está sendo usado, NÃO finalizar automaticamente - aguardar widget terminar
+      if (this.currentLivenessStep === 'completed') {
+        if (this.useRealWidget) {
+          // Widget real está sendo usado - NÃO finalizar automaticamente
+          // O widget AWS vai disparar o evento liveness-complete quando terminar
+          console.log('✅ Etapas concluídas, mas widget real está ativo - aguardando widget finalizar...')
+          console.log('📋 Widget AWS vai processar o vídeo e disparar evento quando terminar')
+          
+          // TIMEOUT DE SEGURANÇA: Se o widget não disparar evento em 60 segundos, forçar finalização
+          // Isso previne que o modal fique travado indefinidamente
+          this.startWidgetCompletionTimeout()
+        } else {
+          // Simulação - pode finalizar automaticamente após tempo suficiente
+          setTimeout(() => {
+            if (this.sessionActive && this.isOpen && !this.useRealWidget) {
+              console.log('🎯 Todas as etapas concluídas (simulação), finalizando processo...')
+              this.processResultsAndFinalize()
+            }
+          }, 4000) // 4 segundos após completar (tempo para última mensagem de voz + margem)
+        }
+      }
+      
+      return
+    }
+
+    if (!this.sessionActive || !this.isOpen) {
+      console.warn('⚠️ Sequência cancelada - sessão não ativa', {
+        sessionActive: this.sessionActive,
+        isOpen: this.isOpen
+      })
+      return
+    }
+
+    const currentStep = this.livenessStepsSequence[this.currentStepIndex]
+    console.log(`📢 [POLLING] AVANÇANDO para etapa ${this.currentStepIndex + 1}/${this.livenessStepsSequence.length}: ${currentStep.step}`)
+    console.log(`📝 Instrução: ${currentStep.text}`)
+    console.log(`⏱️ Tempo de exibição: ${currentStep.displayTime}ms (${currentStep.displayTime/1000}s)`)
+
+    // Atualizar UI IMEDIATAMENTE
+    this.ngZone.run(() => {
+      if (this.currentPhase !== 'recording') {
+        this.currentPhase = 'recording'
+        console.log('🎬 Phase atualizada para: recording')
+      }
+      
+      this.currentLivenessStep = currentStep.step
+      this.currentStepStartTime = Date.now() // Registrar timestamp para polling
+      this.cdr.detectChanges()
+      
+      console.log(`🎨 UI atualizada para step: ${currentStep.step}, timestamp: ${this.currentStepStartTime}`)
+      console.log(`📊 Estado após atualização:`, {
+        currentLivenessStep: this.currentLivenessStep,
+        currentPhase: this.currentPhase,
+        currentStepStartTime: this.currentStepStartTime,
+        currentStepIndex: this.currentStepIndex
+      })
+    })
+
+    // Tentar falar (mas não bloquear - voz é opcional)
+    // A voz não bloqueia o avanço das etapas
+    // IMPORTANTE: Usar NgZone.run para garantir que voz funcione mesmo durante WebRTC
+    this.ngZone.run(() => {
+      try {
+        this.voiceService.speak(currentStep.voiceText, 'pt-BR', false, this.livenessStepsSequence.length - this.currentStepIndex)
+        console.log('✅ Mensagem de voz adicionada à fila (opcional):', currentStep.voiceText.substring(0, 40) + '...')
+      } catch (error) {
+        console.warn('⚠️ Erro ao adicionar mensagem de voz (continuando mesmo assim):', error)
+      }
+    })
+    
+    // IMPORTANTE: O avanço das etapas NÃO depende da voz funcionar
+    // O polling verifica o tempo e avança automaticamente
+  }
+
+  // Método público para avanço manual via botão
+  advanceStepManually(): void {
+    if (!this.sessionActive || !this.isOpen) {
+      return
+    }
+
+    console.log('👆 Avanço MANUAL solicitado pelo usuário')
+    this.advanceToNextStepViaPolling()
+  }
+
+  /**
+   * Fala uma mensagem com callbacks onstart e onend
+   * Usa polling para detectar quando a fala termina (já que o serviço não expõe callbacks diretamente)
+   * Usa NgZone para garantir que callbacks sejam executados mesmo durante WebRTC
+   */
+  private speakWithCallback(
+    text: string,
+    onStart?: () => void,
+    onEnd?: () => void
+  ): void {
+    console.log('🎤 speakWithCallback chamado:', text.substring(0, 50) + '...')
+    
+    // Falar a mensagem usando NgZone para garantir execução mesmo durante WebRTC
+    this.ngZone.runOutsideAngular(() => {
+      this.voiceService.speak(text, 'pt-BR', true, 1)
+    })
+    
+    let wasSpeaking = false
+    let started = false
+    let ended = false
+    let startCalled = false
+    
+    // Callback onstart - verificar imediatamente e depois periodicamente
+    if (onStart) {
+      // Verificar imediatamente
+      if (this.voiceService.isSpeaking()) {
+        started = true
+        wasSpeaking = true
+        startCalled = true
+        this.ngZone.run(() => {
+          if (onStart) onStart()
+        })
+        console.log('✅ onStart chamado imediatamente')
+      } else {
+        // Verificar periodicamente até começar
+        const startCheckInterval = setInterval(() => {
+          if (this.voiceService.isSpeaking() && !startCalled) {
+            started = true
+            wasSpeaking = true
+            startCalled = true
+            clearInterval(startCheckInterval)
+            this.ngZone.run(() => {
+              if (onStart) onStart()
+            })
+            console.log('✅ onStart chamado após polling')
+          }
+        }, 100)
+        
+        // Timeout para start (5 segundos)
+        setTimeout(() => {
+          clearInterval(startCheckInterval)
+          if (!startCalled && this.voiceService.isSpeaking()) {
+            started = true
+            wasSpeaking = true
+            startCalled = true
+            this.ngZone.run(() => {
+              if (onStart) onStart()
+            })
+            console.log('✅ onStart chamado após timeout')
+          }
+        }, 5000)
+      }
+    } else {
+      // Se não há onStart, marcar como started se já está falando
+      wasSpeaking = this.voiceService.isSpeaking()
+      started = wasSpeaking
+    }
+    
+    // Polling para detectar quando termina (verificar a cada 50ms - mais frequente)
+    if (onEnd) {
+      let checkCount = 0
+      const checkInterval = setInterval(() => {
+        checkCount++
+        const isSpeaking = this.voiceService.isSpeaking()
+        
+        // Log periódico para debug (a cada 1 segundo)
+        if (checkCount % 20 === 0) {
+          console.log('🔍 Polling check #' + checkCount + ':', {
+            isSpeaking,
+            wasSpeaking,
+            started,
+            ended
+          })
+        }
+        
+        // Se ainda não detectou início mas está falando agora, marcar como iniciado
+        if (!started && isSpeaking) {
+          started = true
+          wasSpeaking = true
+          if (onStart && !startCalled) {
+            startCalled = true
+            this.ngZone.run(() => {
+              onStart()
+            })
+            console.log('✅ onStart chamado durante polling')
+          }
+        }
+        
+        // Se estava falando e agora parou, terminou
+        if (wasSpeaking && !isSpeaking && !ended) {
+          clearInterval(checkInterval)
+          ended = true
+          console.log('✅ Voz terminou detectada via polling (check #' + checkCount + '), aguardando confirmação antes de chamar onEnd')
+          
+          // Aguardar um pouco mais para garantir que realmente terminou
+          // Usar NgZone.run para garantir que callback seja executado mesmo durante WebRTC
+          setTimeout(() => {
+            const stillSpeaking = this.voiceService.isSpeaking()
+            console.log('🔍 Verificação final - isSpeaking:', stillSpeaking)
+            
+            if (!stillSpeaking) {
+              console.log('✅ Confirmação: voz realmente terminou, chamando onEnd')
+              this.ngZone.run(() => {
+                if (onEnd) {
+                  console.log('🎯 Executando onEnd callback via NgZone.run')
+                  try {
+                    onEnd()
+                    console.log('✅ onEnd callback executado com sucesso')
+                  } catch (error) {
+                    console.error('❌ Erro ao executar onEnd callback:', error)
+                  }
+                } else {
+                  console.warn('⚠️ onEnd callback não fornecido')
+                }
+              })
+            } else {
+              console.log('⚠️ Voz ainda detectada como falando, mas continuando mesmo assim')
+              this.ngZone.run(() => {
+                if (onEnd) {
+                  console.log('🎯 Executando onEnd callback via NgZone.run (forçado)')
+                  try {
+                    onEnd()
+                    console.log('✅ onEnd callback executado com sucesso (forçado)')
+                  } catch (error) {
+                    console.error('❌ Erro ao executar onEnd callback (forçado):', error)
+                  }
+                }
+              })
+            }
+          }, 300)
+        }
+        
+        // Atualizar estado
+        wasSpeaking = isSpeaking
+      }, 50) // Verificar a cada 50ms (mais frequente)
+      
+      // Timeout de segurança REDUZIDO para 6 segundos (a mensagem deve durar ~4-5 segundos)
+      setTimeout(() => {
+        clearInterval(checkInterval)
+        if (!ended) {
+          ended = true
+          console.log('⏰ Timeout atingido após polling, chamando onEnd (forçado)')
+          this.ngZone.run(() => {
+            if (onEnd) {
+              try {
+                onEnd()
+                console.log('✅ onEnd executado via timeout')
+              } catch (error) {
+                console.error('❌ Erro ao executar onEnd via timeout:', error)
+              }
+            }
+          })
+        }
+      }, 6000) // Reduzido para 6 segundos
+    }
+  }
+
+  /**
+   * Aguarda o widget AWS iniciar a gravação antes de começar instruções de voz
+   * Detecta quando vídeo está ativo via WebRTC
+   */
+  private waitForWidgetToStartRecording(): void {
+    let checkCount = 0
+    const maxChecks = 40 // 20 segundos (500ms cada)
+    let recordingStarted = false
+    
+    const checkWidgetState = () => {
+      if (!this.sessionActive || !this.isOpen || !this.useRealWidget) {
+        return
+      }
+      
+      checkCount++
+      
+      const widget = document.querySelector('face-liveness-widget')
+      if (!widget) {
+        if (checkCount < maxChecks) {
+          setTimeout(checkWidgetState, 500)
+        }
+        return
+      }
+      
+      // Verificação detalhada: se vídeo está ativo (WebRTC gravando), widget iniciou
+      const videoElements = widget.querySelectorAll('video')
+      let hasActiveVideo = false
+      let hasWebRTCStream = false
+      let hasLiveTracks = false
+      
+      videoElements.forEach((video: HTMLVideoElement) => {
+        if (video.srcObject && !video.paused && video.readyState >= 2) {
+          hasActiveVideo = true
+          
+          // Verificar se é MediaStream (WebRTC)
+          if (video.srcObject instanceof MediaStream) {
+            hasWebRTCStream = true
+            const tracks = video.srcObject.getTracks()
+            
+            // Verificar se há tracks de vídeo ativos
+            const videoTracks = tracks.filter(track => track.kind === 'video' && track.readyState === 'live')
+            if (videoTracks.length > 0) {
+              hasLiveTracks = true
+              if (checkCount % 10 === 0) {
+                console.log(`✅ [Widget Check #${checkCount}] WebRTC detectado:`, {
+                  videoTracks: videoTracks.length,
+                  trackState: videoTracks[0].readyState,
+                  trackSettings: videoTracks[0].getSettings()
+                })
+              }
+            }
+          }
+        }
+      })
+      
+      // Log diagnóstico periódico
+      if (checkCount % 10 === 0 && !recordingStarted) {
+        const htmlWidget = widget as HTMLElement
+        console.log(`🔍 [Widget Check #${checkCount}] Estado do widget:`, {
+          hasActiveVideo,
+          hasWebRTCStream,
+          hasLiveTracks,
+          videoElementsCount: videoElements.length,
+          widgetVisible: htmlWidget.offsetParent !== null,
+          widgetDisplayed: window.getComputedStyle(htmlWidget).display !== 'none'
+        })
+      }
+      
+      if (hasActiveVideo && hasWebRTCStream && hasLiveTracks && !recordingStarted) {
+        recordingStarted = true
+        
+        console.log('🎥 WebRTC detectado como ativo, iniciando instruções de voz')
+        
+        // Aguardar 2 segundos para garantir que widget está realmente gravando
+        setTimeout(() => {
+          if (this.sessionActive && this.isOpen && this.useRealWidget) {
+            // Mensagem inicial usando serviço com callback
+            const messageText = 'Gravação iniciada. Olhe para a câmera e mantenha-se preparado. Vou pedir três movimentos.'
+            console.log('🎤 Iniciando primeira mensagem de voz:', messageText.substring(0, 50) + '...')
+            
+            // SOLUÇÃO SIMPLIFICADA: Chamar startLivenessSteps após tempo fixo, SEM depender de voz
+            // A voz é apenas informativa, mas não bloqueia o avanço
+            // IMPORTANTE: Usar NgZone.run para garantir que voz funcione mesmo durante WebRTC
+            console.log('🎤 Adicionando primeira mensagem à fila (opcional):', messageText.substring(0, 50) + '...')
+            this.ngZone.run(() => {
+              try {
+                this.voiceService.speak(messageText, 'pt-BR', true, 10)
+                console.log('✅ Mensagem de voz adicionada à fila com prioridade alta')
+              } catch (error) {
+                console.warn('⚠️ Erro ao adicionar voz (continuando mesmo assim):', error)
+              }
+            })
+            
+            // CHAMADA DIRETA: Não depender de voz, polling ou callbacks
+            // Após 5 segundos, iniciar sequência de etapas automaticamente
+            console.log('⏱️ Iniciando sequência de etapas em 5 segundos (SEM depender de voz)...')
+            
+            const directTimeout = this.ngZone.runOutsideAngular(() => {
+              return window.setTimeout(() => {
+                console.log('⏰ [DIRETO] Timeout 5s atingido - chamando startLivenessSteps DIRETAMENTE')
+                this.ngZone.run(() => {
+                  if (this.sessionActive && this.isOpen && this.useRealWidget) {
+                    console.log('🚀 [DIRETO] Chamando startLivenessSteps - AVANÇO GARANTIDO')
+                    this.startLivenessSteps()
+                  } else {
+                    console.warn('⚠️ [DIRETO] startLivenessSteps não chamado - sessão inativa:', {
+                      sessionActive: this.sessionActive,
+                      isOpen: this.isOpen,
+                      useRealWidget: this.useRealWidget
+                    })
+                  }
+                })
+              }, 5000) // 5 segundos - tempo suficiente para a mensagem inicial
+            })
+            
+            // Backup adicional após 7 segundos (caso o primeiro falhe)
+            const backupTimeout = this.ngZone.runOutsideAngular(() => {
+              return window.setTimeout(() => {
+                console.log('⏰ [BACKUP DIRETO] Timeout 7s atingido - verificando se precisa chamar')
+                this.ngZone.run(() => {
+                  if (this.sessionActive && this.isOpen && this.useRealWidget && this.currentLivenessStep === 'center') {
+                    console.log('🚀 [BACKUP DIRETO] Chamando startLivenessSteps (step ainda é center)')
+                    this.startLivenessSteps()
+                  } else {
+                    console.log('✅ [BACKUP DIRETO] startLivenessSteps já foi chamado ou não necessário')
+                  }
+                })
+              }, 7000)
+            })
+            
+            // Guardar timers para limpeza
+            this.stepTimers.push(directTimeout, backupTimeout)
+            console.log(`✅ 2 timers diretos criados (5s, 7s): ${directTimeout}, ${backupTimeout}`)
+            console.log('📋 Sequência de etapas será iniciada automaticamente, independente da voz')
+          }
+        }, 2000)
+        return
+      }
+      
+      // Continuar verificando
+      if (!recordingStarted && checkCount < maxChecks) {
+        setTimeout(checkWidgetState, 500)
+      } else if (!recordingStarted && checkCount >= maxChecks) {
+        // Timeout: iniciar mesmo assim (vídeo pode estar ativo mas não detectamos)
+        if (this.sessionActive && this.isOpen && this.useRealWidget) {
+          console.log('⏰ Timeout na detecção de WebRTC, iniciando instruções mesmo assim')
+          const messageText = 'Gravação iniciada. Olhe para a câmera e mantenha-se preparado. Vou pedir três movimentos.'
+          
+          // Abordagem com timeout fixo e múltiplas estratégias
+          console.log('🎤 Adicionando primeira mensagem à fila (timeout):', messageText.substring(0, 50) + '...')
+          this.voiceService.speak(messageText, 'pt-BR', true, 10)
+          
+          // Múltiplos timeouts de backup
+          const timeout1 = this.ngZone.runOutsideAngular(() => {
+            return window.setTimeout(() => {
+              this.ngZone.run(() => {
+                if (this.sessionActive && this.isOpen && this.useRealWidget) {
+                  console.log('🚀 [Timeout - Backup 1] Chamando startLivenessSteps')
+                  this.startLivenessSteps()
+                }
+              })
+            }, 7000)
+          })
+          
+          const timeout2 = this.ngZone.runOutsideAngular(() => {
+            return window.setTimeout(() => {
+              this.ngZone.run(() => {
+                if (this.sessionActive && this.isOpen && this.useRealWidget && this.currentLivenessStep === 'center') {
+                  console.log('🚀 [Timeout - Backup 2] Chamando startLivenessSteps')
+                  this.startLivenessSteps()
+                }
+              })
+            }, 9000)
+          })
+          
+          this.stepTimers.push(timeout1, timeout2)
+        }
+      }
+    }
+    
+    // Começar verificação após 2 segundos
+    setTimeout(checkWidgetState, 2000)
   }
 
   // Finalização automática da fase de gravação
   startAutoFinalization(): void {
+    // Se o widget real está sendo usado, NÃO iniciar auto-finalize
+    // O widget real vai disparar o evento liveness-complete quando terminar
+    if (this.useRealWidget) {
+      return
+    }
+    
     // Limpar timer anterior se existir
     if (this.autoFinalizeTimer) {
       clearTimeout(this.autoFinalizeTimer)
@@ -589,12 +1190,12 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
     
     // Primeira verificação após tempo mínimo
     this.autoFinalizeTimer = window.setTimeout(() => {
-      if (this.sessionActive && this.isOpen) {
+      if (this.sessionActive && this.isOpen && !this.useRealWidget) {
         // Se ainda não completou todas as etapas, aguardar um pouco mais
         if (this.currentLivenessStep !== 'completed') {
           // Aguardar mais 5 segundos
           this.autoFinalizeTimer = window.setTimeout(() => {
-            if (this.sessionActive && this.isOpen) {
+            if (this.sessionActive && this.isOpen && !this.useRealWidget) {
               this.processResultsAndFinalize()
             }
           }, 5000)
@@ -606,13 +1207,22 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
   }
 
   private processResultsAndFinalize(): void {
+    // Se o widget real está sendo usado, NÃO finalizar automaticamente
+    // O widget AWS precisa processar o vídeo e disparar o evento liveness-complete
+    if (this.useRealWidget) {
+      console.log('⚠️ processResultsAndFinalize chamado, mas widget real está ativo - aguardando widget terminar...')
+      console.log('📋 O widget AWS vai processar o vídeo e disparar evento liveness-complete quando terminar')
+      // Não fazer nada - apenas aguardar o widget terminar
+      return
+    }
+    
     this.speakInstruction('Processando resultados. Aguarde um momento.')
     this.currentPhase = 'processing'
     this.cdr.detectChanges()
     
     // Aguardar um pouco antes de finalizar completamente
     setTimeout(() => {
-      if (this.sessionActive && this.isOpen) {
+      if (this.sessionActive && this.isOpen && !this.useRealWidget) {
         this.finalizeLivenessAutomatically()
       }
     }, 3000)
@@ -621,20 +1231,60 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
   finalizeLivenessAutomatically(): void {
     if (!this.sessionActive) return
     
+    // Limpar timeout de segurança se existir
+    this.clearWidgetCompletionTimeout()
+    
     this.currentPhase = 'completed'
     this.stopSpeaking()
-    this.speakInstruction('Verificação concluída. Processando resultados finais.')
     
-    // Emitir evento de conclusão para o componente pai
-    // O componente pai deve buscar os resultados e finalizar
+    // Emitir evento de conclusão IMEDIATAMENTE para o componente pai
+    // O componente pai deve fechar o modal e mostrar tela de processamento
     this.livenessComplete.emit({ autoFinalized: true })
     
-    // Fechar modal após um breve delay para o usuário ouvir a mensagem
-    setTimeout(() => {
-      this.sessionActive = false
-      // Não fechar modal automaticamente - deixar componente pai gerenciar
-      // this.closeModal()
-    }, 2000)
+    // Fechar modal imediatamente - não aguardar
+    this.sessionActive = false
+    // O componente pai vai fechar o modal quando receber o evento
+  }
+  
+  // Inicia timeout de segurança: se widget não disparar evento em 10s, força finalização
+  private startWidgetCompletionTimeout(): void {
+    // Limpar timeout anterior se existir
+    this.clearWidgetCompletionTimeout()
+    
+    console.log('⏰ Iniciando timeout de segurança (10s) para widget AWS...')
+    console.log('⚠️ Se o widget não disparar evento liveness-complete em 10 segundos, finalização será forçada')
+    
+    this.widgetCompletionTimeout = window.setTimeout(() => {
+      if (this.sessionActive && this.isOpen && this.useRealWidget && this.currentLivenessStep === 'completed') {
+        console.error('⏰ TIMEOUT DE SEGURANÇA: Widget AWS não disparou evento após 10 segundos')
+        console.error('🔄 Forçando finalização automática mesmo sem evento do widget')
+        console.error('📋 Isso pode acontecer se:')
+        console.error('   1. Widget não iniciou transmissão corretamente')
+        console.error('   2. Widget teve erro interno não reportado')
+        console.error('   3. Problema de conexão com AWS Rekognition')
+        
+        // Forçar finalização mesmo sem evento do widget
+        // Emitir evento para o componente pai buscar resultados
+        this.livenessComplete.emit({ 
+          autoFinalized: true,
+          timeout: true,
+          message: 'Widget não respondeu - finalização forçada por timeout'
+        })
+        
+        // Limpar estado
+        this.sessionActive = false
+        this.widgetCompletionTimeout = undefined
+      }
+    }, 10000) // 10 segundos
+  }
+  
+  // Limpa timeout de segurança
+  private clearWidgetCompletionTimeout(): void {
+    if (this.widgetCompletionTimeout) {
+      console.log('✅ Limpando timeout de segurança do widget')
+      clearTimeout(this.widgetCompletionTimeout)
+      this.widgetCompletionTimeout = undefined
+    }
   }
 
   stopLiveness(): void {
@@ -642,6 +1292,9 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
     this.sessionActive = false
     this.currentPhase = 'completed'
     this.currentLivenessStep = 'completed'
+    
+    // Limpar timeout de segurança do widget
+    this.clearWidgetCompletionTimeout()
     
     if (this.autoFinalizeTimer) {
       clearTimeout(this.autoFinalizeTimer)
@@ -663,10 +1316,25 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
     return this.stream
   }
 
+  private stepTimers: number[] = []
+  private stepPollingInterval?: number
+  private initialMessagePollingInterval?: number
+  private currentStepStartTime?: number
+  private currentStepIndex: number = -1
+  private livenessStepsSequence: Array<{step: 'right' | 'left' | 'blink_smile' | 'completed', text: string, displayTime: number, voiceText: string}> = []
+
   private cleanup(): void {
+    // Limpar timeout de segurança do widget
+    this.clearWidgetCompletionTimeout()
     this.stopFaceDetection()
     this.stopPositionValidation()
     this.stopSpeaking()
+    
+    // Limpar todos os timers de steps
+    this.stepTimers.forEach(timerId => {
+      clearTimeout(timerId)
+    })
+    this.stepTimers = []
     
     if (this.autoFinalizeTimer) {
       clearTimeout(this.autoFinalizeTimer)
@@ -681,6 +1349,16 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
     if (this.phaseCheckInterval) {
       clearTimeout(this.phaseCheckInterval)
       this.phaseCheckInterval = undefined
+    }
+    
+    if (this.stepPollingInterval) {
+      clearInterval(this.stepPollingInterval)
+      this.stepPollingInterval = undefined
+    }
+    
+    if (this.initialMessagePollingInterval) {
+      clearInterval(this.initialMessagePollingInterval)
+      this.initialMessagePollingInterval = undefined
     }
     
     this.cameraService.stopStream()
@@ -702,6 +1380,7 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
     this.currentPhase = 'waiting'
     this.currentLivenessStep = 'center'
     this.error = null
+    this.livenessStepCallbacks.clear()
   }
 
   // Método para obter texto da etapa atual

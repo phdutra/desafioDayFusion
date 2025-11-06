@@ -89,9 +89,7 @@
             },
             "development": {
               "buildTarget": "frontend:build:development",
-              "ssl": true,
-              "sslCert": "ssl/localhost.pem",
-              "sslKey": "ssl/localhost-key.pem"
+              "ssl": false
             }
           },
           "defaultConfiguration": "development"

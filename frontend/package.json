@@ -8,7 +8,8 @@
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
-    "clean": "rm -rf dist .angular && npm cache clean --force",
+    "clean": "rm -rf dist .angular node_modules/.cache && npm cache clean --force && find . -type f -name '*.tsbuildinfo' -delete 2>/dev/null || true",
+    "clean:all": "./clean-and-start.sh",
     "fresh-start": "npm run clean && npm install && npm start"
   },
   "private": true,

@@ -19,6 +19,8 @@ dotnet restore
 
 echo "✅ Dependências restauradas!"
 
-echo "🚀 Iniciando servidor..."
-dotnet run --urls "http://localhost:5100"
+echo "🚀 Iniciando servidor com HTTPS..."
+echo "⚠️  Certificado SSL: O .NET usará o certificado de desenvolvimento automático"
+echo "⚠️  Se aparecer aviso de certificado, aceite no navegador"
+dotnet run --launch-profile https
 

@@ -10,10 +10,10 @@ import { authInterceptor } from './core/interceptors/auth.interceptor';
 
 export const appConfig: ApplicationConfig = {
   providers: [
-    provideZoneChangeDetection({ eventCoalescing: true }), 
     provideRouter(routes),
-    provideAnimationsAsync(),
     provideHttpClient(withInterceptors([authInterceptor])),
+    provideAnimationsAsync(),
+    provideZoneChangeDetection({ eventCoalescing: true }),
     provideServiceWorker('ngsw-worker.js', {
       enabled: environment.production,
       registrationStrategy: 'registerWhenStable:30000'

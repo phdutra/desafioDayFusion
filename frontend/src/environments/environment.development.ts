@@ -1,6 +1,6 @@
 export const environment = {
   production: false,
-  apiUrl: 'http://localhost:5100/api', // Backend ainda pode ser HTTP, mas frontend precisa HTTPS para WebRTC
+  apiUrl: 'https://localhost:7197/api', // HTTPS necessário para WebRTC e liveness
   aws: {
     region: 'us-east-1',
     identityPoolId: 'us-east-1:2276b22e-33a1-4875-896e-1ec85d5debca'

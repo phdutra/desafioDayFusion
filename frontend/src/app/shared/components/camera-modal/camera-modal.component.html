@@ -109,13 +109,26 @@
                [class.step-left]="currentLivenessStep === 'left'"
                [class.step-blink-smile]="currentLivenessStep === 'blink_smile'"
                [class.step-completed]="currentLivenessStep === 'completed'">
-            <div class="step-icon-large">
-              <span *ngIf="currentLivenessStep === 'right'">➡️</span>
-              <span *ngIf="currentLivenessStep === 'left'">⬅️</span>
-              <span *ngIf="currentLivenessStep === 'blink_smile'">👁️😊</span>
-              <span *ngIf="currentLivenessStep === 'completed'">✓</span>
+            <div class="step-icon-text-container">
+              <div class="step-icon-large">
+                <span *ngIf="currentLivenessStep === 'right'">➡️</span>
+                <span *ngIf="currentLivenessStep === 'left'">⬅️</span>
+                <span *ngIf="currentLivenessStep === 'blink_smile'">👁️😊</span>
+                <span *ngIf="currentLivenessStep === 'completed'">✓</span>
+              </div>
+              <div class="step-text-large">{{ getLivenessStepText() }}</div>
             </div>
-            <div class="step-text-large">{{ getLivenessStepText() }}</div>
+            
+            <!-- Botão de avanço manual (visível apenas se não for completed) -->
+            <div class="manual-advance-container" *ngIf="currentLivenessStep !== 'completed'">
+              <button 
+                class="manual-advance-btn" 
+                (click)="advanceStepManually()"
+                type="button"
+                title="Avançar para próxima etapa manualmente">
+                ⏭️ Avançar
+              </button>
+            </div>
           </div>
         </div>
 

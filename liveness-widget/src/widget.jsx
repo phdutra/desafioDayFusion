@@ -13,9 +13,16 @@ export default function Widget() {
     const el = document.currentScript?.ownerDocument?.currentScript ||
                document.querySelector('face-liveness-widget')
     
-    const region = el?.getAttribute('region') || 'us-east-1'
-    const createUrl = el?.getAttribute('create-session-url') // ex.: /api/liveness/session
-    const identityPoolId = el?.getAttribute('identity-pool-id') // ID do Identity Pool passado pelo Angular
+    if (!el) {
+      setError('Elemento face-liveness-widget não encontrado')
+      setLoading(false)
+      return
+    }
+    
+    const region = el.getAttribute('region') || 'us-east-1'
+    const createUrl = el.getAttribute('create-session-url') // ex.: /api/liveness/session
+    const identityPoolId = el.getAttribute('identity-pool-id') // ID do Identity Pool passado pelo Angular
+    let providedSessionId = el.getAttribute('session-id') // SessionId já criado pelo Angular (opcional)
 
     if (!identityPoolId) {
       setError('identity-pool-id não fornecido. Configure o Identity Pool ID no componente Angular.')
@@ -47,30 +54,97 @@ export default function Widget() {
       })
     }
 
-    // Criar sessão ao montar
-    if (createUrl) {
-      fetch(createUrl, { method: 'POST' })
-        .then(r => {
-          if (!r.ok) throw new Error(`HTTP ${r.status}: ${r.statusText}`)
-          return r.json()
-        })
-        .then(data => {
-          if (data.sessionId) {
-            setSessionId(data.sessionId)
-            setLoading(false)
-            console.log('✅ Sessão criada:', data.sessionId)
-          } else {
-            throw new Error('Resposta da sessão não contém sessionId')
+    // Função para processar sessionId quando disponível
+    const processSessionId = (sessionIdValue) => {
+      if (sessionIdValue) {
+        console.log('✅ SessionId recebido:', sessionIdValue)
+        setSessionId(sessionIdValue)
+        setLoading(false)
+        return true
+      }
+      return false
+    }
+
+    // Flag para rastrear se já processamos o sessionId (compartilhada entre observer e timeout)
+    let sessionIdProcessed = false
+    
+    // Se já recebeu session-id como atributo, usar diretamente
+    if (providedSessionId) {
+      if (processSessionId(providedSessionId)) {
+        sessionIdProcessed = true
+        return
+      }
+    }
+    
+    // Observar mudanças no atributo session-id (caso seja atualizado depois)
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (mutation.type === 'attributes' && mutation.attributeName === 'session-id') {
+          const newSessionId = el.getAttribute('session-id')
+          if (newSessionId && !sessionIdProcessed) {
+            console.log('✅ SessionId atualizado via MutationObserver:', newSessionId)
+            if (processSessionId(newSessionId)) {
+              sessionIdProcessed = true
+              observer.disconnect()
+            }
           }
-        })
-        .catch(err => {
-          console.error('Erro ao criar sessão:', err)
-          setError(err.message || 'Erro ao criar sessão de liveness')
-          setLoading(false)
-        })
-    } else {
-      setError('create-session-url não fornecido')
-      setLoading(false)
+        }
+      })
+    })
+
+    observer.observe(el, {
+      attributes: true,
+      attributeFilter: ['session-id']
+    })
+
+    // Aguardar um pouco para ver se o session-id é definido via atributo
+    
+    const checkSessionIdTimeout = setTimeout(() => {
+      // Verificar novamente o atributo (pode ter sido atualizado)
+      providedSessionId = el.getAttribute('session-id')
+      if (providedSessionId && !sessionIdProcessed) {
+        if (processSessionId(providedSessionId)) {
+          sessionIdProcessed = true
+          observer.disconnect()
+          return
+        }
+      }
+
+      // Se ainda não tem sessionId, tentar criar sessão
+      if (!sessionIdProcessed && createUrl) {
+        fetch(createUrl, { method: 'POST' })
+          .then(r => {
+            if (!r.ok) throw new Error(`HTTP ${r.status}: ${r.statusText}`)
+            return r.json()
+          })
+          .then(data => {
+            if (data.sessionId) {
+              setSessionId(data.sessionId)
+              setLoading(false)
+              console.log('✅ Sessão criada pelo widget:', data.sessionId)
+              sessionIdProcessed = true
+              observer.disconnect()
+            } else {
+              throw new Error('Resposta da sessão não contém sessionId')
+            }
+          })
+          .catch(err => {
+            console.error('Erro ao criar sessão:', err)
+            setError(err.message || 'Erro ao criar sessão de liveness')
+            setLoading(false)
+            observer.disconnect()
+          })
+      } else if (!createUrl && !sessionIdProcessed) {
+        setError('create-session-url ou session-id não fornecido')
+        setLoading(false)
+        observer.disconnect()
+      }
+    }, 500) // Aguardar 500ms para ver se o session-id é definido
+
+    // Cleanup
+    return () => {
+      clearTimeout(checkSessionIdTimeout)
+      observer.disconnect()
     }
   }, [])
 
@@ -125,13 +199,53 @@ export default function Widget() {
     )
   }
 
-  if (!sessionId) {
+  // ✅ TESTE RÁPIDO DE VERIFICAÇÃO (antes de renderizar)
+  console.log("🔍 [widget.jsx] Teste rápido de verificação antes de renderizar:")
+  const windowAWS = typeof window !== 'undefined' ? window.AWS : null
+  console.log("AWS:", windowAWS)
+  console.log("FaceLivenessDetector:", FaceLivenessDetector)
+  console.log("SessionId:", sessionId)
+  
+  // Verificar se AWS está disponível
+  const aws = windowAWS
+  if (!aws) {
+    console.error("❌ AWS não está disponível no window")
     return (
-      <div style={{ padding: '20px', color: 'orange', textAlign: 'center' }}>
-        <div>Sessão não criada</div>
+      <div style={{ padding: '20px', color: 'red', textAlign: 'center' }}>
+        <div>❌ Erro: AWS SDK não está disponível</div>
+        <p style={{ fontSize: '12px', marginTop: '10px', color: '#666' }}>
+          Verifique se o script aws-sdk está carregado no index.html
+        </p>
       </div>
     )
   }
+  
+  // Verificar se FaceLivenessDetector está disponível
+  if (!FaceLivenessDetector) {
+    console.error("❌ FaceLivenessDetector não está disponível")
+    return (
+      <div style={{ padding: '20px', color: 'red', textAlign: 'center' }}>
+        <div>❌ Erro: FaceLivenessDetector não está disponível</div>
+        <p style={{ fontSize: '12px', marginTop: '10px', color: '#666' }}>
+          Verifique se @aws-amplify/ui-react-liveness está instalado corretamente
+        </p>
+      </div>
+    )
+  }
+  
+  if (!sessionId) {
+    console.error("❌ SessionId não está disponível")
+    return (
+      <div style={{ padding: '20px', color: 'orange', textAlign: 'center' }}>
+        <div>⚠️ Sessão não criada</div>
+        <p style={{ fontSize: '12px', marginTop: '10px', color: '#666' }}>
+          Aguardando criação da sessão...
+        </p>
+      </div>
+    )
+  }
+
+  console.log("✅ [widget.jsx] Todas as verificações passaram, renderizando FaceLivenessDetector...")
 
   // ✅ Usa o FaceLivenessDetector com WebRTC real e sem login
   // Usar a região extraída do atributo ou padrão
