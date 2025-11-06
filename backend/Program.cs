@@ -64,7 +64,8 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
-// Configure CORS
+// Configure CORS - Melhorado para suportar WebRTC completo
+// Conforme AWS_FaceLiveness_Diagnostic.md: CORS completo necessário para WebRTC
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
@@ -73,7 +74,8 @@ builder.Services.AddCors(options =>
               .AllowAnyHeader()
               .AllowAnyMethod()
               .AllowCredentials()
-              .WithExposedHeaders("*"); // Permitir todos os headers para CORS
+              .WithExposedHeaders("*") // Permitir todos os headers para CORS
+              .SetPreflightMaxAge(TimeSpan.FromMinutes(10)); // Cache preflight requests
     });
 });
 

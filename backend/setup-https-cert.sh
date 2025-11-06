@@ -38,3 +38,4 @@ echo ""
 echo "Agora você pode iniciar o backend com:"
 echo "  dotnet run --launch-profile https"
 
+

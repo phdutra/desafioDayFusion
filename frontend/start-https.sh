@@ -16,5 +16,5 @@ echo "✅ Servidor iniciará em: https://localhost:4200"
 echo "⚠️  Aceite o certificado autoassinado no navegador quando solicitado"
 echo ""
 
-npm start
+npm run start:https
 

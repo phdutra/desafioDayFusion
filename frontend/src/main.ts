@@ -15,6 +15,19 @@ if (typeof process === 'undefined' || !process) {
 import { bootstrapApplication } from '@angular/platform-browser';
 import { appConfig } from './app/app.config';
 import { AppComponent } from './app/app.component';
+import { Amplify } from 'aws-amplify';
+import awsExports from './aws-exports';
+
+// Configurar Amplify globalmente (necessário para FaceLivenessDetector)
+try {
+  Amplify.configure(awsExports);
+  console.log('✅ Amplify configurado globalmente:', {
+    region: awsExports.aws_project_region,
+    identityPoolId: awsExports.aws_cognito_identity_pool_id ? '***' : 'NÃO CONFIGURADO'
+  });
+} catch (error: any) {
+  console.error('❌ Erro ao configurar Amplify:', error);
+}
 
 bootstrapApplication(AppComponent, appConfig)
   .catch((err) => {
