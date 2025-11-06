@@ -4,6 +4,28 @@
 .widget-container {
   margin-top: 2rem;
   position: relative;
+  
+  // IMPORTANTE: Garantir que o widget seja visível quando modal estiver aberto
+  // O widget deve aparecer sobre o modal ou dentro dele
+  z-index: 1000;
+  
+  #liveness-container {
+    width: 100%;
+    min-height: 400px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: rgba(0, 0, 0, 0.8);
+    border-radius: var(--radius-xl);
+    padding: 2rem;
+    
+    // Garantir que o widget customizado seja visível
+    face-liveness-widget {
+      width: 100%;
+      max-width: 600px;
+      display: block;
+    }
+  }
 }
 
 // Instrução para o usuário clicar no botão do widget

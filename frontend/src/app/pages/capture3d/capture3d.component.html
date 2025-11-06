@@ -66,35 +66,10 @@
     (livenessComplete)="onLivenessComplete($event)"
   ></app-camera-modal>
 
-  <!-- Widget AWS Face Liveness (Web Component) -->
-  <div class="widget-container" *ngIf="showLivenessWidget">
-    <!-- Mensagem importante para o usuário -->
-    <div class="widget-instruction" *ngIf="!widgetInitialized && showLivenessWidget">
-      <div class="instruction-card">
-        <div class="instruction-icon">⚠️</div>
-        <h3 class="instruction-title">Ação Necessária - Leia com Atenção!</h3>
-        <p class="instruction-text">
-          O widget AWS Face Liveness <strong>NÃO inicia automaticamente</strong>. 
-          Você <strong>DEVE clicar no botão "Iniciar Verificação"</strong> dentro do widget abaixo.
-        </p>
-        <div class="instruction-steps">
-          <p class="instruction-step">1️⃣ Procure o botão "Iniciar Verificação" dentro do widget</p>
-          <p class="instruction-step">2️⃣ Clique no botão para iniciar a gravação</p>
-          <p class="instruction-step">3️⃣ Aguarde o sistema detectar automaticamente quando a gravação começar</p>
-        </div>
-        <p class="instruction-subtext">
-          ⚠️ Se você não clicar no botão, o vídeo não será transmitido e o score ficará zerado!
-        </p>
-      </div>
-    </div>
-    
-    <face-liveness-widget
-      [attr.region]="awsRegion"
-      [attr.create-session-url]="livenessSessionUrl"
-      [attr.results-url]="livenessResultsUrl"
-      [attr.identity-pool-id]="identityPoolId"
-      [attr.session-id]="livenessSession?.sessionId || null">
-    </face-liveness-widget>
+  <!-- Container para FaceLivenessDetector oficial -->
+  <!-- IMPORTANTE: Widget só aparece quando modal está aberto E showLivenessWidget é true -->
+  <div class="widget-container" *ngIf="showLivenessWidget && showCameraModal">
+    <div id="liveness-container"></div>
   </div>
 
   <!-- Tela de Processamento (exibida na página principal após fechar modal) -->

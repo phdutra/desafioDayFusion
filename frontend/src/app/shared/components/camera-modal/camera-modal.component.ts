@@ -89,10 +89,17 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
       })
       
       if (this.isOpen) {
-        setTimeout(() => this.initializeCamera(), 100)
+        // Aguardar um pouco antes de inicializar para garantir que DOM está pronto
+        setTimeout(() => {
+          // Verificar novamente se modal ainda está aberto antes de inicializar
+          if (this.isOpen) {
+            this.initializeCamera()
+          }
+        }, 100)
       } else {
         console.log('🚪 camera-modal: Fechando modal (isOpen = false), limpando recursos...')
         this.sessionActive = false
+        this.cameraInitializing = false
         this.cleanup()
         // Forçar detecção de mudanças para garantir que o modal desapareça
         this.cdr.detectChanges()
@@ -105,7 +112,11 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
   }
 
   async initializeCamera(): Promise<void> {
-    if (!this.isOpen) return
+    // IMPORTANTE: Verificar múltiplas vezes se modal está aberto para evitar erro após fechar
+    if (!this.isOpen) {
+      console.log('⚠️ initializeCamera chamado mas modal está fechado - abortando')
+      return
+    }
     
     this.cameraInitializing = true
     this.error = null
@@ -116,17 +127,48 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
         throw new Error('API de mídia não suportada neste navegador')
       }
 
+      // Verificar novamente antes de obter stream
+      if (!this.isOpen) {
+        console.log('⚠️ Modal fechou antes de obter stream - abortando')
+        this.cameraInitializing = false
+        return
+      }
+
       this.stream = await this.cameraService.getMediaStream()
+      
+      // Verificar novamente após obter stream (modal pode ter fechado durante await)
+      if (!this.isOpen) {
+        console.log('⚠️ Modal fechou durante obtenção do stream - limpando recursos')
+        this.cameraService.stopStream()
+        if (this.stream) {
+          this.stream.getTracks().forEach(track => track.stop())
+          this.stream = undefined
+        }
+        this.cameraInitializing = false
+        return
+      }
       
       // Aguardar até o elemento estar disponível (2D ou 3D)
       let retries = 0
       const maxRetries = 20 // Aumentar para dar mais tempo
       const targetVideo = this.mode === '2d' ? this.videoElement : this.videoElement3d
       
-      while (!targetVideo?.nativeElement && retries < maxRetries) {
+      while (!targetVideo?.nativeElement && retries < maxRetries && this.isOpen) {
         await new Promise(resolve => setTimeout(resolve, 150))
         retries++
         this.cdr.detectChanges()
+      }
+
+      // Verificar novamente se modal ainda está aberto
+      if (!this.isOpen) {
+        console.log('⚠️ Modal fechou durante espera do elemento de vídeo - limpando recursos')
+        this.cameraService.stopStream()
+        if (this.stream) {
+          this.stream.getTracks().forEach(track => track.stop())
+          this.stream = undefined
+        }
+        this.cameraInitializing = false
+        return
       }
 
       const video = targetVideo?.nativeElement
@@ -134,8 +176,14 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
         console.error('❌ Elemento de vídeo não encontrado no DOM', { 
           mode: this.mode, 
           videoElement: !!this.videoElement?.nativeElement,
-          videoElement3d: !!this.videoElement3d?.nativeElement
+          videoElement3d: !!this.videoElement3d?.nativeElement,
+          isOpen: this.isOpen
         })
+        // Limpar recursos antes de lançar erro
+        if (this.stream) {
+          this.stream.getTracks().forEach(track => track.stop())
+          this.stream = undefined
+        }
         throw new Error('Elemento de vídeo não encontrado no DOM')
       }
       
@@ -162,25 +210,65 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
         }
       })
       
+      // Verificar novamente antes de reproduzir vídeo
+      if (!this.isOpen) {
+        console.log('⚠️ Modal fechou antes de reproduzir vídeo - limpando recursos')
+        this.cameraService.stopStream()
+        if (this.stream) {
+          this.stream.getTracks().forEach(track => track.stop())
+          this.stream = undefined
+        }
+        this.cameraInitializing = false
+        return
+      }
+
       await video.play()
+      
+      // Verificar novamente após play
+      if (!this.isOpen) {
+        console.log('⚠️ Modal fechou durante reprodução do vídeo - limpando recursos')
+        video.pause()
+        this.cameraService.stopStream()
+        if (this.stream) {
+          this.stream.getTracks().forEach(track => track.stop())
+          this.stream = undefined
+        }
+        this.cameraInitializing = false
+        return
+      }
+
       this.cameraReady = true
       this.cameraInitializing = false
       
       // Aguardar um pouco para garantir que o DOM está atualizado
       await new Promise(resolve => setTimeout(resolve, 100))
+      
+      // Verificar novamente antes de iniciar detecção/validação
+      if (!this.isOpen) {
+        console.log('⚠️ Modal fechou antes de iniciar detecção - limpando recursos')
+        this.cameraService.stopStream()
+        if (this.stream) {
+          this.stream.getTracks().forEach(track => track.stop())
+          this.stream = undefined
+        }
+        this.cameraReady = false
+        this.cameraInitializing = false
+        return
+      }
+      
       this.cdr.detectChanges()
       
       if (this.mode === '2d') {
         this.startFaceDetection()
       } else if (this.mode === '3d') {
         // Verificar novamente se o vídeo 3D está disponível
-        if (this.videoElement3d?.nativeElement) {
+        if (this.videoElement3d?.nativeElement && this.isOpen) {
           // Iniciar validação de posicionamento para 3D
           this.currentPhase = 'waiting'
           this.speakInstruction('Olá! Vou guiá-lo durante a verificação. Primeiro, posicione seu rosto no centro da tela.')
           this.startPositionValidation()
         } else {
-          console.error('❌ Vídeo 3D não encontrado após inicialização')
+          console.error('❌ Vídeo 3D não encontrado após inicialização ou modal fechou')
           this.error = 'Não foi possível inicializar a câmera para verificação 3D'
           this.cameraInitializing = false
         }
@@ -188,9 +276,22 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
       
       this.cdr.detectChanges()
     } catch (error: any) {
+      // Se erro ocorrer mas modal já fechou, não mostrar erro
+      if (!this.isOpen) {
+        console.log('⚠️ Erro ao acessar câmera mas modal já está fechado - ignorando erro')
+        return
+      }
+      
       console.error('❌ Erro ao acessar a câmera:', error)
       this.error = error.message || 'Erro ao acessar a câmera. Verifique as permissões.'
       this.cameraInitializing = false
+      
+      // Limpar recursos em caso de erro
+      if (this.stream) {
+        this.stream.getTracks().forEach(track => track.stop())
+        this.stream = undefined
+      }
+      
       this.cdr.detectChanges()
     }
   }
@@ -447,44 +548,27 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
     }
 
     // Se o widget real está sendo usado, aguardar widget iniciar gravação
-    // O widget real controla a UI e tem sua própria tela inicial com botão "Iniciar Verificação"
+    // IMPORTANTE: Conforme AWS_FaceLiveness_SessionExpired.md
+    // O widget tem uma tela inicial com botão "Iniciar Verificação" que o usuário DEVE clicar
+    // Não iniciar voz ou sequência até o usuário clicar no botão interno do widget
     if (this.useRealWidget) {
-      this.sessionActive = true // Manter como ativo para não fechar modal prematuramente
-      this.currentPhase = 'recording'
+      // NÃO definir sessionActive como true ainda - só será true quando widget criar sessão (após clique)
+      // NÃO definir currentPhase como 'recording' ainda - aguardar widget iniciar
       this.currentLivenessStep = 'center'
       
-      // IMPORTANTE: Emitir evento ANTES de iniciar widget para não bloquear voz
-      // Mas usar NgZone para garantir que voz continue funcionando após WebRTC iniciar
+      console.log('📋 Widget real será usado - aguardando usuário clicar no botão "Iniciar Verificação" dentro do widget')
+      console.log('💡 NÃO iniciar voz ou sequência até o widget criar sessão (após clique do usuário)')
+      
+      // Emitir evento para renderizar o widget
+      // O widget será renderizado mas não iniciará até o usuário clicar no botão interno
       this.ngZone.run(() => {
         this.livenessStart.emit()
       })
       
-      // CORREÇÃO: Iniciar sequência de liveness IMEDIATAMENTE após a fala começar
-      // Não aguardar a fala terminar - iniciar em paralelo
-      console.log('🚀 Iniciando sequência de liveness IMEDIATAMENTE (widget real)')
-      
-      // Aguardar widget iniciar gravação antes de começar instruções de voz
-      // O widget AWS tem uma tela inicial e só inicia gravação após usuário clicar "Iniciar Verificação"
-      this.waitForWidgetToStartRecording()
-      
-      // IMPORTANTE: Iniciar sequência de liveness assim que a primeira mensagem começar a falar
-      // Usar polling para detectar quando a voz INICIOU (não quando terminou)
-      // Isso garante que liveness inicia na sequência da fala
-      setTimeout(() => {
-        if (this.sessionActive && this.isOpen && this.useRealWidget && this.currentLivenessStep === 'center') {
-          console.log('🚀 [SYNC] Iniciando sequência de liveness após fala começar (2s)')
-          this.startLivenessSteps()
-        }
-      }, 2000) // 2 segundos - tempo para primeira mensagem começar a falar
-      
-      // BACKUP: Garantir que startLivenessSteps seja chamado mesmo se acima falhar
-      // Após 8 segundos (tempo suficiente para widget iniciar + margem), chamar startLivenessSteps
-      setTimeout(() => {
-        if (this.sessionActive && this.isOpen && this.useRealWidget && this.currentLivenessStep === 'center') {
-          console.log('🔄 [BACKUP] Chamando startLivenessSteps após timeout de segurança (8s)')
-          this.startLivenessSteps()
-        }
-      }, 8000)
+      // IMPORTANTE: NÃO chamar waitForWidgetToStartRecording() aqui
+      // O widget vai criar a sessão e disparar evento quando usuário clicar no botão interno
+      // Aguardaremos o evento 'liveness-started' ou 'user-activity-started' do widget
+      // para então iniciar a sequência de voz
       
       return
     }
@@ -1246,36 +1330,196 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
     // O componente pai vai fechar o modal quando receber o evento
   }
   
-  // Inicia timeout de segurança: se widget não disparar evento em 10s, força finalização
+  // Verifica se o botão "Iniciar Verificação" aparece dentro do widget
+  private checkWidgetButton(): { found: boolean; details: any } {
+    const widget = document.querySelector('face-liveness-widget') as any
+    if (!widget) {
+      return { found: false, details: { widgetExists: false } }
+    }
+    
+    let details: any = {
+      widgetExists: true,
+      widgetVisible: window.getComputedStyle(widget).display !== 'none',
+      hasShadowRoot: !!widget.shadowRoot,
+      buttonFound: false,
+      buttonText: null,
+      buttonVisible: false,
+      videoElements: 0,
+      hasActiveVideo: false
+    }
+    
+    // Tentar acessar shadowRoot se disponível
+    const widgetElement = widget.shadowRoot || widget
+    
+    // Procurar botões dentro do widget
+    let buttons: NodeListOf<HTMLElement> | HTMLElement[] = []
+    try {
+      buttons = widgetElement.querySelectorAll('button')
+      if (buttons.length === 0 && widget.shadowRoot) {
+        // Tentar dentro do shadow root
+        buttons = widget.shadowRoot.querySelectorAll('button')
+      }
+    } catch (e) {
+      console.warn('⚠️ Erro ao buscar botões do widget:', e)
+    }
+    
+    // Procurar botão "Iniciar Verificação"
+    const startButton = Array.from(buttons).find((btn: any) => {
+      const text = (btn.textContent || btn.innerText || '').toLowerCase()
+      return text.includes('iniciar') || 
+             text.includes('start') ||
+             text.includes('verificação') ||
+             text.includes('verification') ||
+             text.includes('begin') ||
+             text.includes('começar')
+    }) as HTMLButtonElement | undefined
+    
+    if (startButton) {
+      details.buttonFound = true
+      details.buttonText = startButton.textContent || startButton.innerText
+      details.buttonVisible = window.getComputedStyle(startButton).display !== 'none'
+      details.buttonDisabled = (startButton as HTMLButtonElement).disabled || startButton.hasAttribute('disabled')
+    }
+    
+    // Verificar vídeos
+    let videoElements: NodeListOf<HTMLVideoElement> | HTMLVideoElement[] = []
+    try {
+      videoElements = widgetElement.querySelectorAll('video')
+      if (videoElements.length === 0 && widget.shadowRoot) {
+        videoElements = widget.shadowRoot.querySelectorAll('video')
+      }
+    } catch (e) {
+      console.warn('⚠️ Erro ao buscar vídeos do widget:', e)
+    }
+    
+    details.videoElements = videoElements.length
+    details.hasActiveVideo = Array.from(videoElements).some((video: HTMLVideoElement) => {
+      return video.srcObject && !video.paused && video.readyState >= 2
+    })
+    
+    return {
+      found: !!startButton,
+      details
+    }
+  }
+  
+  // Inicia timeout de segurança: se widget não disparar evento, força finalização
+  // IMPORTANTE: Aumentado para 60 segundos para dar tempo ao usuário clicar no botão
   private startWidgetCompletionTimeout(): void {
     // Limpar timeout anterior se existir
     this.clearWidgetCompletionTimeout()
     
-    console.log('⏰ Iniciando timeout de segurança (10s) para widget AWS...')
-    console.log('⚠️ Se o widget não disparar evento liveness-complete em 10 segundos, finalização será forçada')
+    // Verificar estado inicial do widget
+    const initialCheck = this.checkWidgetButton()
+    console.log('🔍 Verificação inicial do widget:', initialCheck)
+    
+    if (!initialCheck.found) {
+      console.warn('⚠️ Widget encontrado mas botão "Iniciar Verificação" NÃO encontrado ainda')
+      console.warn('📋 Detalhes:', initialCheck.details)
+      console.warn('💡 Widget pode estar carregando - aguardando botão aparecer...')
+    } else {
+      console.log('✅ Botão "Iniciar Verificação" encontrado no widget')
+      console.log('📋 Detalhes do botão:', {
+        text: initialCheck.details.buttonText,
+        visible: initialCheck.details.buttonVisible,
+        disabled: initialCheck.details.buttonDisabled
+      })
+    }
+    
+    // Verificação periódica do botão (a cada 2 segundos)
+    let checkCount = 0
+    const periodicCheck = setInterval(() => {
+      checkCount++
+      const check = this.checkWidgetButton()
+      
+      if (check.found && checkCount % 5 === 0) {
+        // Log a cada 10 segundos (5 * 2s)
+        console.log(`🔍 [Verificação #${checkCount}] Botão "Iniciar Verificação" encontrado:`, check.details)
+      } else if (!check.found && checkCount % 5 === 0) {
+        // Log a cada 10 segundos se botão não encontrado
+        console.warn(`⚠️ [Verificação #${checkCount}] Botão "Iniciar Verificação" AINDA NÃO encontrado`)
+        console.warn('📋 Estado do widget:', check.details)
+      }
+    }, 2000) // Verificar a cada 2 segundos
+    
+    // Guardar interval ID para limpar quando necessário
+    const originalWidgetTimeout = this.widgetCompletionTimeout
+    const originalClearTimeout = this.clearWidgetCompletionTimeout.bind(this)
+    
+    // Sobrescrever temporariamente clearWidgetCompletionTimeout para limpar também o interval
+    const self = this
+    this.clearWidgetCompletionTimeout = function() {
+      clearInterval(periodicCheck)
+      originalClearTimeout()
+    }
+    
+    console.log('⏰ Iniciando timeout de segurança (60s) para widget AWS...')
+    console.log('⚠️ Se o widget não disparar evento liveness-complete em 60 segundos, finalização será forçada')
+    console.log('💡 Verificações periódicas do botão serão feitas a cada 2 segundos')
     
     this.widgetCompletionTimeout = window.setTimeout(() => {
+      // Limpar verificação periódica
+      clearInterval(periodicCheck)
+      
+      // Restaurar método original
+      this.clearWidgetCompletionTimeout = originalClearTimeout
+      
+      // Verificação final antes do timeout
+      const finalCheck = this.checkWidgetButton()
+      console.error('⏰ TIMEOUT DE SEGURANÇA: Widget AWS não disparou evento após 60 segundos')
+      console.error('🔍 Verificação FINAL do widget antes do timeout:', finalCheck)
+      
+      if (!finalCheck.found) {
+        console.error('❌ Botão "Iniciar Verificação" NÃO foi encontrado no widget')
+        console.error('📋 Estado final do widget:', finalCheck.details)
+        console.error('💡 Possíveis causas:')
+        console.error('   1. Widget não foi renderizado corretamente')
+        console.error('   2. Widget não criou sessão (sessionId não disponível)')
+        console.error('   3. Widget está oculto ou em Shadow DOM inacessível')
+        console.error('   4. Widget customizado não está funcionando corretamente')
+      } else {
+        console.warn('⚠️ Botão encontrado mas widget não disparou evento liveness-complete')
+        console.warn('📋 Detalhes:', finalCheck.details)
+        console.warn('💡 Usuário pode não ter clicado no botão ou widget teve erro interno')
+      }
+      
       if (this.sessionActive && this.isOpen && this.useRealWidget && this.currentLivenessStep === 'completed') {
-        console.error('⏰ TIMEOUT DE SEGURANÇA: Widget AWS não disparou evento após 10 segundos')
         console.error('🔄 Forçando finalização automática mesmo sem evento do widget')
         console.error('📋 Isso pode acontecer se:')
         console.error('   1. Widget não iniciou transmissão corretamente')
         console.error('   2. Widget teve erro interno não reportado')
         console.error('   3. Problema de conexão com AWS Rekognition')
+        console.error('   4. Usuário não clicou no botão "Iniciar Verificação" dentro do widget')
+        
+        // IMPORTANTE: Parar a câmera antes de finalizar
+        console.log('🛑 Parando câmera após timeout de segurança...')
+        this.cameraService.stopStream()
+        
+        if (this.stream) {
+          this.stream.getTracks().forEach(track => {
+            track.stop()
+            console.log('✅ Track parado:', track.kind)
+          })
+          this.stream = undefined
+        }
+        
+        // Limpar estado e recursos
+        this.sessionActive = false
+        this.cameraReady = false
+        this.widgetCompletionTimeout = undefined
         
         // Forçar finalização mesmo sem evento do widget
         // Emitir evento para o componente pai buscar resultados
         this.livenessComplete.emit({ 
           autoFinalized: true,
           timeout: true,
-          message: 'Widget não respondeu - finalização forçada por timeout'
+          message: 'Widget não respondeu - finalização forçada por timeout',
+          widgetState: finalCheck.details
         })
         
-        // Limpar estado
-        this.sessionActive = false
-        this.widgetCompletionTimeout = undefined
+        console.log('✅ Câmera parada e recursos limpos após timeout')
       }
-    }, 10000) // 10 segundos
+    }, 60000) // 60 segundos (aumentado de 10 para dar tempo ao usuário)
   }
   
   // Limpa timeout de segurança
@@ -1324,6 +1568,23 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
   private livenessStepsSequence: Array<{step: 'right' | 'left' | 'blink_smile' | 'completed', text: string, displayTime: number, voiceText: string}> = []
 
   private cleanup(): void {
+    console.log('🧹 Limpando recursos do modal de câmera...')
+    
+    // IMPORTANTE: Parar câmera PRIMEIRO para evitar tentar acessar DOM após modal fechar
+    try {
+      this.cameraService.stopStream()
+      
+      if (this.stream) {
+        this.stream.getTracks().forEach(track => {
+          track.stop()
+          console.log('✅ Track parado:', track.kind)
+        })
+        this.stream = undefined
+      }
+    } catch (e) {
+      console.warn('⚠️ Erro ao parar stream durante cleanup:', e)
+    }
+    
     // Limpar timeout de segurança do widget
     this.clearWidgetCompletionTimeout()
     this.stopFaceDetection()
@@ -1360,14 +1621,8 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
       clearInterval(this.initialMessagePollingInterval)
       this.initialMessagePollingInterval = undefined
     }
-    
-    this.cameraService.stopStream()
-    
-    if (this.stream) {
-      this.stream.getTracks().forEach(track => track.stop())
-      this.stream = undefined
-    }
 
+    // Limpar estado
     this.cameraReady = false
     this.cameraInitializing = false
     this.detectionStatus = 'idle'
@@ -1381,6 +1636,8 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
     this.currentLivenessStep = 'center'
     this.error = null
     this.livenessStepCallbacks.clear()
+    
+    console.log('✅ Recursos do modal de câmera limpos')
   }
 
   // Método para obter texto da etapa atual
