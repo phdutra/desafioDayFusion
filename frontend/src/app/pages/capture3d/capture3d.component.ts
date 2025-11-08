@@ -44,6 +44,7 @@ export class Capture3dComponent implements OnInit, OnDestroy, AfterViewInit {
   private sessionExpiryTimer?: number
   private widgetEventListeners: { type: string; handler: (e: any) => void }[] = []
   private awsConfigured = false
+  private widgetTimeoutTimer?: number // Timeout de segurança para widget não responder
 
   // Declaração de tipo para AWS SDK global
   private get AWS(): any {
@@ -58,8 +59,13 @@ export class Capture3dComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   ngOnInit(): void {
-    // Escutar eventos customizados do widget
+    // CORREÇÃO CRÍTICA: Registrar listeners ANTES de qualquer renderização
+    // Conforme AWS_FaceLiveness_WidgetTimeout.md: eventos do Shadow DOM precisam ser capturados
+    // no nível window ANTES do widget ser renderizado
+    // Isso garante que eventos emitidos do Shadow DOM fechado sejam capturados
+    console.log('🔧 Configurando listeners globais ANTES da renderização do widget...')
     this.setupWidgetEventListeners()
+    console.log('✅ Listeners globais configurados no window e document')
   }
 
   /**
@@ -84,8 +90,10 @@ export class Capture3dComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   ngOnDestroy(): void {
+    // CORREÇÃO: Limpar todos os timers e listeners antes de destruir componente
     this.cleanup()
     this.removeWidgetEventListeners()
+    this.clearWidgetTimeoutSafety()
   }
 
   /**
@@ -325,6 +333,50 @@ export class Capture3dComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   /**
+   * Verifica se o Shadow DOM foi criado após renderização do widget
+   * Conforme AWS_FaceLiveness_WidgetAccessError.md: o widget precisa criar ShadowRoot para funcionar
+   * Se o ShadowRoot não for criado, o widget falha silenciosamente e não consegue conectar WebRTC
+   */
+  private verifyShadowDOMCreated(widgetElement: HTMLElement): void {
+    console.log('🔍 Verificando se Shadow DOM foi criado...')
+    
+    // Aguardar um pouco para o widget inicializar
+    setTimeout(() => {
+      const widget = widgetElement as any
+      
+      // Verificar se shadowRoot existe
+      if (widget.shadowRoot) {
+        console.log('✅ Shadow DOM criado com sucesso!')
+        console.log('📊 Detalhes do Shadow DOM:', {
+          hasShadowRoot: true,
+          mode: widget.shadowRoot.mode || 'unknown',
+          childCount: widget.shadowRoot.children.length
+        })
+      } else {
+        // Tentar verificar novamente após mais tempo (pode levar alguns segundos)
+        setTimeout(() => {
+          if (widget.shadowRoot) {
+            console.log('✅ Shadow DOM criado (verificação tardia)')
+          } else {
+            console.error('❌ Shadow DOM não encontrado no widget')
+            console.error('💡 Possíveis causas:')
+            console.error('   1. Widget foi renderizado antes das credenciais Cognito estarem prontas')
+            console.error('   2. Atributo use-direct-aws-connection está presente (deve ser removido)')
+            console.error('   3. Permissões de câmera bloqueadas ou HTTPS ausente')
+            console.error('   4. Content Security Policy (CSP) bloqueando scripts/blob')
+            console.error('   5. Widget duplicado causando conflito de inicialização')
+            
+            // Exibir erro ao usuário
+            this.livenessError = 'Não foi possível acessar o widget. Tente recarregar.'
+            this.livenessLoading = false
+            this.showLivenessWidget = false
+          }
+        }, 2000) // Verificar novamente após 2 segundos
+      }
+    }, 500) // Primeira verificação após 500ms
+  }
+
+  /**
    * Renderiza o FaceLivenessDetector conectando diretamente à AWS via WebRTC
    * Conforme AWS_FaceLiveness_SessionExpired.md: widget deve criar a sessão apenas quando
    * o usuário clicar no botão "Iniciar Verificação" dentro do widget.
@@ -376,6 +428,15 @@ export class Capture3dComponent implements OnInit, OnDestroy, AfterViewInit {
       throw new Error('Container do widget não encontrado após aguardar renderização.')
     }
 
+    // CORREÇÃO: Conforme AWS_FaceLiveness_WidgetAccessError.md
+    // Remover qualquer widget existente antes de criar um novo
+    // Isso impede múltiplas instâncias de WebRTC simultâneas
+    const existingWidget = document.querySelector('face-liveness-widget')
+    if (existingWidget) {
+      console.log('🧹 Removendo widget existente antes de criar novo...')
+      existingWidget.remove()
+    }
+
     container.innerHTML = '' // limpa o container
 
     // CORREÇÃO: Conforme AWS_FaceLiveness_SessionExpired.md
@@ -403,11 +464,16 @@ export class Capture3dComponent implements OnInit, OnDestroy, AfterViewInit {
       widgetElement.setAttribute('create-session-url', this.livenessSessionUrl)
       widgetElement.setAttribute('results-url', this.livenessResultsUrl)
       
-      // Garantir que o widget saiba que deve usar conexão direta AWS
-      // O widget customizado deve usar AWS SDK configurado globalmente para WebRTC
-      widgetElement.setAttribute('use-direct-aws-connection', 'true')
+      // CORREÇÃO: Removido 'use-direct-aws-connection' para ativar Shadow DOM
+      // O Shadow DOM isola os elementos internos do widget e previne que o botão apareça no DOM Angular
+      // Conforme AWS_FaceLiveness_ButtonVisible.md
       
       container.appendChild(widgetElement)
+      
+      // CORREÇÃO: Registrar listeners diretamente no elemento widget após criação
+      // Isso adiciona uma camada extra de captura de eventos do Shadow DOM
+      // O widget pode emitir eventos que não propagam para window/document
+      this.attachWidgetElementListeners(widgetElement)
       
       console.log('✅ Widget configurado (sem session-id pré-criado):', {
         region: this.awsRegion,
@@ -418,12 +484,28 @@ export class Capture3dComponent implements OnInit, OnDestroy, AfterViewInit {
         hasSecretKey: !!creds.secretAccessKey,
         hasSessionToken: !!(creds as any).sessionToken,
         connectionType: 'WebRTC direto para AWS Rekognition',
-        note: 'Sessão será criada quando usuário clicar no botão "Iniciar Verificação" dentro do widget'
+        note: 'Sessão será criada quando usuário clicar no botão "Iniciar Verificação" dentro do widget',
+        shadowDOM: 'ATIVO - Elementos internos isolados (botão não aparece no DOM Angular)',
+        viewEncapsulation: 'ViewEncapsulation.Emulated aplicado no camera-modal'
       })
       
       // Aguardar widget montar e inicializar
       setTimeout(() => {
+        // CORREÇÃO: Conforme AWS_FaceLiveness_WidgetAccessError.md
+        // Verificar se Shadow DOM foi criado após renderização
+        this.verifyShadowDOMCreated(widgetElement)
+        
         this.initializeWidget()
+        
+        // CORREÇÃO: Executar debug agressivo para encontrar o botão
+        setTimeout(() => {
+          console.log('🔍 [DEBUG] Executando busca agressiva do botão...')
+          this.findWidgetButtonAggressively()
+        }, 2000)
+        
+        // CORREÇÃO: Configurar timeout de segurança após widget estar pronto
+        // O timeout será iniciado apenas quando o botão do widget estiver visível
+        this.setupWidgetTimeoutSafety()
         
         // Verificar se o botão "Iniciar Verificação" aparece após widget inicializar
         // Múltiplas verificações para garantir que detecta o botão quando aparecer
@@ -448,6 +530,10 @@ export class Capture3dComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   private setupWidgetEventListeners(): void {
+    // CORREÇÃO: Registrar listeners no window globalmente ANTES da renderização
+    // Isso garante que eventos emitidos do Shadow DOM sejam capturados
+    // Conforme AWS_FaceLiveness_WidgetTimeout.md: eventos do Shadow DOM precisam ser capturados no nível window
+    
     // Evento quando a sessão é criada pelo widget (após usuário clicar no botão "Iniciar Verificação")
     // IMPORTANTE: Este evento só é disparado quando o usuário clica no botão interno do widget
     // Por isso o timer de 3 minutos só começa AGORA, não quando o widget foi renderizado
@@ -482,6 +568,10 @@ export class Capture3dComponent implements OnInit, OnDestroy, AfterViewInit {
     const completeHandler = async (e: Event) => {
       const customEvent = e as CustomEvent
       console.log('✅ Widget: Liveness completado', customEvent.detail)
+      
+      // CORREÇÃO: Cancelar timeout de segurança quando evento é recebido
+      this.clearWidgetTimeoutSafety()
+      
       const result = customEvent.detail as any
       
       // IMPORTANTE: Se o widget finalizou, buscar resultados do backend para garantir score correto
@@ -587,6 +677,10 @@ export class Capture3dComponent implements OnInit, OnDestroy, AfterViewInit {
     const errorHandler = (e: Event) => {
       const customEvent = e as CustomEvent
       console.error('❌ Widget: Erro no liveness', customEvent.detail)
+      
+      // CORREÇÃO: Cancelar timeout de segurança quando erro ocorre
+      this.clearWidgetTimeoutSafety()
+      
       this.livenessError = customEvent.detail?.message || 'Erro no widget de liveness'
       this.livenessLoading = false
       this.showLivenessWidget = false
@@ -614,24 +708,59 @@ export class Capture3dComponent implements OnInit, OnDestroy, AfterViewInit {
       // Marcar que o widget está realmente ativo (sessão foi criada após clique do usuário)
       this.sessionActive = true
       
-      // IMPORTANTE: Iniciar sequência de liveness apenas AGORA, após usuário clicar no botão interno
-      // Notificar o componente camera-modal para iniciar voz e sequência
-      // O camera-modal está escutando eventos ou podemos usar um método direto
-      // Por enquanto, vamos apenas marcar que está pronto - o camera-modal vai detectar via polling
+      // CORREÇÃO: Reiniciar timeout de segurança após usuário iniciar (agora temos atividade)
+      // Dar mais 120 segundos (2 minutos) para o processo completo terminar
+      this.clearWidgetTimeoutSafety()
+      this.startWidgetTimeoutSafety(120000) // 2 minutos para widget processar completamente
+      
+      // CORREÇÃO: Notificar camera-modal para iniciar voz DEPOIS que usuário clicou no botão do widget
+      // Usar ViewChild para acessar o componente diretamente
+      if (this.cameraModal) {
+        console.log('📢 Notificando camera-modal para iniciar voz e sequência...')
+        this.cameraModal.startLivenessSequenceAfterWidgetButton()
+      } else {
+        console.warn('⚠️ camera-modal não disponível ainda, aguardando...')
+        // Aguardar um pouco e tentar novamente
+        setTimeout(() => {
+          if (this.cameraModal) {
+            this.cameraModal.startLivenessSequenceAfterWidgetButton()
+          }
+        }, 500)
+      }
     }
 
-    // Escutar eventos do widget
-    document.addEventListener('liveness-complete', completeHandler)
-    document.addEventListener('liveness-error', errorHandler)
-    document.addEventListener('liveness-session', sessionHandler)
-    document.addEventListener('liveness-progress', progressHandler)
-    document.addEventListener('user-activity-started', userActivityHandler)
-    document.addEventListener('liveness-started', userActivityHandler)
-    document.addEventListener('recording-started', userActivityHandler)
+    // CORREÇÃO CRÍTICA: Registrar listeners no window globalmente ANTES da renderização
+    // Conforme AWS_FaceLiveness_WidgetTimeout.md linhas 21-27:
+    // - Shadow DOM fechado isola eventos do contexto Angular
+    // - Angular não consegue ouvir eventos emitidos de dentro do Shadow DOM
+    // - Solução: Capturar eventos no nível window global ANTES da renderização
+    
+    // Estratégia múltipla: registrar em window, document E elemento widget (quando disponível)
+    // Isso garante máxima compatibilidade mesmo com Shadow DOM fechado
+    const registerListener = (eventName: string, handler: (e: Event) => void) => {
+      // 1. Window (global) - captura eventos que "escapam" do Shadow DOM
+      window.addEventListener(eventName, handler, { capture: true, passive: true })
+      // 2. Document - fallback para eventos propagados
+      document.addEventListener(eventName, handler, { capture: true, passive: true })
+      
+      console.log(`📡 Listener registrado para '${eventName}' no window e document (capture mode)`)
+      
+      // 3. Tentar registrar no elemento widget se já existir (pouco provável neste momento)
+      // Mas será feito em renderWidget() após o widget ser criado
+    }
+    
+    // Escutar eventos do widget (registrados no window E document)
+    registerListener('liveness-complete', completeHandler)
+    registerListener('liveness-error', errorHandler)
+    registerListener('liveness-session', sessionHandler)
+    registerListener('liveness-progress', progressHandler)
+    registerListener('user-activity-started', userActivityHandler)
+    registerListener('liveness-started', userActivityHandler)
+    registerListener('recording-started', userActivityHandler)
     
     // Eventos alternativos que o widget pode disparar
-    document.addEventListener('session-created', sessionHandler)
-    document.addEventListener('session-ready', sessionHandler)
+    registerListener('session-created', sessionHandler)
+    registerListener('session-ready', sessionHandler)
 
     this.widgetEventListeners = [
       { type: 'liveness-complete', handler: completeHandler },
@@ -647,15 +776,34 @@ export class Capture3dComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   private removeWidgetEventListeners(): void {
+    // CORREÇÃO: Remover listeners tanto do window quanto do document
+    // E também do elemento widget se existir
     this.widgetEventListeners.forEach(({ type, handler }) => {
-      document.removeEventListener(type, handler)
+      window.removeEventListener(type, handler, { capture: true } as any)
+      document.removeEventListener(type, handler, { capture: true } as any)
+      
+      // Tentar remover do elemento widget também
+      const widget = document.querySelector('face-liveness-widget')
+      if (widget) {
+        try {
+          widget.removeEventListener(type, handler, { capture: true } as any)
+        } catch (e) {
+          // Widget pode não ter listeners ou já foi removido
+        }
+      }
     })
     this.widgetEventListeners = []
+    console.log('✅ Listeners removidos de window, document e elemento widget')
   }
 
   openCameraModal(): void {
     this.resetResult() // Limpar resultado anterior
     this.showCameraModal = true
+    // CORREÇÃO: Iniciar widget automaticamente quando modal abrir
+    // Isso garante que o widget apareça com seu botão interno visível
+    setTimeout(() => {
+      this.onLivenessStart()
+    }, 500) // Aguardar modal abrir primeiro
   }
 
   closeCameraModal(): void {
@@ -1337,7 +1485,491 @@ export class Capture3dComponent implements OnInit, OnDestroy, AfterViewInit {
       clearTimeout(this.sessionExpiryTimer)
       this.sessionExpiryTimer = undefined
     }
+    this.clearWidgetTimeoutSafety()
     this.widgetInitialized = false
+  }
+
+  /**
+   * Configura timeout de segurança conforme AWS_FaceLiveness_WidgetTimeout.md
+   * CORREÇÃO: Timeout aumentado para 120 segundos (2 minutos) para dar tempo ao usuário:
+   * - Widget renderizar (5-10s)
+   * - Botão aparecer (5-10s)
+   * - Usuário ver e clicar no botão (até 60s)
+   * - Widget processar e disparar evento (10-30s)
+   */
+  private setupWidgetTimeoutSafety(): void {
+    // Limpar timeout anterior se existir
+    this.clearWidgetTimeoutSafety()
+    
+    // CORREÇÃO: Não iniciar timeout imediatamente - aguardar widget estar pronto
+    // Timeout só começa após detectar que o botão do widget está visível
+    console.log('⏰ Timeout de segurança será configurado após widget estar pronto (botão visível)')
+    
+    // Aguardar widget estar pronto antes de iniciar timeout
+    this.waitForWidgetReady()
+  }
+
+  /**
+   * CORREÇÃO: Aguarda widget estar pronto (botão visível) antes de iniciar timeout
+   */
+  private waitForWidgetReady(): void {
+    let checkCount = 0
+    const maxChecks = 20 // 10 segundos (20 * 500ms) para widget aparecer
+    
+    const checkInterval = setInterval(() => {
+      checkCount++
+      
+      const widget = document.querySelector('face-liveness-widget') as any
+      if (!widget) {
+        if (checkCount >= maxChecks) {
+          clearInterval(checkInterval)
+          // Widget não apareceu, configurar timeout de qualquer forma
+          this.startWidgetTimeoutSafety(120000) // 2 minutos
+        }
+        return
+      }
+      
+      // Verificar se botão do widget está visível
+      try {
+        const shadowRoot = widget.shadowRoot || widget
+        const buttons = shadowRoot.querySelectorAll('button')
+        
+        // CORREÇÃO: Logar todos os botões para debug
+        if (buttons.length > 0) {
+          console.log(`🔍 [waitForWidgetReady] Encontrados ${buttons.length} botões no widget`)
+          Array.from(buttons).forEach((btn: any, index: number) => {
+            const text = (btn.textContent || btn.innerText || '').trim()
+            console.log(`  Botão ${index + 1}: "${text}" (disabled: ${btn.disabled || btn.hasAttribute('disabled')})`)
+          })
+        }
+        
+        // CORREÇÃO: Buscar botão com padrões expandidos e excluir cancel/fechar
+        const startButton = Array.from(buttons).find((btn: any) => {
+          const text = (btn.textContent || btn.innerText || '').toLowerCase().trim()
+          const isCancel = text.includes('cancel') || text.includes('close') || text.includes('×') || text.includes('x')
+          
+          if (isCancel) return false
+          
+          return text.includes('iniciar') || 
+                 text.includes('start') || 
+                 text.includes('begin') ||
+                 text.includes('continue') ||
+                 text.includes('proceed') ||
+                 // Se for o primeiro botão habilitado, considerar como botão de início
+                 (!btn.disabled && !btn.hasAttribute('disabled') && Array.from(buttons).indexOf(btn) === 0)
+        })
+        
+        if (startButton) {
+          clearInterval(checkInterval)
+          console.log('✅ Widget pronto! Botão encontrado. Iniciando timeout de 120 segundos...')
+          // Widget está pronto, configurar timeout de 120 segundos
+          this.startWidgetTimeoutSafety(120000) // 2 minutos para usuário clicar e widget processar
+        } else if (checkCount >= maxChecks) {
+          clearInterval(checkInterval)
+          console.warn('⚠️ Widget encontrado mas botão não apareceu após 10 segundos')
+          // Mesmo sem botão, configurar timeout
+          this.startWidgetTimeoutSafety(120000)
+        }
+      } catch (e) {
+        // Shadow DOM fechado ou erro ao acessar
+        if (checkCount >= maxChecks) {
+          clearInterval(checkInterval)
+          console.warn('⚠️ Não foi possível verificar botão do widget, configurando timeout de qualquer forma')
+          this.startWidgetTimeoutSafety(120000)
+        }
+      }
+    }, 500) // Verificar a cada 500ms
+  }
+
+  /**
+   * Inicia o timeout de segurança com o tempo especificado
+   */
+  private startWidgetTimeoutSafety(timeoutMs: number): void {
+    this.clearWidgetTimeoutSafety()
+    
+    const timeoutSeconds = timeoutMs / 1000
+    console.log(`⏰ Configurando timeout de segurança: ${timeoutSeconds} segundos para widget responder`)
+    
+    this.widgetTimeoutTimer = window.setTimeout(() => {
+      console.warn(`⚠️ TIMEOUT DE SEGURANÇA: Widget AWS não disparou evento após ${timeoutSeconds} segundos`)
+      
+      // Se o widget não respondeu, mas temos uma sessão, tentar buscar resultados do backend
+      if (this.livenessSession?.sessionId) {
+        console.log('📡 Widget não respondeu, mas temos sessão. Buscando resultados do backend...')
+        this.onLivenessComplete({
+          autoFinalized: true,
+          timeout: true,
+          message: 'Widget não respondeu — finalização forçada por timeout'
+        })
+      } else {
+        // Se não temos sessão, pode ser que o usuário não clicou no botão
+        console.error('❌ Timeout e sem sessão. Widget pode não ter sido inicializado pelo usuário.')
+        this.livenessError = `⚠️ Widget não respondeu após ${timeoutSeconds} segundos. Por favor, clique no botão "Iniciar Verificação" dentro do widget e tente novamente.`
+        this.livenessLoading = false
+      }
+      
+      // Limpar timer
+      this.widgetTimeoutTimer = undefined
+    }, timeoutMs)
+  }
+
+  /**
+   * Limpa o timeout de segurança do widget
+   */
+  private clearWidgetTimeoutSafety(): void {
+    if (this.widgetTimeoutTimer) {
+      clearTimeout(this.widgetTimeoutTimer)
+      this.widgetTimeoutTimer = undefined
+      console.log('✅ Timeout de segurança do widget cancelado (evento recebido)')
+    }
+  }
+
+  /**
+   * CORREÇÃO: Anexa listeners diretamente no elemento widget após criação
+   * Isso adiciona uma camada extra de captura de eventos do Shadow DOM
+   * Conforme AWS_FaceLiveness_WidgetTimeout.md: Shadow DOM isola eventos do Angular
+   * 
+   * Estratégia: Tentar capturar eventos em múltiplos níveis:
+   * 1. Window (global) - já registrado em setupWidgetEventListeners()
+   * 2. Document - já registrado em setupWidgetEventListeners()
+   * 3. Elemento widget - registrado aqui (pode ajudar se o widget emite eventos no próprio elemento)
+   */
+  private attachWidgetElementListeners(widgetElement: HTMLElement): void {
+    console.log('🔧 Anexando listeners adicionais diretamente no elemento widget...')
+    
+    // Lista de eventos que o widget pode emitir
+    const widgetEvents = [
+      'liveness-complete',
+      'liveness-error',
+      'liveness-session',
+      'liveness-progress',
+      'user-activity-started',
+      'liveness-started',
+      'recording-started',
+      'session-created',
+      'session-ready'
+    ]
+    
+    // Buscar handlers já registrados em setupWidgetEventListeners
+    widgetEvents.forEach(eventName => {
+      const listenerInfo = this.widgetEventListeners.find(l => l.type === eventName)
+      if (listenerInfo) {
+        // Registrar no elemento widget também (capture mode para pegar eventos do Shadow DOM)
+        widgetElement.addEventListener(eventName, listenerInfo.handler, { capture: true, passive: true })
+        console.log(`📡 Listener adicional anexado ao elemento widget para '${eventName}'`)
+      }
+    })
+    
+    // CORREÇÃO: Tentar acessar ShadowRoot e registrar listeners lá também (se não for fechado)
+    try {
+      const shadowRoot = (widgetElement as any).shadowRoot
+      if (shadowRoot) {
+        console.log('✅ ShadowRoot encontrado no widget')
+        
+        // Se o ShadowRoot não for fechado (mode: 'open'), podemos registrar listeners
+        // Mas geralmente é 'closed', então isso provavelmente falhará
+        // Tentar mesmo assim para debug
+        widgetEvents.forEach(eventName => {
+          const listenerInfo = this.widgetEventListeners.find(l => l.type === eventName)
+          if (listenerInfo) {
+            try {
+              shadowRoot.addEventListener(eventName, listenerInfo.handler, { capture: true, passive: true })
+              console.log(`📡 Listener registrado no ShadowRoot para '${eventName}'`)
+            } catch (shadowError) {
+              // Shadow DOM fechado não permite acesso - isso é esperado
+              console.log(`ℹ️ ShadowRoot fechado para '${eventName}' (isso é normal - eventos serão capturados no window)`)
+            }
+          }
+        })
+      } else {
+        console.log('ℹ️ ShadowRoot não disponível ou ainda não criado')
+      }
+    } catch (error) {
+      // Shadow DOM fechado - isso é esperado e normal
+      console.log('ℹ️ Não foi possível acessar ShadowRoot (fechado) - eventos serão capturados no window global')
+    }
+    
+    console.log('✅ Listeners adicionais anexados ao elemento widget')
+  }
+
+  /**
+   * CORREÇÃO: Destaca o botão do widget em amarelo para facilitar identificação
+   * Tenta aplicar estilos diretamente no botão (funciona mesmo com Shadow DOM em alguns casos)
+   */
+  private highlightWidgetButton(button: HTMLButtonElement | HTMLElement): void {
+    try {
+      // CORREÇÃO: Verificar se botão está sem texto e adicionar "[Widget]"
+      const currentText = (button.textContent || button.innerText || '').trim()
+      if (!currentText || currentText === '') {
+        console.log('📝 Botão sem texto detectado. Adicionando texto "[Widget]"...')
+        
+        // Tentar adicionar texto de diferentes formas
+        try {
+          if (button.textContent !== undefined) {
+            button.textContent = '[Widget]'
+          } else if ((button as any).innerText !== undefined) {
+            (button as any).innerText = '[Widget]'
+          } else {
+            // Criar um span dentro do botão
+            const span = document.createElement('span')
+            span.textContent = '[Widget]'
+            button.appendChild(span)
+          }
+          
+          // Tentar adicionar aria-label também
+          button.setAttribute('aria-label', 'Iniciar Verificação Widget')
+          button.setAttribute('title', 'Clique para iniciar verificação 3D')
+          
+          console.log('✅ Texto "[Widget]" adicionado ao botão')
+        } catch (textError) {
+          console.warn('⚠️ Não foi possível adicionar texto ao botão:', textError)
+        }
+      } else {
+        console.log('ℹ️ Botão já possui texto:', currentText)
+      }
+      
+      // Estilos amarelos para destacar o botão
+      const yellowStyles: Partial<CSSStyleDeclaration> = {
+        backgroundColor: '#fbbf24',
+        background: '#fbbf24',
+        borderColor: '#f59e0b',
+        color: '#000000',
+        fontWeight: '700',
+        boxShadow: '0 0 20px rgba(251, 191, 36, 0.6)',
+        transition: 'all 0.3s ease',
+        animation: 'yellowPulse 2s infinite'
+      }
+      
+      // Aplicar estilos diretamente no botão
+      Object.keys(yellowStyles).forEach(key => {
+        try {
+          (button as any).style[key] = yellowStyles[key as keyof CSSStyleDeclaration]
+        } catch (e) {
+          // Alguns estilos podem falhar, continuar
+        }
+      })
+      
+      // Adicionar classe customizada se possível
+      if (button.classList) {
+        button.classList.add('widget-start-button-highlighted')
+      }
+      
+      // Adicionar atributo data para identificação
+      button.setAttribute('data-widget-start-button', 'true')
+      
+      const finalText = (button.textContent || button.innerText || '').trim()
+      console.log('🎨 Botão do widget destacado em AMARELO:', {
+        text: finalText || '[Widget]',
+        styles: 'Aplicados diretamente no elemento'
+      })
+    } catch (error) {
+      console.warn('⚠️ Não foi possível destacar botão do widget:', error)
+    }
+  }
+
+  /**
+   * CORREÇÃO: Cria um indicador visual EXTERNO ao widget para destacar onde está o botão
+   * Como o Shadow DOM pode ocultar estilos, criamos um overlay visual que aponta para o botão
+   */
+  private createWidgetButtonIndicator(button: HTMLElement): void {
+    try {
+      // Remover indicador anterior se existir
+      const existingIndicator = document.getElementById('widget-button-indicator')
+      if (existingIndicator) {
+        existingIndicator.remove()
+      }
+
+      // Obter posição do botão dentro do widget
+      const widget = document.querySelector('face-liveness-widget') as any
+      if (!widget) {
+        console.warn('⚠️ Widget não encontrado para criar indicador')
+        return
+      }
+
+      // Obter posição do widget
+      const widgetRect = widget.getBoundingClientRect()
+      let buttonRect: DOMRect
+
+      try {
+        // Tentar obter posição do botão (pode falhar se estiver no Shadow DOM)
+        buttonRect = button.getBoundingClientRect()
+      } catch (e) {
+        // Se não conseguir, estimar posição na parte inferior do widget
+        buttonRect = {
+          ...widgetRect,
+          top: widgetRect.bottom - 80,
+          height: 50,
+          left: widgetRect.left + (widgetRect.width / 2) - 100,
+          width: 200
+        } as DOMRect
+      }
+
+      // CORREÇÃO: Criar indicador visual MUITO MAIS VISÍVEL (overlay amarelo grande e pulsante)
+      const indicator = document.createElement('div')
+      indicator.id = 'widget-button-indicator'
+      indicator.innerHTML = `
+        <div class="widget-indicator-content">
+          <div class="widget-indicator-arrow">⬇⬇⬇</div>
+          <div class="widget-indicator-text-large">👆 CLIQUE AQUI PARA INICIAR</div>
+          <div class="widget-indicator-text">[Widget]</div>
+          <div class="widget-indicator-hint">Procure o botão na parte inferior do círculo verde</div>
+        </div>
+      `
+      
+      // CORREÇÃO: Posicionar na parte inferior do widget (onde geralmente fica o botão)
+      const estimatedButtonTop = widgetRect.bottom - 100 // Estimativa: botão fica ~100px acima da parte inferior
+      const estimatedButtonLeft = widgetRect.left + (widgetRect.width / 2) - 150 // Centralizado
+      
+      // Estilos inline MUITO MAIS VISÍVEIS
+      Object.assign(indicator.style, {
+        position: 'fixed',
+        top: `${estimatedButtonTop - 120}px`, // 120px acima da posição estimada do botão
+        left: `${estimatedButtonLeft}px`,
+        width: '300px',
+        zIndex: '99999', // Z-index MUITO ALTO para garantir que apareça
+        pointerEvents: 'none', // Não bloquear cliques
+        animation: 'widgetIndicatorPulse 1.5s infinite',
+        transform: 'translateX(-50%)', // Centralizar
+        marginLeft: '150px' // Compensar transform
+      })
+
+      // Adicionar ao body
+      document.body.appendChild(indicator)
+
+      console.log('✅ Indicador visual do botão criado:', {
+        position: { top: buttonRect.top, left: buttonRect.left },
+        widgetSize: { width: widgetRect.width, height: widgetRect.height }
+      })
+
+      // Remover indicador após 30 segundos ou quando usuário clicar
+      setTimeout(() => {
+        const indicatorToRemove = document.getElementById('widget-button-indicator')
+        if (indicatorToRemove) {
+          indicatorToRemove.remove()
+        }
+      }, 30000)
+
+    } catch (error) {
+      console.warn('⚠️ Não foi possível criar indicador visual do botão:', error)
+    }
+  }
+
+  /**
+   * CORREÇÃO: Função de debug agressiva para encontrar o botão do widget
+   * Tenta múltiplas estratégias para acessar o Shadow DOM e encontrar o botão
+   */
+  private findWidgetButtonAggressively(): HTMLElement | null {
+    const widget = document.querySelector('face-liveness-widget') as any
+    if (!widget) {
+      console.warn('⚠️ Widget não encontrado')
+      return null
+    }
+
+    console.log('🔍 [DEBUG AGRESSIVO] Procurando botão do widget com múltiplas estratégias...')
+    
+    // Estratégia 1: Tentar acessar shadowRoot diretamente
+    try {
+      const shadowRoot = widget.shadowRoot
+      if (shadowRoot) {
+        console.log('✅ ShadowRoot encontrado! Buscando botões...')
+        const buttons = shadowRoot.querySelectorAll('button')
+        console.log(`📋 Encontrados ${buttons.length} botões no ShadowRoot`)
+        
+        Array.from(buttons).forEach((btn: any, index: number) => {
+          const text = (btn.textContent || btn.innerText || '').trim()
+          const ariaLabel = btn.getAttribute('aria-label') || ''
+          const rect = btn.getBoundingClientRect()
+          
+          console.log(`  Botão ${index + 1} (ShadowRoot):`, {
+            text: text || '(sem texto)',
+            ariaLabel: ariaLabel || '(sem aria-label)',
+            visible: rect.width > 0 && rect.height > 0,
+            position: { top: rect.top, left: rect.left, width: rect.width, height: rect.height },
+            className: btn.className || '(sem classe)'
+          })
+          
+          // Se não for botão de cancelar, retornar
+          if (!text.toLowerCase().includes('cancel') && 
+              !ariaLabel.toLowerCase().includes('cancel') &&
+              rect.width > 0 && rect.height > 0) {
+            console.log(`✅ Botão candidato encontrado no ShadowRoot: Botão ${index + 1}`)
+            return btn
+          }
+        })
+      }
+    } catch (e) {
+      console.warn('⚠️ Não foi possível acessar ShadowRoot:', e)
+    }
+
+    // Estratégia 2: Tentar acessar via _shadowRoot (alguns browsers)
+    try {
+      const shadowRoot = (widget as any)._shadowRoot
+      if (shadowRoot) {
+        console.log('✅ _shadowRoot encontrado!')
+        const buttons = shadowRoot.querySelectorAll('button')
+        Array.from(buttons).forEach((btn: any, index: number) => {
+          console.log(`  Botão ${index + 1} (_shadowRoot):`, {
+            text: (btn.textContent || btn.innerText || '').trim(),
+            visible: btn.offsetWidth > 0 && btn.offsetHeight > 0
+          })
+        })
+      }
+    } catch (e) {
+      console.log('ℹ️ _shadowRoot não disponível')
+    }
+
+    // Estratégia 3: Buscar todos os elementos dentro do widget
+    try {
+      const allElements = widget.querySelectorAll('*')
+      console.log(`📋 Total de elementos dentro do widget: ${allElements.length}`)
+      
+      const buttons = Array.from(allElements).filter((el: any) => 
+        el.tagName === 'BUTTON' || 
+        el.getAttribute('role') === 'button' ||
+        el.onclick !== null ||
+        (el.className && el.className.includes('button'))
+      )
+      
+      console.log(`📋 Botões encontrados (querySelectorAll): ${buttons.length}`)
+      buttons.forEach((btn: any, index: number) => {
+        console.log(`  Botão ${index + 1}:`, {
+          text: (btn.textContent || btn.innerText || '').trim(),
+          tagName: btn.tagName,
+          className: btn.className || '(sem classe)'
+        })
+      })
+    } catch (e) {
+      console.warn('⚠️ Erro ao buscar elementos:', e)
+    }
+
+    // Estratégia 4: Tentar acessar via getRootNode()
+    try {
+      const rootNode = widget.getRootNode()
+      if (rootNode && rootNode !== document) {
+        console.log('✅ RootNode diferente do document encontrado!')
+        const buttons = (rootNode as any).querySelectorAll('button')
+        console.log(`📋 Botões no RootNode: ${buttons.length}`)
+      }
+    } catch (e) {
+      console.log('ℹ️ RootNode não disponível ou é document')
+    }
+
+    // Estratégia 5: Buscar por iframes dentro do widget
+    try {
+      const iframes = widget.querySelectorAll('iframe')
+      console.log(`📋 Iframes encontrados: ${iframes.length}`)
+      iframes.forEach((iframe: any, index: number) => {
+        console.log(`  Iframe ${index + 1}:`, {
+          src: iframe.src || '(sem src)',
+          width: iframe.offsetWidth,
+          height: iframe.offsetHeight
+        })
+      })
+    } catch (e) {
+      console.log('ℹ️ Nenhum iframe encontrado')
+    }
+
+    return null
   }
 
   /**
@@ -1377,15 +2009,66 @@ export class Capture3dComponent implements OnInit, OnDestroy, AfterViewInit {
       console.warn('⚠️ Erro ao buscar botões do widget:', e)
     }
     
-    // Procurar botão "Iniciar Verificação"
+    // CORREÇÃO: Logar todos os botões para debug
+    console.log(`🔍 Encontrados ${buttons.length} botões no widget. Analisando cada um...`)
+    Array.from(buttons).forEach((btn: any, index: number) => {
+      const text = (btn.textContent || btn.innerText || '').trim()
+      const ariaLabel = btn.getAttribute('aria-label') || ''
+      const title = btn.getAttribute('title') || ''
+      const className = btn.className || ''
+      const isDisabled = btn.disabled || btn.hasAttribute('disabled')
+      
+      console.log(`  Botão ${index + 1}:`, {
+        text: text || '(sem texto)',
+        ariaLabel: ariaLabel || '(sem aria-label)',
+        title: title || '(sem title)',
+        className: className || '(sem classe)',
+        disabled: isDisabled,
+        visible: window.getComputedStyle(btn).display !== 'none'
+      })
+    })
+    
+    // CORREÇÃO: Buscar botão "Iniciar Verificação" com padrões expandidos
     const startButton = Array.from(buttons).find((btn: any) => {
-      const text = (btn.textContent || btn.innerText || '').toLowerCase()
+      const text = (btn.textContent || btn.innerText || '').toLowerCase().trim()
+      const ariaLabel = (btn.getAttribute('aria-label') || '').toLowerCase()
+      const title = (btn.getAttribute('title') || '').toLowerCase()
+      const className = (btn.className || '').toLowerCase()
+      
+      // Excluir botões de cancelar/fechar
+      const isCancelButton = text.includes('cancel') || 
+                            text.includes('cancelar') ||
+                            text.includes('close') ||
+                            text.includes('fechar') ||
+                            text.includes('×') ||
+                            text.includes('x') ||
+                            className.includes('cancel') ||
+                            className.includes('close')
+      
+      if (isCancelButton) {
+        return false
+      }
+      
+      // Padrões de busca expandidos
       return text.includes('iniciar') || 
              text.includes('start') ||
              text.includes('verificação') ||
              text.includes('verification') ||
              text.includes('begin') ||
-             text.includes('começar')
+             text.includes('começar') ||
+             text.includes('continue') ||
+             text.includes('continuar') ||
+             text.includes('proceed') ||
+             text.includes('prosseguir') ||
+             ariaLabel.includes('start') ||
+             ariaLabel.includes('iniciar') ||
+             ariaLabel.includes('begin') ||
+             title.includes('start') ||
+             title.includes('iniciar') ||
+             className.includes('start') ||
+             className.includes('begin') ||
+             // Se não encontrou padrão mas é o primeiro botão habilitado, considerar como botão de início
+             (!btn.disabled && !btn.hasAttribute('disabled') && Array.from(buttons).indexOf(btn) === 0)
     }) as HTMLButtonElement | undefined
     
     if (startButton) {
@@ -1394,12 +2077,26 @@ export class Capture3dComponent implements OnInit, OnDestroy, AfterViewInit {
       details.buttonVisible = window.getComputedStyle(startButton).display !== 'none'
       details.buttonDisabled = (startButton as HTMLButtonElement).disabled || startButton.hasAttribute('disabled')
       
+      // CORREÇÃO: Pintar botão de amarelo para facilitar identificação
+      this.highlightWidgetButton(startButton)
+      
+      // Destacar o container do widget também
+      const container = document.getElementById('liveness-container')
+      if (container) {
+        container.classList.add('widget-button-ready')
+      }
+      
+      // CORREÇÃO: Criar indicador visual EXTERNO ao widget para destacar o botão
+      // Como o botão está no Shadow DOM, vamos criar um overlay/indicador visual
+      this.createWidgetButtonIndicator(startButton)
+      
       console.log('✅ Botão "Iniciar Verificação" ENCONTRADO após renderização!')
       console.log('📋 Detalhes do botão:', {
         text: details.buttonText,
         visible: details.buttonVisible,
         disabled: details.buttonDisabled,
-        totalButtons: details.totalButtons
+        totalButtons: details.totalButtons,
+        highlighted: 'Botão será destacado em AMARELO'
       })
     } else {
       console.warn('⚠️ Botão "Iniciar Verificação" NÃO encontrado após renderização')
@@ -1556,6 +2253,17 @@ export class Capture3dComponent implements OnInit, OnDestroy, AfterViewInit {
                    text.includes('begin') ||
                    text.includes('começar')
           })
+          
+          // CORREÇÃO: Pintar botão de amarelo quando encontrado
+          if (startButton) {
+            this.highlightWidgetButton(startButton as HTMLButtonElement)
+            
+            // Destacar container do widget
+            const container = document.getElementById('liveness-container')
+            if (container) {
+              container.classList.add('widget-button-ready')
+            }
+          }
           
           if (startButton && !userNotifiedToClick && checkCount >= 3) {
             // Notificar usuário após 3 segundos se botão ainda estiver visível

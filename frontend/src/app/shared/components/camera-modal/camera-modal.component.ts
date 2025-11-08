@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, AfterViewInit, OnChanges, SimpleChanges, ViewChild, ElementRef, Input, Output, EventEmitter, ChangeDetectorRef, NgZone } from '@angular/core'
+import { Component, OnInit, OnDestroy, AfterViewInit, OnChanges, SimpleChanges, ViewChild, ElementRef, Input, Output, EventEmitter, ChangeDetectorRef, NgZone, ViewEncapsulation } from '@angular/core'
 import { CommonModule } from '@angular/common'
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser'
 import { CameraService } from '../../../core/services/camera.service'
@@ -13,7 +13,8 @@ export type CameraMode = '2d' | '3d'
   standalone: true,
   imports: [CommonModule],
   templateUrl: './camera-modal.component.html',
-  styleUrls: ['./camera-modal.component.scss']
+  styleUrls: ['./camera-modal.component.scss'],
+  encapsulation: ViewEncapsulation.Emulated // CORREÇÃO: Isolar CSS do componente para não interferir no widget AWS
 })
 export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, OnChanges {
   @ViewChild('videoElement', { static: false }) videoElement?: ElementRef<HTMLVideoElement>
@@ -609,6 +610,35 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
     this.startAutoFinalization()
   }
 
+  /**
+   * CORREÇÃO: Inicia a sequência de voz DEPOIS que o usuário clicou no botão do widget AWS
+   * Este método é chamado pelo componente pai quando o widget dispara evento de início
+   */
+  startLivenessSequenceAfterWidgetButton(): void {
+    console.log('🎤 Iniciando sequência de voz após usuário clicar no botão do widget')
+    
+    // Parar qualquer voz anterior
+    this.stopSpeaking()
+    
+    // Marcar que widget iniciou (usuário clicou no botão)
+    this.sessionActive = true
+    this.currentPhase = 'recording'
+    this.currentLivenessStep = 'center'
+    
+    // Instruções iniciais de gravação
+    this.speakInstruction('Gravação iniciada. Olhe para a câmera e mantenha-se preparado. Vou pedir três movimentos.')
+    
+    // Iniciar sequência de movimentos após voz inicial terminar
+    setTimeout(() => {
+      if (this.sessionActive && this.isOpen) {
+        this.startLivenessSteps()
+      }
+    }, 3000)
+    
+    // Iniciar verificação automática de conclusão
+    this.startAutoFinalization()
+  }
+
   // SOLUÇÃO ALTERNATIVA: Polling ativo + botões manuais
   // Não depende de timers, callbacks ou voz - usa polling contínuo para verificar tempo
   startLivenessSteps(): void {
@@ -827,7 +857,7 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
           console.log('✅ Etapas concluídas, mas widget real está ativo - aguardando widget finalizar...')
           console.log('📋 Widget AWS vai processar o vídeo e disparar evento quando terminar')
           
-          // TIMEOUT DE SEGURANÇA: Se o widget não disparar evento em 60 segundos, forçar finalização
+          // TIMEOUT DE SEGURANÇA: Se o widget não disparar evento em 5 segundos, forçar finalização
           // Isso previne que o modal fique travado indefinidamente
           this.startWidgetCompletionTimeout()
         } else {
@@ -1330,6 +1360,110 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
     // O componente pai vai fechar o modal quando receber o evento
   }
   
+  /**
+   * CORREÇÃO: Clica no botão "Iniciar Verificação" dentro do Shadow DOM do widget AWS
+   * Este método acessa o Shadow DOM e dispara o clique no botão interno
+   */
+  clickWidgetStartButton(): void {
+    console.log('🎯 Tentando clicar no botão interno do widget AWS...')
+    
+    try {
+      const widget = document.querySelector('face-liveness-widget') as any
+      if (!widget) {
+        console.error('❌ Widget não encontrado')
+        this.error = 'Widget AWS não encontrado. Tente recarregar a página.'
+        return
+      }
+
+      // Tentar acessar Shadow DOM
+      const shadowRoot = widget.shadowRoot
+      if (!shadowRoot) {
+        console.error('❌ Shadow DOM não encontrado no widget')
+        this.error = 'Não foi possível acessar o widget. Tente recarregar.'
+        return
+      }
+
+      // Buscar botão "Iniciar Verificação" no Shadow DOM
+      const buttons = shadowRoot.querySelectorAll('button')
+      const startButton = Array.from(buttons).find((btn: any) => {
+        const text = (btn.textContent || btn.innerText || '').toLowerCase().trim()
+        const ariaLabel = (btn.getAttribute('aria-label') || '').toLowerCase()
+        const className = (btn.className || '').toLowerCase()
+        
+        // Excluir botões de cancelar/fechar
+        const isCancelButton = text.includes('cancel') || 
+                              text.includes('cancelar') ||
+                              text.includes('close') ||
+                              text.includes('fechar')
+        
+        if (isCancelButton) return false
+        
+        // Buscar botão de início
+        return text.includes('iniciar') || 
+               text.includes('start') ||
+               text.includes('verificação') ||
+               text.includes('verification') ||
+               text.includes('begin') ||
+               text.includes('começar') ||
+               ariaLabel.includes('start') ||
+               ariaLabel.includes('iniciar') ||
+               className.includes('start') ||
+               className.includes('begin') ||
+               className.includes('widget-start-button')
+      }) as HTMLButtonElement | undefined
+
+      if (startButton) {
+        console.log('✅ Botão encontrado no Shadow DOM, clicando...', {
+          text: startButton.textContent || startButton.innerText,
+          disabled: startButton.disabled,
+          className: startButton.className
+        })
+
+        // Verificar se está desabilitado
+        if (startButton.disabled || startButton.hasAttribute('disabled')) {
+          console.warn('⚠️ Botão está desabilitado, aguardando...')
+          // Aguardar um pouco e tentar novamente
+          setTimeout(() => {
+            this.clickWidgetStartButton()
+          }, 1000)
+          return
+        }
+
+        // Disparar clique no botão
+        startButton.click()
+        
+        // Também tentar dispatch de evento para garantir
+        const clickEvent = new MouseEvent('click', {
+          bubbles: true,
+          cancelable: true,
+          view: window
+        })
+        startButton.dispatchEvent(clickEvent)
+
+        console.log('✅ Clique disparado no botão interno do widget')
+        
+        // Chamar método que inicia a sequência após widget iniciar
+        setTimeout(() => {
+          if (this.useRealWidget && !this.sessionActive) {
+            this.startLivenessSequenceAfterWidgetButton()
+          }
+        }, 500)
+
+      } else {
+        console.error('❌ Botão "Iniciar Verificação" não encontrado no Shadow DOM')
+        console.log('📋 Botões encontrados:', Array.from(buttons).map((btn: any) => ({
+          text: btn.textContent || btn.innerText,
+          className: btn.className,
+          disabled: btn.disabled
+        })))
+        this.error = 'Botão não encontrado no widget. Tente recarregar.'
+      }
+    } catch (error: any) {
+      console.error('❌ Erro ao clicar no botão do widget:', error)
+      this.error = `Erro ao iniciar verificação: ${error?.message || 'Erro desconhecido'}`
+    }
+  }
+
   // Verifica se o botão "Iniciar Verificação" aparece dentro do widget
   private checkWidgetButton(): { found: boolean; details: any } {
     const widget = document.querySelector('face-liveness-widget') as any
@@ -1404,7 +1538,7 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
   }
   
   // Inicia timeout de segurança: se widget não disparar evento, força finalização
-  // IMPORTANTE: Aumentado para 60 segundos para dar tempo ao usuário clicar no botão
+  // IMPORTANTE: Timeout de 5 segundos para resposta rápida
   private startWidgetCompletionTimeout(): void {
     // Limpar timeout anterior se existir
     this.clearWidgetCompletionTimeout()
@@ -1453,8 +1587,8 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
       originalClearTimeout()
     }
     
-    console.log('⏰ Iniciando timeout de segurança (60s) para widget AWS...')
-    console.log('⚠️ Se o widget não disparar evento liveness-complete em 60 segundos, finalização será forçada')
+    console.log('⏰ Iniciando timeout de segurança (5s) para widget AWS...')
+    console.log('⚠️ Se o widget não disparar evento liveness-complete em 5 segundos, finalização será forçada')
     console.log('💡 Verificações periódicas do botão serão feitas a cada 2 segundos')
     
     this.widgetCompletionTimeout = window.setTimeout(() => {
@@ -1466,7 +1600,7 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
       
       // Verificação final antes do timeout
       const finalCheck = this.checkWidgetButton()
-      console.error('⏰ TIMEOUT DE SEGURANÇA: Widget AWS não disparou evento após 60 segundos')
+      console.error('⏰ TIMEOUT DE SEGURANÇA: Widget AWS não disparou evento após 5 segundos')
       console.error('🔍 Verificação FINAL do widget antes do timeout:', finalCheck)
       
       if (!finalCheck.found) {
@@ -1519,7 +1653,7 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
         
         console.log('✅ Câmera parada e recursos limpos após timeout')
       }
-    }, 60000) // 60 segundos (aumentado de 10 para dar tempo ao usuário)
+    }, 5000) // 5 segundos conforme solicitação do usuário
   }
   
   // Limpa timeout de segurança

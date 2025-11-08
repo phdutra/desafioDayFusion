@@ -139,23 +139,6 @@
             <p class="liveness-info-hint">Siga as instruções de voz para posicionar corretamente</p>
           </div>
           
-          <div class="liveness-info-ready" *ngIf="!sessionActive && faceDetected">
-            <p class="liveness-info-text">✓ Tudo certo! Iniciando automaticamente...</p>
-          </div>
-
-          <!-- Botão redesenhado -->
-          <button 
-            class="btn-liveness-start btn-start-large" 
-            [class.ready]="faceDetected"
-            [class.disabled]="!faceDetected || validatingPosition"
-            *ngIf="!sessionActive"
-            (click)="startLiveness3D()"
-            [disabled]="!faceDetected || validatingPosition">
-            <span class="btn-icon-large">▶</span>
-            <span class="btn-text-large">Iniciar Verificação 3D</span>
-            <span class="btn-subtitle" *ngIf="!faceDetected">Aguarde validação...</span>
-          </button>
-
           <div class="liveness-active-status" *ngIf="sessionActive">
             <div class="active-status-badge">
               <div class="status-pulse-active"></div>
@@ -163,12 +146,18 @@
               <span *ngIf="currentPhase === 'processing'">Processando resultados...</span>
               <span *ngIf="currentPhase === 'completed'">Concluído</span>
             </div>
-            
-            <button class="btn-liveness-stop" (click)="stopLiveness()" *ngIf="currentPhase !== 'completed'">
-              <span class="btn-liveness-icon">⏹</span>
-              <span>Finalizar Manualmente</span>
-            </button>
           </div>
+          
+          <!-- Botão customizado para iniciar widget AWS (substitui botão interno do Shadow DOM) -->
+          <button 
+            class="btn-widget-start-custom" 
+            *ngIf="mode === '3d' && useRealWidget && !sessionActive && cameraReady"
+            (click)="clickWidgetStartButton()"
+            [disabled]="!faceDetected"
+            type="button">
+            <span class="btn-widget-icon">▶</span>
+            <span class="btn-widget-text">{{ faceDetected ? 'Iniciar Verificação' : 'Aguardando detecção facial...' }}</span>
+          </button>
         </div>
       </div>
       

@@ -36,11 +36,12 @@
 
   <!-- Controles -->
   <div class="controls-section">
+    <!-- CORREÇÃO: Botão "Iniciar Verificação 3D" destacado em AMARELO - aparece sempre na página -->
     <button 
-      class="btn btn-primary btn-large" 
+      class="btn btn-yellow-highlight btn-large" 
       (click)="openCameraModal()" 
-      [disabled]="livenessLoading">
-      <span class="btn-icon">🔐</span>
+      [disabled]="livenessLoading || sessionActive">
+      <span class="btn-icon">▶</span>
       <span>Iniciar Verificação 3D</span>
     </button>
 

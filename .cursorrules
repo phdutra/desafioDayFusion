@@ -36,6 +36,10 @@
 - Nomes de variáveis/métodos: camelCase (ex: getProgressSegments)
 - Componentes: sempre standalone, imports explícitos
 
+## Organização de Arquivos
+- Novos arquivos `.md` devem ser criados na pasta `doc`
+- Novos arquivos `.sh` devem ser criados na pasta `scripts`
+
 ## Tratamento de Erros
 - Logar erros com contexto (console.error com detalhes)
 - Retornar mensagens de erro claras ao usuário

@@ -1,84 +1,59 @@
-# DayFusion - Sistema de Reconhecimento Facial
+# Frontend
 
-Sistema completo de reconhecimento facial com captura de selfie e validação de documentos, desenvolvido com Angular 19 e .NET Core 9.
+This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 19.2.18.
 
-## 🚀 Tecnologias
+## Development server
 
-- **Frontend:** Angular 19, PWA, TypeScript
-- **Backend:** .NET Core 9, C#
-- **Cloud:** AWS (S3, Rekognition, DynamoDB, Cognito)
-- **UI/UX:** Interface moderna com efeitos e animações
+To start a local development server, run:
 
-## 📁 Estrutura do Projeto
-
-```
-desafioDayFusion/
-├── backend/                 # API .NET Core 9
-├── frontend/               # PWA Angular 19
-├── docker-compose.yml      # Orquestração de containers
-├── .env.template          # Template de variáveis de ambiente
-└── README.md              # Este arquivo
-```
-
-## 🛠️ Setup Rápido
-
-### Pré-requisitos
-- .NET SDK 9.x
-- Node.js 20+
-- Angular CLI 19
-- Docker (opcional)
-
-### Executar Localmente
-
-1. **Backend:**
 ```bash
-cd backend
-dotnet restore
-dotnet run --urls "http://localhost:5001"
+ng serve
 ```
 
-2. **Frontend:**
+Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
+
+## Code scaffolding
+
+Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
+
 ```bash
-cd frontend
-npm install
-ng serve --host 0.0.0.0 --port 4200
+ng generate component component-name
 ```
 
-3. **Acessar:**
-- Frontend: http://localhost:4200
-- Backend API: http://localhost:5001
+For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
 
-## 🔧 Configuração AWS
+```bash
+ng generate --help
+```
 
-1. Copie `.env.template` para `.env`
-2. Configure suas credenciais AWS
-3. Execute o script de setup (quando disponível)
+## Building
 
-## 📱 Funcionalidades
+To build the project run:
 
-- ✅ Captura de selfie com câmera
-- ✅ Upload de documento
-- ✅ Reconhecimento facial via AWS Rekognition
-- ✅ **Face Liveness 3D Anti-Spoof (Backend Pronto)**
-- ✅ Interface moderna e responsiva
-- ✅ PWA com offline support
-- ✅ Validação em tempo real
-- ✅ Painel de revisão humana
+```bash
+ng build
+```
 
-### ⚠️ Face Liveness 3D - Status
-- **Backend**: ✅ API completa com AWS SDK 4.x
-- **Frontend**: ⚠️ Requer AWS Amplify SDK (não instalado)
-- **Endpoints**: `/api/FaceRecognition/liveness/start` e `/api/FaceRecognition/liveness/result`
+This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
 
-## 🔒 Segurança
+## Running unit tests
 
-- Upload seguro via presigned URLs
-- Autenticação JWT via AWS Cognito
-- Criptografia de dados sensíveis
-- Conformidade LGPD
+To execute unit tests with the [Karma](https://karma-runner.github.io) test runner, use the following command:
 
-## 📊 Monitoramento
+```bash
+ng test
+```
 
-- Logs estruturados
-- Métricas de performance
-- Auditoria de acessos
+## Running end-to-end tests
+
+For end-to-end (e2e) testing, run:
+
+```bash
+ng e2e
+```
+
+Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
+
+## Additional Resources
+
+For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.

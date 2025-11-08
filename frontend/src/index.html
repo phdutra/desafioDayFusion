@@ -6,6 +6,10 @@
   <base href="/">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="icon" type="image/x-icon" href="favicon.ico">
+  <!-- Content Security Policy: permite blob/scripts necessários para AWS Face Liveness Widget -->
+  <!-- Conforme AWS_FaceLiveness_WidgetAccessError.md: CSP restritiva pode bloquear scripts/blob do widget -->
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src * blob: data: gap:; style-src * 'unsafe-inline'; script-src * 'unsafe-inline' 'unsafe-eval' *">
   <!-- Polyfill para process.env (necessário para widget.js) -->
   <script>
     // Polyfill para process.env usado pelo widget AWS Face Liveness
