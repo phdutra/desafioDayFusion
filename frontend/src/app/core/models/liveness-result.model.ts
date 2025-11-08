@@ -14,6 +14,8 @@ export interface LivenessVideoSummary {
 }
 
 export interface LivenessSummary {
+  sessionId: string;
+  createdAt: string;
   isLive: boolean;
   livenessScore: number;
   faceMatchScore?: number;
@@ -22,5 +24,6 @@ export interface LivenessSummary {
   video?: LivenessVideoSummary;
   documentKey?: string;
   documentName?: string;
+  metadata?: Record<string, string>;
 }
 

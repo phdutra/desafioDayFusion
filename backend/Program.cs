@@ -160,4 +160,19 @@ app.MapGet("/", context =>
     return Task.CompletedTask;
 });
 
+#if DEBUG
+app.MapGet("/debug/endpoints", (IEnumerable<EndpointDataSource> endpointSources) =>
+{
+    var endpoints = endpointSources
+        .SelectMany(source => source.Endpoints)
+        .Select(endpoint => new
+        {
+            DisplayName = endpoint.DisplayName,
+            RoutePattern = (endpoint as RouteEndpoint)?.RoutePattern.RawText
+        });
+
+    return Results.Json(endpoints);
+}).WithTags("Debug");
+#endif
+
 app.Run();

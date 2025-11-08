@@ -5,6 +5,8 @@ using Amazon.S3.Model;
 using DayFusion.API.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
+using System.IO;
+using System.Linq;
 
 namespace DayFusion.API.Controllers;
 
@@ -22,6 +24,8 @@ public class LivenessController : ControllerBase
     private readonly ILogger<LivenessController> _logger;
     private readonly string _bucketName;
 
+    private static readonly string[] VideoExtensions = { ".webm", ".mp4", ".mov", ".avi", ".mkv" };
+
     public LivenessController(
         IAmazonRekognition rekognitionClient,
         IAmazonS3 s3Client,
@@ -34,6 +38,83 @@ public class LivenessController : ControllerBase
         _logger = logger;
         _bucketName = _configuration["AWS:S3Bucket"] ?? _configuration["AWS_S3_BUCKET"]
             ?? throw new ArgumentNullException("AWS:S3Bucket", "Configure 'AWS:S3Bucket' em appsettings ou 'AWS_S3_BUCKET' env var.");
+    }
+
+    /// <summary>
+    /// Lista sessões de liveness existentes no bucket S3 (capturas + vídeo).
+    /// </summary>
+    [HttpGet("history")]
+    public async Task<IActionResult> GetLivenessHistory([FromQuery] int limit = 20, [FromQuery] int expiryMinutes = 30)
+    {
+        try
+        {
+            if (limit <= 0)
+            {
+                limit = 20;
+            }
+
+            if (expiryMinutes <= 0 || expiryMinutes > 1440)
+            {
+                expiryMinutes = 30;
+            }
+
+            var listRequest = new ListObjectsV2Request
+            {
+                BucketName = _bucketName,
+                Prefix = "liveness/"
+            };
+
+            var allObjects = new List<Amazon.S3.Model.S3Object>();
+            ListObjectsV2Response listResponse;
+
+            do
+            {
+                listResponse = await _s3Client.ListObjectsV2Async(listRequest);
+                allObjects.AddRange(listResponse.S3Objects.Where(obj => !obj.Key.EndsWith("/", StringComparison.OrdinalIgnoreCase)));
+                listRequest.ContinuationToken = listResponse.NextContinuationToken;
+            } while (listResponse.IsTruncated == true && allObjects.Count < limit * 50);
+
+            var groupedSessions = allObjects
+                .Select(obj => new { Object = obj, SessionId = ExtractSessionId(obj.Key) })
+                .Where(x => !string.IsNullOrWhiteSpace(x.SessionId))
+                .GroupBy(x => x.SessionId!)
+                .Select(group => new
+                {
+                    SessionId = group.Key,
+                    Objects = group.Select(x => x.Object).OrderBy(o => o.LastModified).ToList(),
+                    Latest = group.Max(o => o.Object.LastModified)
+                })
+                .OrderByDescending(g => g.Latest)
+                .Take(limit)
+                .ToList();
+
+            var results = new List<LivenessHistoryItem>();
+
+            foreach (var group in groupedSessions)
+            {
+                var item = await BuildHistoryItemAsync(group.SessionId, group.Objects, expiryMinutes);
+                if (item != null)
+                {
+                    results.Add(item);
+                }
+            }
+
+            return Ok(results);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Erro ao listar histórico de liveness do S3.");
+            return StatusCode(500, new { message = "Erro ao listar histórico de liveness.", error = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Endpoint auxiliar para validação de rota.
+    /// </summary>
+    [HttpGet("ping")]
+    public IActionResult Ping()
+    {
+        return Ok(new { message = "liveness ok" });
     }
 
     /// <summary>
@@ -557,6 +638,125 @@ public class LivenessController : ControllerBase
         };
 
         return await _s3Client.GetPreSignedURLAsync(request);
+    }
+
+    private async Task<LivenessHistoryItem?> BuildHistoryItemAsync(string sessionId, List<Amazon.S3.Model.S3Object> objects, int expiryMinutes)
+    {
+        if (!objects.Any())
+        {
+            return null;
+        }
+
+        var captures = new List<LivenessHistoryCapture>();
+        LivenessHistoryVideo? video = null;
+
+        foreach (var obj in objects)
+        {
+            var fileName = Path.GetFileName(obj.Key);
+            if (IsVideoFile(fileName))
+            {
+                var url = await GeneratePresignedUrlAsync(obj.Key, expiryMinutes);
+                var size = obj.Size ?? 0;
+                video = new LivenessHistoryVideo
+                {
+                    Key = obj.Key,
+                    Url = url,
+                    MimeType = GuessMimeType(fileName),
+                    Size = size,
+                    DurationSeconds = null
+                };
+                continue;
+            }
+
+            var captureUrl = await GeneratePresignedUrlAsync(obj.Key, expiryMinutes);
+            var captureSize = obj.Size ?? 0;
+            var captureLastModifiedUtc = obj.LastModified?.ToUniversalTime() ?? DateTime.UtcNow;
+
+            captures.Add(new LivenessHistoryCapture
+            {
+                Key = obj.Key,
+                Url = captureUrl,
+                Position = InferPosition(fileName),
+                Size = captureSize,
+                LastModified = captureLastModifiedUtc
+            });
+        }
+
+        if (!captures.Any() && video == null)
+        {
+            return null;
+        }
+
+        var createdAt = objects.Min(o => o.LastModified)?.ToUniversalTime() ?? DateTime.UtcNow;
+
+        return new LivenessHistoryItem
+        {
+            SessionId = sessionId,
+            CreatedAt = createdAt,
+            Captures = captures.OrderBy(c => c.LastModified).ToList(),
+            Video = video,
+            LivenessScore = null,
+            Status = "Revisar",
+            Metadata = new Dictionary<string, string>
+            {
+                { "objectCount", objects.Count.ToString() }
+            }
+        };
+    }
+
+    private static string? ExtractSessionId(string key)
+    {
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            return null;
+        }
+
+        var parts = key.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length >= 2 ? parts[1] : null;
+    }
+
+    private static bool IsVideoFile(string fileName)
+    {
+        var extension = Path.GetExtension(fileName);
+        return !string.IsNullOrEmpty(extension) && VideoExtensions.Contains(extension, StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static string GuessMimeType(string fileName)
+    {
+        var extension = Path.GetExtension(fileName).ToLowerInvariant();
+        return extension switch
+        {
+            ".mp4" => "video/mp4",
+            ".mov" => "video/quicktime",
+            ".avi" => "video/x-msvideo",
+            ".mkv" => "video/x-matroska",
+            ".webm" => "video/webm",
+            ".jpg" or ".jpeg" => "image/jpeg",
+            ".png" => "image/png",
+            _ => "application/octet-stream"
+        };
+    }
+
+    private static string? InferPosition(string fileName)
+    {
+        var name = Path.GetFileNameWithoutExtension(fileName);
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return null;
+        }
+
+        if (name.Contains("reference", StringComparison.OrdinalIgnoreCase))
+        {
+            return "referencia";
+        }
+
+        if (name.StartsWith("audit_", StringComparison.OrdinalIgnoreCase))
+        {
+            return name;
+        }
+
+        var parts = name.Split('-', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length > 1 ? parts.Last() : name;
     }
 }
 

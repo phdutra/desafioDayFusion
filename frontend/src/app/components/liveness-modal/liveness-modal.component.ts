@@ -188,6 +188,8 @@ export class LivenessModalComponent implements OnDestroy {
       const hasStrongMatch = faceMatchScore === undefined || faceMatchScore >= 80;
 
       const summary: LivenessSummary = {
+        sessionId,
+        createdAt: new Date().toISOString(),
         isLive,
         livenessScore: Number(livenessScore.toFixed(2)),
         faceMatchScore: faceMatchScore !== undefined ? Number(faceMatchScore.toFixed(2)) : undefined,

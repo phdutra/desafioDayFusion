@@ -5,6 +5,7 @@ import { ConfigPanelComponent } from '../../components/config-panel/config-panel
 import { LivenessModalComponent } from '../../components/liveness-modal/liveness-modal.component';
 import { LivenessSummary } from '../../core/models/liveness-result.model';
 import { VoiceStep } from '../../core/models/voice-step.model';
+import { LivenessHistoryService } from '../../core/services/liveness-history.service';
 
 @Component({
   selector: 'app-dashboard',
@@ -23,6 +24,8 @@ export class DashboardComponent {
   documentFile: File | null = null;
   lastResult = signal<LivenessSummary | null>(null);
   errorMessage = signal<string | null>(null);
+
+  constructor(private readonly historyService: LivenessHistoryService) {}
 
   readonly resultJson = computed(() =>
     this.lastResult()
@@ -60,6 +63,7 @@ export class DashboardComponent {
   handleSessionCompleted(summary: LivenessSummary): void {
     this.errorMessage.set(null);
     this.lastResult.set(summary);
+    this.historyService.addEntry(summary);
   }
 
   handleSessionFailed(message: string): void {
