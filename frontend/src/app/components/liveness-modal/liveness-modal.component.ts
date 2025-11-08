@@ -6,7 +6,13 @@ import { RekognitionService } from '../../core/aws/rekognition.service';
 import { S3Service } from '../../core/aws/s3.service';
 import { LivenessSummary } from '../../core/models/liveness-result.model';
 import { VoiceStep } from '../../core/models/voice-step.model';
-import { startCameraStream, stopMediaStream } from '../../core/utils/media-recorder.util';
+import {
+  startCameraStream,
+  stopMediaStream,
+  startVideoRecording,
+  MediaRecorderController,
+  RecordedMedia
+} from '../../core/utils/media-recorder.util';
 import { captureFrame, blobToUint8Array } from '../../core/utils/photo-capture.util';
 import { speakSequence } from '../../core/utils/voice-sequence.util';
 
@@ -39,6 +45,7 @@ export class LivenessModalComponent implements OnDestroy {
   errorMessage: string | null = null;
 
   private stream?: MediaStream;
+  private videoRecorder: MediaRecorderController | null = null;
 
   constructor(
     private readonly cognitoService: CognitoService,
@@ -60,6 +67,7 @@ export class LivenessModalComponent implements OnDestroy {
     const sessionId = `${Date.now()}`;
     const captures: CaptureInternal[] = [];
     let referenceFaceBytes: Uint8Array | null = null;
+    let recordedVideo: RecordedMedia | null = null;
 
     try {
       console.info('[LivenessModal] Solicitando credenciais Cognito (forceRefresh=true).');
@@ -80,6 +88,14 @@ export class LivenessModalComponent implements OnDestroy {
       await videoElement.play();
       console.info('[LivenessModal] Stream de vídeo iniciado.');
 
+      try {
+        this.videoRecorder = startVideoRecording(this.stream);
+        console.info('[LivenessModal] Gravação de vídeo iniciada.');
+      } catch (recorderError) {
+        this.videoRecorder = null;
+        console.warn('[LivenessModal] Não foi possível iniciar gravação de vídeo.', recorderError);
+      }
+
       await speakSequence(
         this.voiceSteps,
         (step, index) => {
@@ -99,7 +115,7 @@ export class LivenessModalComponent implements OnDestroy {
 
           const blob = await captureFrame(videoElement);
           const bytes = await blobToUint8Array(blob);
-           console.info('[LivenessModal] Foto capturada.', {
+          console.info('[LivenessModal] Foto capturada.', {
             position: step.posicao,
             blobSize: blob.size,
             mimeType: blob.type
@@ -124,6 +140,17 @@ export class LivenessModalComponent implements OnDestroy {
         }
       );
 
+      if (this.videoRecorder) {
+        console.info('[LivenessModal] Finalizando gravação de vídeo.');
+        recordedVideo = await this.videoRecorder.stopRecording();
+        console.info('[LivenessModal] Vídeo capturado.', {
+          mimeType: recordedVideo.mimeType,
+          size: recordedVideo.blob.size,
+          durationMs: recordedVideo.durationMs
+        });
+        this.videoRecorder = null;
+      }
+
       stopMediaStream(this.stream);
       this.stream = undefined;
 
@@ -139,6 +166,24 @@ export class LivenessModalComponent implements OnDestroy {
         faceMatchScore = faceMatch.similarity;
       }
 
+      let videoSummary: LivenessSummary['video'] | undefined;
+
+      if (recordedVideo && recordedVideo.blob.size > 0) {
+        try {
+          const uploadResult = await this.s3Service.uploadLivenessVideo(sessionId, recordedVideo.blob, recordedVideo.mimeType);
+          videoSummary = {
+            s3Key: uploadResult.key,
+            url: uploadResult.url ?? URL.createObjectURL(recordedVideo.blob),
+            mimeType: uploadResult.mimeType,
+            size: uploadResult.size,
+            durationMs: recordedVideo.durationMs
+          };
+          console.info('[LivenessModal] Vídeo enviado ao S3.', videoSummary);
+        } catch (videoError) {
+          console.error('[LivenessModal] Falha ao enviar vídeo ao S3.', videoError);
+        }
+      }
+
       const isLive = livenessScore >= 70;
       const hasStrongMatch = faceMatchScore === undefined || faceMatchScore >= 80;
 
@@ -148,6 +193,7 @@ export class LivenessModalComponent implements OnDestroy {
         faceMatchScore: faceMatchScore !== undefined ? Number(faceMatchScore.toFixed(2)) : undefined,
         status: !isLive ? 'Rejeitado' : hasStrongMatch ? 'Aprovado' : 'Revisar',
         captures,
+        video: videoSummary,
         documentName: this.documentFile?.name ?? undefined
       };
 
@@ -170,6 +216,15 @@ export class LivenessModalComponent implements OnDestroy {
       this.stream = undefined;
       this.isRunning = false;
       console.info('[LivenessModal] Sessão finalizada (cleanup).');
+      if (this.videoRecorder) {
+        try {
+          await this.videoRecorder.stopRecording();
+        } catch (stopError) {
+          console.warn('[LivenessModal] Erro ao finalizar gravação de vídeo no cleanup.', stopError);
+        } finally {
+          this.videoRecorder = null;
+        }
+      }
     }
   }
 
