@@ -1,0 +1,52 @@
+<div class="config-panel">
+  <header>
+    <div>
+      <h2>Instruções de Voz</h2>
+      <p>Defina a sequência utilizada durante a captura facial.</p>
+    </div>
+    <button class="btn ghost" (click)="resetToDefault()">Restaurar padrão</button>
+  </header>
+
+  <div class="steps-list" *ngIf="steps.length; else emptyState">
+    <div class="step-card" *ngFor="let step of steps; index as i; trackBy: trackByIndex">
+      <div class="step-header">
+        <div class="step-info">
+          <span class="step-index">{{ i + 1 }}</span>
+          <strong>Posição {{ step.posicao }}</strong>
+        </div>
+        <div class="step-actions">
+          <button class="icon" (click)="moveUp(i)" [disabled]="i === 0" title="Mover para cima">▲</button>
+          <button class="icon" (click)="moveDown(i)" [disabled]="i === steps.length - 1" title="Mover para baixo">▼</button>
+          <button class="icon danger" (click)="removeStep(i)" title="Remover">✕</button>
+        </div>
+      </div>
+
+      <div class="step-body">
+        <label>
+          Comando
+          <input type="text" [value]="step.texto" (input)="updateStep(i, 'texto', $any($event.target).value)" />
+        </label>
+        <label>
+          Delay (ms)
+          <input type="number" min="1000" step="100" [value]="step.delay" (input)="updateStep(i, 'delay', $any($event.target).value)" />
+        </label>
+        <label>
+          Posição
+          <input type="text" [value]="step.posicao" (input)="updateStep(i, 'posicao', $any($event.target).value)" />
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <ng-template #emptyState>
+    <div class="empty-state">
+      <p>Nenhuma instrução configurada.</p>
+      <button class="btn ghost" (click)="resetToDefault()">Aplicar sequência sugerida</button>
+    </div>
+  </ng-template>
+
+  <footer>
+    <button class="btn primary" (click)="addStep()">Adicionar instrução</button>
+  </footer>
+</div>
+

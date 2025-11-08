@@ -1,0 +1,62 @@
+<div class="liveness-container">
+  <header class="liveness-header">
+    <div>
+      <h2>Face Liveness 3D</h2>
+      <p>Capture automática com instruções de voz e sincronização AWS.</p>
+    </div>
+    <div class="session-status" [class.running]="isRunning" [class.error]="errorMessage">
+      <span class="status-indicator"></span>
+      <span>{{ isRunning ? 'Em execução' : errorMessage ? 'Erro' : 'Aguardando' }}</span>
+    </div>
+  </header>
+
+  <section class="video-section">
+    <video #videoElement autoplay playsinline muted></video>
+    <div class="video-overlay" *ngIf="!isRunning && progress === 0">
+      <span class="overlay-icon">🔐</span>
+      <p>Pronto para iniciar a verificação 3D.</p>
+      <p class="overlay-hint">Clique em "Iniciar Verificação" e siga as instruções.</p>
+    </div>
+  </section>
+
+  <section class="instructions">
+    <h3>Sequência configurada</h3>
+    <ul>
+      <li *ngFor="let step of voiceSteps; index as i">
+        <span class="step-index">{{ i + 1 }}</span>
+        <div>
+          <p class="step-text">{{ step.texto }}</p>
+          <small>Delay: {{ step.delay }}ms · Posição: {{ step.posicao }}</small>
+        </div>
+      </li>
+    </ul>
+  </section>
+
+  <section class="status-section" *ngIf="statusMessage || errorMessage">
+    <div class="status-message" [class.error]="errorMessage">
+      <span class="status-icon">{{ errorMessage ? '⚠️' : '✅' }}</span>
+      <div>
+        <p>{{ errorMessage ?? statusMessage }}</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="progress-wrapper" *ngIf="progress > 0">
+    <div class="progress-bar">
+      <div class="progress-fill" [style.width.%]="progress"></div>
+    </div>
+    <span class="progress-value">{{ progress }}%</span>
+  </div>
+
+  <footer class="actions">
+    <button class="btn primary" (click)="startSession()" [disabled]="isRunning">
+      <span>▶</span>
+      Iniciar Verificação
+    </button>
+    <button class="btn secondary" (click)="cancelSession()" *ngIf="isRunning">
+      <span>⏹</span>
+      Cancelar
+    </button>
+  </footer>
+</div>
+

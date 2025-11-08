@@ -266,6 +266,11 @@ html, body {
   font-size: 0.95rem;
 }
 
+.nav-link.disabled {
+  pointer-events: none;
+  opacity: 0.45;
+}
+
 /* Main Content */
 .main-content {
   flex: 1;
