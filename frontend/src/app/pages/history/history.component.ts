@@ -7,6 +7,7 @@ import { S3Service } from '../../core/aws/s3.service';
 interface EntryMediaCache {
   captureUrls: Record<string, string>;
   videoUrl?: string;
+  documentUrl?: string;
   loadedAt: number;
 }
 
@@ -64,6 +65,15 @@ export class HistoryComponent {
 
   getVideoUrl(entryId: string, video: NonNullable<LivenessSummary['video']>): string | undefined {
     return this.mediaCacheSignal()[entryId]?.videoUrl ?? video.url;
+  }
+
+  getDocumentUrl(entryId: string): string | undefined {
+    const cached = this.mediaCacheSignal()[entryId]?.documentUrl;
+    if (cached) {
+      return cached;
+    }
+    const entry = this.historyEntries().find(item => item.id === entryId);
+    return entry?.summary.metadata?.['documentUrl'];
   }
 
   async selectEntry(entryId: string, refresh = true): Promise<void> {
@@ -127,6 +137,20 @@ export class HistoryComponent {
     }
   }
 
+  async openDocument(entry: LivenessHistoryEntry, event: Event): Promise<void> {
+    event.stopPropagation();
+    if (!entry.summary.documentKey) {
+      return;
+    }
+    try {
+      const url = await this.s3Service.getSignedUrl(entry.summary.documentKey);
+      window.open(url, '_blank');
+    } catch (error) {
+      console.error('[HistoryComponent] Falha ao abrir documento.', error);
+      this.loadError.set('Não foi possível abrir o documento associado à sessão.');
+    }
+  }
+
   clearHistory(): void {
     this.historyService.clear();
     this.mediaCacheSignal.set({});
@@ -148,6 +172,7 @@ export class HistoryComponent {
 
     const captureUrls: Record<string, string> = { ...(cached?.captureUrls ?? {}) };
     let videoUrl = cached?.videoUrl;
+    let documentUrl = cached?.documentUrl;
 
     try {
       for (const capture of entry.summary.captures) {
@@ -161,11 +186,16 @@ export class HistoryComponent {
         videoUrl = await this.s3Service.getSignedUrl(entry.summary.video.s3Key);
       }
 
+      if (entry.summary.documentKey) {
+        documentUrl = await this.s3Service.getSignedUrl(entry.summary.documentKey);
+      }
+
       this.mediaCacheSignal.update((state) => ({
         ...state,
         [entryId]: {
           captureUrls,
           videoUrl,
+          documentUrl,
           loadedAt: Date.now()
         }
       }));

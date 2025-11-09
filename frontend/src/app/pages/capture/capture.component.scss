@@ -875,6 +875,25 @@ section {
   text-align: center;
 }
 
+.download-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  color: var(--primary-color, #2563eb);
+  font-weight: 600;
+  text-decoration: none;
+  transition: color 0.2s ease;
+
+  &:hover {
+    color: var(--primary-color-dark, #1d4ed8);
+  }
+}
+
+.video-section {
+  margin-top: 1.5rem;
+}
+
 .hint-info {
   text-align: center;
   margin-top: 1rem;

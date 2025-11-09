@@ -10,14 +10,35 @@
     </div>
   </header>
 
-  <section class="video-section">
-    <video #videoElement autoplay playsinline muted></video>
-    <div class="video-overlay" *ngIf="!isRunning && progress === 0">
-      <span class="overlay-icon">🔐</span>
-      <p>Pronto para iniciar a verificação 3D.</p>
-      <p class="overlay-hint">Clique em "Iniciar Verificação" e siga as instruções.</p>
+<section class="video-section">
+  <div class="video-circle">
+    <div class="progress-ring">
+      <span
+        class="ring-segment"
+        *ngFor="let segment of ringSegments"
+        [style.transform]="segment.rotation"
+        [class.active]="segment.active">
+      </span>
     </div>
-  </section>
+
+    <div class="video-mask">
+      <video #videoElement autoplay playsinline muted></video>
+      <div class="guides">
+        <span class="guide vertical"></span>
+        <span class="guide horizontal"></span>
+      </div>
+      <div class="progress-indicator" *ngIf="progress > 0">
+        {{ progress }}%
+      </div>
+    </div>
+  </div>
+
+  <div class="video-overlay" *ngIf="!isRunning && progress === 0">
+    <span class="overlay-icon">🔐</span>
+    <p>Pronto para iniciar a verificação 3D.</p>
+    <p class="overlay-hint">Clique em "Iniciar Verificação" e siga as instruções.</p>
+  </div>
+</section>
 
   <section class="instructions">
     <h3>Sequência configurada</h3>

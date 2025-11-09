@@ -87,6 +87,20 @@
         </div>
       </ng-template>
 
+      <div class="document-section" *ngIf="entry.summary.documentKey">
+        <h3>Documento</h3>
+        <div class="document-card">
+          <div class="document-preview">
+            <img [src]="getDocumentUrl(entry.id)" alt="Documento" loading="lazy" />
+          </div>
+          <div class="document-meta">
+            <span class="document-label">Chave S3</span>
+            <code>{{ entry.summary.documentKey }}</code>
+            <button class="open-button" (click)="openDocument(entry, $event)">Abrir no S3</button>
+          </div>
+        </div>
+      </div>
+
       <div class="video-section" *ngIf="entry.summary.video">
         <h3>Vídeo da Sessão</h3>
         <video controls [src]="getVideoUrl(entry.id, entry.summary.video)" preload="metadata"></video>

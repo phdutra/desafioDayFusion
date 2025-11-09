@@ -1,20 +1,23 @@
 import { Component, ElementRef, OnDestroy, OnInit, ViewChild } from '@angular/core'
 import { CommonModule } from '@angular/common'
 import { FormsModule } from '@angular/forms'
-import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser'
 import { CameraService } from '../../core/services/camera.service'
 import { FaceRecognitionService } from '../../core/services/face-recognition.service'
-import { PresignedUrlRequest, FaceComparisonRequest, FaceComparisonResponse, TransactionStatus, StartLivenessRequest, LivenessSessionResponse, GetLivenessResultRequest, LivenessResultResponse } from '../../shared/models/transaction.model'
+import { FaceComparisonRequest, FaceComparisonResponse } from '../../shared/models/transaction.model'
+import { LivenessModalComponent } from '../../components/liveness-modal/liveness-modal.component'
+import { LivenessSummary } from '../../core/models/liveness-result.model'
+import { VoiceStep } from '../../core/models/voice-step.model'
 
 @Component({
   selector: 'app-capture',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, LivenessModalComponent],
   templateUrl: './capture.component.html',
   styleUrls: ['./capture.component.scss']
 })
 export class CaptureComponent implements OnInit, OnDestroy {
   @ViewChild('video', { static: false }) videoRef?: ElementRef<HTMLVideoElement>
+  @ViewChild(LivenessModalComponent) livenessModal?: LivenessModalComponent
 
   cameraReady = false
   selfieDataUrl: string | null = null
@@ -39,20 +42,20 @@ export class CaptureComponent implements OnInit, OnDestroy {
   // Modal state
   showCameraModal = false
   showLivenessModal = false
-  
-  // Liveness 3D state
-  livenessSession: LivenessSessionResponse | null = null
-  livenessResult: LivenessResultResponse | null = null
-  livenessLoading = false
+
+  // Liveness 3D state (novo fluxo com componente reutilizável)
+  livenessSummary: LivenessSummary | null = null
   livenessError: string | null = null
 
-  // Safe URL for iframe
-  safeStreamingUrl: SafeResourceUrl | null = null
+  voiceSteps: VoiceStep[] = [
+    { texto: 'Olhe para frente', delay: 1500, posicao: 'frente' },
+    { texto: 'Vire à esquerda', delay: 2000, posicao: 'esquerda' },
+    { texto: 'Vire à direita', delay: 2000, posicao: 'direita' }
+  ]
 
   constructor(
     private cameraService: CameraService,
-    private faceService: FaceRecognitionService,
-    private sanitizer: DomSanitizer
+    private faceService: FaceRecognitionService
   ) {}
 
   async ngOnInit(): Promise<void> {
@@ -299,57 +302,46 @@ export class CaptureComponent implements OnInit, OnDestroy {
   }
 
   // Face Liveness 3D Methods
-  async startLiveness3D(): Promise<void> {
-    // Note: Face Liveness 3D requer AWS Amplify no frontend
-    // Por enquanto, implementação backend pronta, mas frontend precisa de Amplify SDK
-    alert('⚠️ Face Liveness 3D requer AWS Amplify SDK no frontend.\n\nA integração backend está pronta (API disponível), mas o componente visual precisa ser integrado com @aws-amplify/ui-liveness.\n\nPor enquanto, use "Selfie 2D" para validação facial.')
+  startLiveness3D(): void {
+    this.livenessError = null
+    this.livenessSummary = null
+    this.showLivenessModal = true
+
+    // Inicia a sessão automaticamente ao renderizar o modal
+    const autoStart = async (attempt = 0) => {
+      if (!this.livenessModal) {
+        if (attempt < 10) {
+          setTimeout(() => autoStart(attempt + 1), 100)
+        }
+        return
+      }
+
+      try {
+        await this.livenessModal.startSession()
+      } catch (error: any) {
+        console.error('❌ Erro ao iniciar sessão de liveness 3D automaticamente:', error)
+        this.livenessError = error?.message || 'Erro ao iniciar verificação 3D.'
+      }
+    }
+
+    setTimeout(() => autoStart(), 50)
   }
 
   closeLivenessModal(): void {
-    this.showLivenessModal = false
-    this.livenessSession = null
-    this.safeStreamingUrl = null
-    this.livenessResult = null
-  }
-
-  async checkLivenessResult(): Promise<void> {
-    if (!this.livenessSession) return
-
-    this.livenessLoading = true
-    this.livenessError = null
-
-    try {
-      const request: GetLivenessResultRequest = {
-        sessionId: this.livenessSession.sessionId,
-        transactionId: this.livenessSession.transactionId
-      }
-
-      const result = await this.faceService.getLivenessResult(request).toPromise()
-      if (!result) throw new Error('Falha ao obter resultado de liveness')
-
-      this.livenessResult = result
-
-      if (result.livenessDecision === 'LIVE') {
-        alert(`✅ Verificação 3D bem-sucedida!\n${result.message}\nConfiança: ${(result.confidence * 100).toFixed(1)}%`)
-        this.closeLivenessModal()
-      } else {
-        alert(`❌ Verificação 3D falhou.\n${result.message}`)
-      }
-    } catch (err: any) {
-      console.error('Erro ao verificar resultado de liveness:', err)
-      this.livenessError = err.message || 'Erro ao verificar resultado. Tente novamente.'
-      alert(this.livenessError)
-    } finally {
-      this.livenessLoading = false
+    if (this.livenessModal) {
+      this.livenessModal.cancelSession()
     }
+    this.showLivenessModal = false
   }
 
-  onLivenessIframeLoad(): void {
-    // Quando o iframe da AWS carrega completamente, pode verificar o resultado após alguns segundos
-    // A AWS geralmente completa a sessão automaticamente após a interação do usuário
-    setTimeout(() => {
-      // Aguarda 3 segundos após o carregamento do iframe antes de verificar
-      // Em produção, você pode usar um WebSocket ou polling mais inteligente
-    }, 3000)
+  onLivenessSessionCompleted(summary: LivenessSummary): void {
+    this.livenessSummary = summary
+    this.livenessError = null
+    this.closeLivenessModal()
+    this.statusMessage = 'Verificação 3D concluída com sucesso.'
+  }
+
+  onLivenessSessionFailed(message: string): void {
+    this.livenessError = message
   }
 }

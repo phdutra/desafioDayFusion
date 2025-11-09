@@ -29,10 +29,9 @@
               Selfie 2D
             </button>
             
-            <button class="btn btn-primary btn-large btn-liveness" (click)="startLiveness3D()" [disabled]="livenessLoading">
+            <button class="btn btn-primary btn-large btn-liveness" (click)="startLiveness3D()" [disabled]="showLivenessModal">
               <span class="btn-icon">🔐</span>
-              <span *ngIf="livenessLoading">Carregando...</span>
-              <span *ngIf="!livenessLoading">Verificação 3D (Liveness)</span>
+              <span>Verificação 3D (Liveness)</span>
             </button>
           </div>
           
@@ -45,57 +44,19 @@
   </section>
   
   <!-- Modal de Liveness 3D -->
-  <div class="liveness-modal" *ngIf="showLivenessModal && livenessSession">
+  <div class="liveness-modal" *ngIf="showLivenessModal">
     <div class="modal-backdrop" (click)="closeLivenessModal()"></div>
     <div class="modal-content-liveness">
       <div class="modal-header-liveness">
         <h3>🔐 Verificação 3D - Liveness Detection</h3>
         <button class="modal-close" (click)="closeLivenessModal()">✕</button>
       </div>
-      
-      <div class="liveness-instructions">
-        <p><strong>Instruções:</strong></p>
-        <ul>
-          <li>Posicione seu rosto centralizado na tela</li>
-          <li>Siga as instruções que aparecerem na tela</li>
-          <li>Mova-se conforme solicitado (virar cabeça, piscar, etc.)</li>
-          <li>Após completar, clique em "Verificar Resultado"</li>
-        </ul>
-      </div>
-      
-      <div class="liveness-iframe-container">
-        <iframe 
-          *ngIf="safeStreamingUrl"
-          [src]="safeStreamingUrl" 
-          class="liveness-iframe"
-          frameborder="0"
-          allow="camera; microphone"
-          (load)="onLivenessIframeLoad()">
-        </iframe>
-      </div>
-      
-      <div class="liveness-actions">
-        <button class="btn btn-secondary" (click)="closeLivenessModal()">
-          Cancelar
-        </button>
-        <button class="btn btn-primary" (click)="checkLivenessResult()" [disabled]="livenessLoading">
-          <span *ngIf="livenessLoading">Verificando...</span>
-          <span *ngIf="!livenessLoading">Verificar Resultado</span>
-        </button>
-      </div>
-      
-      <div class="liveness-error" *ngIf="livenessError">
-        <p class="error-message">❌ {{ livenessError }}</p>
-      </div>
-      
-      <div class="liveness-result" *ngIf="livenessResult">
-        <div class="result-info">
-          <p><strong>Status:</strong> {{ livenessResult.status }}</p>
-          <p><strong>Decisão:</strong> {{ livenessResult.livenessDecision }}</p>
-          <p><strong>Confiança:</strong> {{ (livenessResult.confidence * 100).toFixed(1) }}%</p>
-          <p>{{ livenessResult.message }}</p>
-        </div>
-      </div>
+      <app-liveness-modal
+        [voiceSteps]="voiceSteps"
+        [documentFile]="documentFile"
+        (sessionCompleted)="onLivenessSessionCompleted($event)"
+        (sessionFailed)="onLivenessSessionFailed($event)">
+      </app-liveness-modal>
     </div>
   </div>
   
@@ -185,6 +146,15 @@
       <div class="document-preview" *ngIf="documentPreview">
         <div class="preview-label">Pré-visualização do Documento</div>
         <img [src]="documentPreview" alt="Document preview">
+        <a 
+          *ngIf="documentViewUrl"
+          class="download-link"
+          [href]="documentViewUrl"
+          target="_blank"
+          rel="noopener"
+          download>
+          ⬇️ Baixar documento
+        </a>
       </div>
     </div>
   </section>
@@ -238,6 +208,57 @@
       </div>
     </div>
   </section>
+
+  <!-- Resultado da Verificação 3D (Liveness Modal) -->
+  <section class="liveness-summary-section" *ngIf="livenessSummary">
+    <div class="result-card" [class.approved]="livenessSummary.status === 'Aprovado'" [class.rejected]="livenessSummary.status === 'Rejeitado'" [class.review]="livenessSummary.status === 'Revisar'">
+      <div class="result-header">
+        <div class="result-status">
+          <span class="status-icon">
+            {{ livenessSummary.status === 'Aprovado' ? '✅' : livenessSummary.status === 'Rejeitado' ? '❌' : '🔍' }}
+          </span>
+          <div class="status-info">
+            <h3 class="status-title">Resultado da Verificação 3D</h3>
+            <span class="status-badge" [class.approved]="livenessSummary.status === 'Aprovado'" [class.rejected]="livenessSummary.status === 'Rejeitado'" [class.review]="livenessSummary.status === 'Revisar'">
+              {{ livenessSummary.status }}
+            </span>
+            <p class="status-subtitle">Sessão {{ livenessSummary.sessionId }}</p>
+          </div>
+        </div>
+        <div class="result-score">
+          <div class="score-value">{{ livenessSummary.livenessScore | number:'1.0-0' }}%</div>
+          <div class="score-label">Score Liveness</div>
+        </div>
+      </div>
+
+      <div class="result-message">
+        <p>Face Match com documento: {{ livenessSummary.faceMatchScore !== undefined ? (livenessSummary.faceMatchScore | number:'1.0-0') + '%' : 'N/A' }}</p>
+      </div>
+
+      <div class="result-images" *ngIf="livenessSummary.captures?.length">
+        <div class="image-item" *ngFor="let capture of livenessSummary.captures">
+          <div class="image-label">Posição: {{ capture.position | titlecase }}</div>
+          <img [src]="capture.previewUrl" [alt]="capture.position">
+          <span class="image-meta">Confiança {{ capture.confidence | number:'1.0-0' }}%</span>
+        </div>
+      </div>
+
+      <div class="video-section" *ngIf="livenessSummary.video?.url">
+        <a 
+          class="download-link"
+          [href]="livenessSummary.video.url"
+          target="_blank"
+          rel="noopener"
+          download>
+          🎬 Baixar vídeo da sessão
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <div class="status-messages" *ngIf="livenessError">
+    <div class="status-message">{{ livenessError }}</div>
+  </div>
 
   <!-- Mensagens de Status -->
   <div class="status-messages" *ngIf="statusMessage">

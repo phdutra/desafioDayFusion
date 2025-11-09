@@ -61,31 +61,127 @@
 
 .video-section {
   position: relative;
-  border-radius: 16px;
-  overflow: hidden;
-  background: #111425;
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  min-height: 260px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 1rem 0 2rem;
+}
 
-  video {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    background: rgba(6, 9, 20, 0.8);
+.video-circle {
+  position: relative;
+  width: 360px;
+  height: 360px;
+}
+
+.progress-ring {
+  position: absolute;
+  inset: 0;
+  --ring-radius: 170px;
+}
+
+.ring-segment {
+  position: absolute;
+  width: 0;
+  height: 0;
+  top: 50%;
+  left: 50%;
+  transform-origin: center;
+
+  &::after {
+    content: '';
+    display: block;
+    width: 6px;
+    height: 30px;
+    border-radius: 999px;
+    background: rgba(21, 128, 61, 0.25);
+    box-shadow: 0 0 6px rgba(34, 197, 94, 0.25);
+    transform: translate(-50%, calc(-1 * var(--ring-radius)));
   }
+
+  &.active::after {
+    background: #22c55e;
+    box-shadow: 0 0 14px rgba(34, 197, 94, 0.65);
+  }
+}
+
+.video-mask {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.video-mask video {
+  width: 320px;
+  height: 320px;
+  border-radius: 50%;
+  object-fit: cover;
+  box-shadow: inset 0 0 45px rgba(8, 145, 178, 0.15), 0 25px 45px rgba(0, 0, 0, 0.45);
+  background: rgba(6, 9, 20, 0.85);
+}
+
+.guides {
+  position: absolute;
+  width: 320px;
+  height: 320px;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.guide {
+  position: absolute;
+  background: rgba(148, 163, 184, 0.4);
+
+  &.vertical {
+    width: 2px;
+    height: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+
+  &.horizontal {
+    height: 2px;
+    width: 100%;
+    top: 50%;
+    transform: translateY(-50%);
+  }
+}
+
+.progress-indicator {
+  position: absolute;
+  bottom: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(15, 23, 42, 0.65);
+  padding: 0.35rem 0.9rem;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: #bbf7d0;
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(34, 197, 94, 0.35);
+  box-shadow: 0 8px 18px rgba(34, 197, 94, 0.25);
 }
 
 .video-overlay {
   position: absolute;
-  inset: 0;
+  top: 50%;
+  left: 50%;
+  width: 320px;
+  height: 320px;
+  transform: translate(-50%, -50%);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  background: linear-gradient(135deg, rgba(17, 24, 39, 0.85), rgba(30, 64, 175, 0.65));
+  background: linear-gradient(135deg, rgba(17, 24, 39, 0.92), rgba(30, 64, 175, 0.75));
   text-align: center;
   padding: 1.5rem;
+  border-radius: 50%;
 
   .overlay-icon {
     font-size: 2.5rem;

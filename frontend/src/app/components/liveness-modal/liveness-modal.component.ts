@@ -35,6 +35,7 @@ export class LivenessModalComponent implements OnDestroy {
 
   @Input({ required: true }) voiceSteps: VoiceStep[] = [];
   @Input() documentFile: File | null = null;
+  @Input() totalSegments = 64;
 
   @Output() sessionCompleted = new EventEmitter<LivenessSummary>();
   @Output() sessionFailed = new EventEmitter<string>();
@@ -60,6 +61,7 @@ export class LivenessModalComponent implements OnDestroy {
     }
 
     this.resetState();
+    this.updateProgress(5);
     this.isRunning = true;
     this.statusMessage = 'Preparando sessão...';
     console.info('[LivenessModal] Iniciando sessão de liveness.');
@@ -68,6 +70,12 @@ export class LivenessModalComponent implements OnDestroy {
     const captures: CaptureInternal[] = [];
     let referenceFaceBytes: Uint8Array | null = null;
     let recordedVideo: RecordedMedia | null = null;
+    let documentUpload:
+      | {
+          key: string;
+          url?: string;
+        }
+      | null = null;
 
     try {
       console.info('[LivenessModal] Solicitando credenciais Cognito (forceRefresh=true).');
@@ -76,6 +84,7 @@ export class LivenessModalComponent implements OnDestroy {
         accessKeyId: credentials.accessKeyId?.slice(0, 4) + '***',
         expiration: (credentials as any).expiration ?? null
       });
+      this.updateProgress(15);
 
       this.stream = await startCameraStream();
       const videoElement = this.videoRef?.nativeElement;
@@ -87,6 +96,7 @@ export class LivenessModalComponent implements OnDestroy {
       videoElement.srcObject = this.stream;
       await videoElement.play();
       console.info('[LivenessModal] Stream de vídeo iniciado.');
+      this.updateProgress(20);
 
       try {
         this.videoRecorder = startVideoRecording(this.stream);
@@ -95,6 +105,10 @@ export class LivenessModalComponent implements OnDestroy {
         this.videoRecorder = null;
         console.warn('[LivenessModal] Não foi possível iniciar gravação de vídeo.', recorderError);
       }
+      this.updateProgress(25);
+
+      const baseProgress = 30;
+      const stepsRange = 60;
 
       await speakSequence(
         this.voiceSteps,
@@ -103,8 +117,9 @@ export class LivenessModalComponent implements OnDestroy {
           console.info('[LivenessModal] Instrução anunciada.', { index, step });
         },
         (step, index) => {
-          const percent = Math.round(((index + 1) / this.voiceSteps.length) * 60);
-          this.progress = Math.max(this.progress, percent);
+          const ratio = (index + 1) / this.voiceSteps.length;
+          const percent = baseProgress + ratio * stepsRange;
+          this.updateProgress(percent);
           this.statusMessage = `Captura da posição ${step.posicao} realizada.`;
           console.info('[LivenessModal] Captura concluída.', { position: step.posicao, index });
         },
@@ -140,6 +155,9 @@ export class LivenessModalComponent implements OnDestroy {
         }
       );
 
+      this.statusMessage = 'Analisando capturas...';
+      this.updateProgress(90);
+
       if (this.videoRecorder) {
         console.info('[LivenessModal] Finalizando gravação de vídeo.');
         recordedVideo = await this.videoRecorder.stopRecording();
@@ -149,10 +167,12 @@ export class LivenessModalComponent implements OnDestroy {
           durationMs: recordedVideo.durationMs
         });
         this.videoRecorder = null;
+        this.updateProgress(95);
       }
 
       stopMediaStream(this.stream);
       this.stream = undefined;
+      this.updateProgress(99);
 
       const livenessScore = captures.length
         ? captures.reduce((acc, item) => acc + item.confidence, 0) / captures.length
@@ -161,9 +181,11 @@ export class LivenessModalComponent implements OnDestroy {
       let faceMatchScore: number | undefined;
 
       if (this.documentFile && referenceFaceBytes) {
-        const documentBytes = await blobToUint8Array(this.documentFile);
+        const documentBlob = this.documentFile;
+        const documentBytes = await blobToUint8Array(documentBlob);
         const faceMatch = await this.rekognitionService.compareFaces(referenceFaceBytes, documentBytes);
         faceMatchScore = faceMatch.similarity;
+        documentUpload = await this.s3Service.uploadLivenessAsset(sessionId, 'document', documentBlob);
       }
 
       let videoSummary: LivenessSummary['video'] | undefined;
@@ -187,6 +209,14 @@ export class LivenessModalComponent implements OnDestroy {
       const isLive = livenessScore >= 70;
       const hasStrongMatch = faceMatchScore === undefined || faceMatchScore >= 80;
 
+      const metadata: Record<string, string> = {};
+      if (this.documentFile?.name) {
+        metadata['documentName'] = this.documentFile.name;
+      }
+      if (documentUpload?.url) {
+        metadata['documentUrl'] = documentUpload.url;
+      }
+
       const summary: LivenessSummary = {
         sessionId,
         createdAt: new Date().toISOString(),
@@ -196,12 +226,14 @@ export class LivenessModalComponent implements OnDestroy {
         status: !isLive ? 'Rejeitado' : hasStrongMatch ? 'Aprovado' : 'Revisar',
         captures,
         video: videoSummary,
-        documentName: this.documentFile?.name ?? undefined
+        documentKey: documentUpload?.key ?? undefined,
+        documentName: this.documentFile?.name ?? undefined,
+        metadata: Object.keys(metadata).length > 0 ? metadata : undefined
       };
 
       console.info('[LivenessModal] Sessão concluída.', summary);
 
-      this.progress = 100;
+      this.updateProgress(100);
       this.statusMessage = 'Sessão concluída com sucesso.';
       this.sessionCompleted.emit(summary);
     } catch (error: any) {
@@ -249,6 +281,24 @@ export class LivenessModalComponent implements OnDestroy {
     this.progress = 0;
     this.statusMessage = '';
     this.errorMessage = null;
+  }
+
+  private updateProgress(target: number): void {
+    const value = Math.min(100, Math.max(0, Math.round(target)));
+    if (value > this.progress) {
+      this.progress = value;
+    }
+  }
+
+  get ringSegments(): Array<{ rotation: string; active: boolean }> {
+    const segments = Math.max(24, this.totalSegments);
+    const activeSegments = Math.round((this.progress / 100) * segments);
+    const angle = 360 / segments;
+
+    return Array.from({ length: segments }, (_, index) => ({
+      rotation: `rotate(${index * angle}deg)`,
+      active: index < activeSegments
+    }));
   }
 }
 

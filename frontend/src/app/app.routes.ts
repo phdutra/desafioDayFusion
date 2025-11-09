@@ -15,6 +15,10 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/history/history.component').then(m => m.HistoryComponent)
   },
   {
+    path: 'capture3d',
+    loadComponent: () => import('./pages/capture3d/capture3d.component').then(m => m.Capture3dComponent)
+  },
+  {
     path: '**',
     redirectTo: '/dashboard'
   }

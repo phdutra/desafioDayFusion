@@ -1,303 +1,102 @@
-<div class="capture-container fade-in-up">
-  <h2 class="gradient-text page-title">Face Liveness 3D - Anti-Spoof</h2>
+<div class="capture3d-page fade-in-up">
+  <section class="intro-card">
+    <div class="intro-icon">🔐</div>
+    <div class="intro-content">
+      <h2 class="intro-title gradient-text">Verificação Facial 3D</h2>
+      <p class="intro-description">
+        Fluxo completo de liveness com captura automática de fotos e vídeo,
+        sincronizado com a AWS e pronto para auditoria.
+      </p>
+      <ul class="intro-benefits">
+        <li>✅ Detecção de movimento real</li>
+        <li>✅ Anti-deepfake e anti-spoofing</li>
+        <li>✅ Capturas enviadas para análise downstream</li>
+      </ul>
+    </div>
+    <div class="intro-actions">
+      <button class="btn-dashboard" (click)="openModal()">
+        <span class="btn-icon">▶</span>
+        <span>Iniciar Verificação 3D</span>
+      </button>
+      <p class="intro-hint">Necessário navegador com HTTPS e permissão de câmera.</p>
+    </div>
+  </section>
 
-  <!-- Seção de Informações -->
-  <section class="capture-section">
-    <div class="info-container">
-      <div class="info-content">
-        <div class="info-icon">🔐</div>
-        <h3 class="info-title">Verificação 3D com Detecção de Liveness</h3>
-        <p class="info-description">
-          Tecnologia avançada que previne fraudes com deepfakes e fotos estáticas. 
-          O sistema detecta movimentos reais em tempo real.
-        </p>
-        
-        <div class="features-list">
-          <div class="feature-item">
-            <span class="feature-icon">✅</span>
-            <span class="feature-text">Detecção de movimento real</span>
-          </div>
-          <div class="feature-item">
-            <span class="feature-icon">✅</span>
-            <span class="feature-text">Anti-deepfake</span>
-          </div>
-          <div class="feature-item">
-            <span class="feature-icon">✅</span>
-            <span class="feature-text">Anti-spoofing</span>
-          </div>
-        </div>
-
-        <div class="warning-message" *ngIf="livenessError">
-          <p class="error-text">⚠️ {{ livenessError }}</p>
+  <section class="steps-section">
+    <h3>Sequência configurada</h3>
+    <div class="steps-grid">
+      <div class="step-card" *ngFor="let step of voiceSteps(); index as i">
+        <div class="step-index">{{ i + 1 }}</div>
+        <div class="step-info">
+          <strong>{{ step.texto }}</strong>
+          <span>Delay: {{ step.delay }}ms · Posição: {{ step.posicao }}</span>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- Controles -->
-  <div class="controls-section">
-    <!-- CORREÇÃO: Botão "Iniciar Verificação 3D" destacado em AMARELO - aparece sempre na página -->
-    <button 
-      class="btn btn-yellow-highlight btn-large" 
-      (click)="openCameraModal()" 
-      [disabled]="livenessLoading || sessionActive">
-      <span class="btn-icon">▶</span>
-      <span>Iniciar Verificação 3D</span>
-    </button>
-
-    <button 
-      class="btn btn-secondary btn-large" 
-      (click)="stopSession()" 
-      *ngIf="sessionActive">
-      <span class="btn-icon">⏹️</span>
-      Finalizar Verificação
-    </button>
-  </div>
-
-  <!-- Modal da Câmera (Reutilizável) -->
-  <app-camera-modal
-    #cameraModal
-    [isOpen]="showCameraModal"
-    mode="3d"
-    [processingResults]="processingResults"
-    [processingProgress]="processingProgress"
-    [useRealWidget]="showLivenessWidget"
-    (close)="closeCameraModal()"
-    (livenessStart)="onLivenessStart()"
-    (livenessComplete)="onLivenessComplete($event)"
-  ></app-camera-modal>
-
-  <!-- Container para FaceLivenessDetector oficial -->
-  <!-- IMPORTANTE: Widget só aparece quando modal está aberto E showLivenessWidget é true -->
-  <div class="widget-container" *ngIf="showLivenessWidget && showCameraModal">
-    <div id="liveness-container"></div>
-  </div>
-
-  <!-- Tela de Processamento (exibida na página principal após fechar modal) -->
-  <section class="processing-section" *ngIf="processingResults && !livenessResult">
-    <div class="processing-card">
-      <div class="processing-content">
-        <div class="processing-animation">
-          <div class="processing-icon-wrapper">
-            <div class="processing-icon">
-              <svg viewBox="0 0 100 100" class="processing-svg">
-                <circle cx="50" cy="50" r="40" fill="none" stroke="rgba(34, 197, 94, 0.3)" stroke-width="4" />
-                <circle cx="50" cy="50" r="40" fill="none" stroke="#22c55e" stroke-width="4" 
-                        [attr.stroke-dasharray]="251.2"
-                        [attr.stroke-dashoffset]="251.2 - (251.2 * processingProgress / 100)"
-                        stroke-linecap="round"
-                        transform="rotate(-90 50 50)"
-                        class="processing-circle" />
-              </svg>
-              <div class="processing-checkmark" *ngIf="processingProgress >= 100">✓</div>
-            </div>
+  <section class="document-upload-card">
+    <div class="document-content">
+      <h3>Documento de Referência</h3>
+      <p>Faça upload de um documento (RG/CNH) para comparação facial nas próximas verificações.</p>
+      <div class="document-input">
+        <label class="upload-button">
+          <input type="file" accept="image/*" (change)="onDocumentSelected($event)" hidden />
+          <span>📄 Selecionar documento</span>
+        </label>
+        <div class="document-info" *ngIf="documentInfo() as info; else noDocument">
+          <div>
+            <strong>{{ info.name }}</strong>
+            <p>{{ info.sizeKb | number:'1.0-0' }} KB</p>
           </div>
-          
-          <h2 class="processing-title">Gerando Resultados</h2>
-          <p class="processing-subtitle">Processando análise facial e verificando liveness...</p>
-          
-          <!-- Barra de progresso animada -->
-          <div class="progress-bar-container">
-            <div class="progress-bar-background">
-              <div class="progress-bar-fill" [style.width.%]="processingProgress">
-                <div class="progress-bar-shine"></div>
-              </div>
-            </div>
-            <div class="progress-percentage">{{ processingProgress }}%</div>
-          </div>
-          
-          <!-- Mensagens de status -->
-          <div class="processing-status-messages">
-            <div class="status-message" *ngIf="processingProgress < 30">
-              <span class="status-dot"></span>
-              <span>Conectando com AWS Rekognition...</span>
-            </div>
-            <div class="status-message" *ngIf="processingProgress >= 30 && processingProgress < 60">
-              <span class="status-dot"></span>
-              <span>Processando frames de vídeo...</span>
-            </div>
-            <div class="status-message" *ngIf="processingProgress >= 60 && processingProgress < 90">
-              <span class="status-dot"></span>
-              <span>Analisando liveness e gerando imagens...</span>
-            </div>
-            <div class="status-message" *ngIf="processingProgress >= 90 && processingProgress < 100">
-              <span class="status-dot"></span>
-              <span>Finalizando análise...</span>
-            </div>
-            <div class="status-message success" *ngIf="processingProgress >= 100">
-              <span class="status-dot success"></span>
-              <span>Análise concluída!</span>
-            </div>
-          </div>
+          <button class="btn-ghost" type="button" (click)="clearDocument()">Remover</button>
         </div>
+        <ng-template #noDocument>
+          <p class="document-placeholder">Nenhum documento selecionado.</p>
+        </ng-template>
       </div>
     </div>
   </section>
 
-  <!-- Resultado do Liveness -->
-  <section class="result-section" *ngIf="livenessResult">
-    <div class="result-card" [class.approved]="livenessResult.livenessDecision === 'LIVE'" [class.rejected]="livenessResult.livenessDecision === 'SPOOF'">
+  <section class="result-section" *ngIf="statusSummary() as summary">
+    <div class="result-card" [class.approved]="summary.status === 'Aprovado'" [class.rejected]="summary.status === 'Rejeitado'" [class.review]="summary.status === 'Revisar'">
       <div class="result-header">
         <div class="result-status">
-          <span class="status-icon-large">
-            {{ livenessResult.livenessDecision === 'LIVE' ? '✅' : '❌' }}
+          <span class="status-icon">
+            {{ summary.status === 'Aprovado' ? '✅' : summary.status === 'Rejeitado' ? '❌' : '🔍' }}
           </span>
-          <div class="status-info">
-            <h3 class="result-title">Verificação 3D Concluída</h3>
-            <div class="status-session-info" *ngIf="livenessResult.status">
-              <span class="status-session-label">Status da sessão:</span>
-              <span class="status-session-value" [class.created]="getStatusString() === 'CREATED'" 
-                    [class.succeeded]="getStatusString() === 'SUCCEEDED'" 
-                    [class.failed]="getStatusString() === 'FAILED' || getStatusString() === 'EXPIRED'">
-                {{ getStatusString() }}
-              </span>
-              <span class="status-session-confidence" *ngIf="livenessResult.confidence">
-                Confiança: {{ (livenessResult.confidence * 100) | number:'1.1-1' }}%
-              </span>
-            </div>
-            <span class="status-badge" [class.approved]="livenessResult.livenessDecision === 'LIVE'" [class.rejected]="livenessResult.livenessDecision === 'SPOOF'">
-              {{ livenessResult.livenessDecision === 'LIVE' ? 'APROVADO' : livenessResult.livenessDecision === 'SPOOF' ? 'SPOOF DETECTADO' : 'INDETERMINADO' }}
-            </span>
+          <div>
+            <h4>Status: {{ summary.status }}</h4>
+            <p>Sessão {{ summary.sessionId }}</p>
           </div>
         </div>
-        
         <div class="result-score">
-          <div class="score-value">{{ (livenessResult.confidence * 100) | number:'1.1-1' }}%</div>
-          <div class="score-label">Confiança</div>
-        </div>
-      </div>
-
-      <div class="result-message" *ngIf="livenessResult.message">
-        <p>{{ livenessResult.message }}</p>
-      </div>
-
-      <!-- Análise Detalhada do Score (sempre exibir conforme README) -->
-      <div class="result-analysis" *ngIf="livenessResult">
-        <h4 class="analysis-title">📊 Análise Detalhada</h4>
-        
-        <!-- Score Principal (sempre exibir) -->
-        <div class="analysis-section">
-          <div class="score-badge-large" style="text-align: center; margin: 20px auto;">
-            <span class="score-label-large">Score de Confiança</span>
-            <span class="score-value-large">{{ (livenessResult.confidence * 100) | number:'1.1-1' }}%</span>
+          <div>
+            <span class="score-label">Score Liveness</span>
+            <span class="score-value">{{ summary.livenessScore | number:'1.0-0' }}%</span>
           </div>
-        </div>
-        
-        <!-- Thumbnails na análise detalhada -->
-        <div class="analysis-thumbnails" *ngIf="livenessResult.referenceImageUrl || (livenessResult.auditImageUrls && livenessResult.auditImageUrls.length > 0)">
-          <h5 class="section-title">📷 Imagens Capturadas</h5>
-          <div class="thumbnails-grid">
-            <!-- Imagem de referência -->
-            <div class="thumbnail-item" *ngIf="livenessResult.referenceImageUrl">
-              <div class="thumbnail-image-wrapper">
-                <img [src]="livenessResult.referenceImageUrl" alt="Referência" class="thumbnail-image" (error)="handleImageError($event)">
-                <div class="thumbnail-overlay">
-                  <span class="thumbnail-badge">Referência</span>
-                </div>
-              </div>
-              <span class="thumbnail-label">Imagem de Referência</span>
-            </div>
-            <!-- Imagens de auditoria -->
-            <div class="thumbnail-item" *ngFor="let imageUrl of livenessResult.auditImageUrls; let i = index">
-              <div class="thumbnail-image-wrapper">
-                <img [src]="imageUrl" [alt]="'Auditoria ' + (i + 1)" class="thumbnail-image" (error)="handleImageError($event)">
-                <div class="thumbnail-overlay">
-                  <span class="thumbnail-badge">Frame {{ i + 1 }}</span>
-                </div>
-              </div>
-              <span class="thumbnail-label">Frame {{ i + 1 }} de Auditoria</span>
-            </div>
-          </div>
-        </div>
-        
-        <div class="analysis-section" *ngIf="livenessResult.qualityAssessment">
-          <div class="quality-badge" [class.excellent]="livenessResult.qualityAssessment === 'EXCELLENT'"
-               [class.good]="livenessResult.qualityAssessment === 'GOOD'"
-               [class.fair]="livenessResult.qualityAssessment === 'FAIR'"
-               [class.poor]="livenessResult.qualityAssessment === 'POOR'">
-            <span class="quality-label">Qualidade:</span>
-            <span class="quality-value">{{ livenessResult.qualityAssessment }}</span>
-            <span class="quality-score" *ngIf="livenessResult.qualityScore">
-              ({{ livenessResult.qualityScore | number:'1.1-1' }}%)
-            </span>
-          </div>
-        </div>
-
-        <div class="analysis-section" *ngIf="livenessResult.lowScoreReasons && livenessResult.lowScoreReasons.length > 0">
-          <h5 class="section-title">⚠️ Razões para Score Baixo</h5>
-          <ul class="reasons-list">
-            <li *ngFor="let reason of livenessResult.lowScoreReasons">{{ reason }}</li>
-          </ul>
-        </div>
-
-        <div class="analysis-section" *ngIf="livenessResult.recommendations && livenessResult.recommendations.length > 0">
-          <h5 class="section-title">💡 Recomendações</h5>
-          <ul class="recommendations-list">
-            <li *ngFor="let rec of livenessResult.recommendations">{{ rec }}</li>
-          </ul>
-        </div>
-      </div>
-
-
-      <!-- Imagem de Referência -->
-      <div class="result-images-section" *ngIf="livenessResult.referenceImageUrl">
-        <h4 class="images-section-title">📸 Imagem de Referência</h4>
-        <div class="reference-image-container">
-          <img [src]="livenessResult.referenceImageUrl" alt="Referência" class="reference-image">
-          <p class="image-caption">Frame capturado para verificação facial downstream</p>
-        </div>
-      </div>
-
-      <!-- Imagens de Auditoria -->
-      <div class="result-images-section" *ngIf="livenessResult.auditImageUrls && livenessResult.auditImageUrls.length > 0">
-        <h4 class="images-section-title">🖼️ Imagens de Auditoria</h4>
-        <p class="images-section-subtitle">Até 4 frames extraídos do vídeo selfie para auditoria do processo</p>
-        <div class="audit-images-grid">
-          <div class="audit-image-item" *ngFor="let imageUrl of livenessResult.auditImageUrls; let i = index">
-            <img [src]="imageUrl" [alt]="'Audit image ' + (i + 1)" class="audit-image">
-            <span class="audit-image-label">Frame {{ i + 1 }}</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Mensagem quando não há thumbnails -->
-      <div class="result-info" *ngIf="livenessResult.status !== 'CREATED' && (!livenessResult.auditImageUrls || livenessResult.auditImageUrls.length === 0) && !livenessResult.referenceImageUrl">
-        <div class="info-icon">ℹ️</div>
-        <div class="info-content">
-          <p>Nenhuma imagem de referência ou auditoria disponível.</p>
-          <p *ngIf="livenessResult.status === 'FAILED' || livenessResult.status === 'EXPIRED'">
-            Status da sessão: {{ livenessResult.status }}
-          </p>
-        </div>
-      </div>
-
-      <button class="btn btn-secondary btn-retry" (click)="resetResult()">
-        <span class="btn-icon">🔄</span>
-        Nova Verificação
-      </button>
-    </div>
-  </section>
-
-  <!-- Status da API -->
-  <section class="status-section">
-    <div class="status-content">
-      <h3 class="status-title">📊 Status da Implementação</h3>
-      <div class="status-grid">
-        <div class="status-item approved">
-          <div class="status-icon">✅</div>
-          <div class="status-info">
-            <div class="status-label">Backend API</div>
-            <div class="status-value">Pronto (AWS SDK 4.x)</div>
-          </div>
-        </div>
-        <div class="status-item approved">
-          <div class="status-icon">✅</div>
-          <div class="status-info">
-            <div class="status-label">Frontend UI</div>
-            <div class="status-value">WebRTC Implementado</div>
+          <div>
+            <span class="score-label">Match Documento</span>
+            <span class="score-value">{{ summary.faceMatchScore !== null ? (summary.faceMatchScore | number:'1.0-0') + '%' : 'N/A' }}</span>
           </div>
         </div>
       </div>
     </div>
   </section>
+
+  <div class="status-banner error" *ngIf="errorMessage()">
+    <span>⚠️ {{ errorMessage() }}</span>
+  </div>
+
+  <div class="modal-overlay" *ngIf="isModalOpen()">
+    <div class="modal-wrapper">
+      <button class="modal-close" (click)="closeModal()">✕</button>
+      <app-liveness-modal
+        [voiceSteps]="voiceSteps()"
+        [documentFile]="documentFile()"
+        (sessionCompleted)="handleSessionCompleted($event)"
+        (sessionFailed)="handleSessionFailed($event)">
+      </app-liveness-modal>
+    </div>
+  </div>
 </div>

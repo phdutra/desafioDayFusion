@@ -27,6 +27,9 @@ export interface LivenessHistoryApiItem {
   createdAt: string;
   livenessScore?: number;
   status?: string;
+  documentKey?: string;
+  documentUrl?: string;
+  documentName?: string;
   captures: LivenessHistoryApiCapture[];
   video?: LivenessHistoryApiVideo;
   metadata?: Record<string, string>;
@@ -158,9 +161,21 @@ export class LivenessHistoryService {
             durationMs: (item.video.durationSeconds ?? 0) * 1000
           }
         : undefined,
-      documentName: item.metadata?.['documentName'],
+      documentKey: item.documentKey ?? item.metadata?.['documentKey'],
+      documentName: item.documentName ?? item.metadata?.['documentName'],
       metadata: item.metadata
     };
+
+    if (item.documentUrl ?? item.metadata?.['documentUrl']) {
+      summary.metadata = {
+        ...(summary.metadata ?? {}),
+        documentUrl: item.documentUrl ?? item.metadata?.['documentUrl'] ?? ''
+      };
+    }
+
+    if (summary.documentKey && !summary.documentName) {
+      summary.documentName = summary.documentKey.split('/').pop() ?? summary.documentKey;
+    }
 
     return {
       id: this.generateId(),
