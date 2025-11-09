@@ -11,7 +11,7 @@
       <button class="refresh" (click)="refreshSelected()" [disabled]="loadingMedia() || !selectedEntry()">
         🔄 Atualizar URLs
       </button>
-      <button class="clear" (click)="clearHistory()" [disabled]="!historyEntries().length">
+      <button class="clear" (click)="openClearConfirmModal()" [disabled]="!historyEntries().length">
         🗑️ Limpar histórico
       </button>
     </div>
@@ -29,7 +29,7 @@
           <span class="status-badge" [class.approved]="entry.summary.status === 'Aprovado'" [class.rejected]="entry.summary.status === 'Rejeitado'">
             {{ entry.summary.status }}
           </span>
-          <span class="item-date">{{ entry.createdAt | date: 'short' }}</span>
+          <span class="item-date">{{ entry.createdAt | date: 'dd/MM/yyyy HH:mm' }}</span>
         </div>
         <div class="item-body">
           <p>Liveness: {{ entry.summary.livenessScore | number: '1.0-2' }}</p>
@@ -42,8 +42,8 @@
     <section class="history-details" *ngIf="selectedEntry() as entry">
       <div class="details-header">
         <div>
-          <h2>Sessão {{ entry.sessionId }}</h2>
-          <p>Executada em {{ entry.createdAt | date: 'fullDate' }} às {{ entry.createdAt | date: 'shortTime' }}</p>
+          <h2>Detalhes da Sessão</h2>
+          <p>{{ entry.createdAt | date: 'dd/MM/yyyy' }} às {{ entry.createdAt | date: 'HH:mm' }}</p>
         </div>
         <div class="info-tags">
           <span>Status: <strong>{{ entry.summary.status }}</strong></span>
@@ -66,18 +66,40 @@
 
       <div class="captures-section" *ngIf="entry.summary.captures.length; else noCaptures">
         <h3>Capturas</h3>
-        <div class="captures-grid">
-          <figure *ngFor="let capture of entry.summary.captures; trackBy: trackByCapture">
-            <img [src]="getCaptureUrl(entry.id, capture)" [alt]="capture.position" loading="lazy" />
-            <figcaption>
-              <div class="capture-meta">
-                <strong>{{ capture.position }}</strong>
-                <span>Confiança {{ capture.confidence | number: '1.0-2' }}%</span>
-              </div>
-              <button class="open-button" (click)="openCapture(entry, capture, $event)">Abrir no S3</button>
-              <code class="key">{{ capture.s3Key }}</code>
-            </figcaption>
-          </figure>
+        <div class="carousel-container">
+          <button class="carousel-nav prev" (click)="prevCapture(entry)" [disabled]="entry.summary.captures.length <= 1">
+            ‹
+          </button>
+          
+          <div class="carousel-track">
+            <figure 
+              *ngFor="let capture of entry.summary.captures; let i = index; trackBy: trackByCapture"
+              class="carousel-item"
+              [class.active]="i === currentCaptureIndex()"
+              (click)="openCaptureImage(entry, capture, $event)">
+              <img [src]="getCaptureUrl(entry.id, capture)" [alt]="capture.position" loading="lazy" />
+              <figcaption>
+                <div class="capture-meta">
+                  <strong>{{ capture.position }}</strong>
+                  <span>Confiança {{ capture.confidence | number: '1.0-2' }}%</span>
+                </div>
+                <code class="key">{{ capture.s3Key }}</code>
+              </figcaption>
+            </figure>
+          </div>
+          
+          <button class="carousel-nav next" (click)="nextCapture(entry)" [disabled]="entry.summary.captures.length <= 1">
+            ›
+          </button>
+        </div>
+        
+        <div class="carousel-indicators" *ngIf="entry.summary.captures.length > 1">
+          <span 
+            *ngFor="let capture of entry.summary.captures; let i = index"
+            class="indicator"
+            [class.active]="i === currentCaptureIndex()"
+            (click)="currentCaptureIndex.set(i)">
+          </span>
         </div>
       </div>
 
@@ -89,14 +111,13 @@
 
       <div class="document-section" *ngIf="entry.summary.documentKey">
         <h3>Documento</h3>
-        <div class="document-card">
+        <div class="document-card" (click)="openDocument(entry, $event)">
           <div class="document-preview">
             <img [src]="getDocumentUrl(entry.id)" alt="Documento" loading="lazy" />
           </div>
           <div class="document-meta">
             <span class="document-label">Chave S3</span>
             <code>{{ entry.summary.documentKey }}</code>
-            <button class="open-button" (click)="openDocument(entry, $event)">Abrir no S3</button>
           </div>
         </div>
       </div>
@@ -124,5 +145,53 @@
     <p>Realize a primeira verificação na tela de Dashboard. As sessões concluídas aparecerão aqui automaticamente.</p>
   </div>
 </ng-template>
+
+<!-- Modal de Confirmação para Limpar Histórico -->
+<div class="modal-overlay" *ngIf="showClearConfirmModal()" (click)="closeClearConfirmModal()">
+  <div class="confirm-modal" (click)="$event.stopPropagation()">
+    <div class="modal-icon warning">⚠️</div>
+    <h3>Confirmar Limpeza de Histórico</h3>
+    <p>Tem certeza que deseja limpar o histórico?</p>
+    <p class="warning-text">Todas as sessões locais serão removidas permanentemente.</p>
+    <div class="modal-actions">
+      <button class="btn-cancel" (click)="closeClearConfirmModal()">
+        Cancelar
+      </button>
+      <button class="btn-confirm" (click)="confirmClearHistory()">
+        Sim, limpar tudo
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de Visualização de Imagem -->
+<div class="modal-overlay" *ngIf="showImageModal()" (click)="closeImageModal()" (mousedown)="$event.stopPropagation()">
+  <div class="image-modal" (click)="$event.stopPropagation()" (mousedown)="$event.stopPropagation()">
+    <div class="image-modal-header">
+      <h3>{{ modalImageTitle() }}</h3>
+      <div class="header-actions">
+        <span class="zoom-hint">🔍 Clique na imagem para zoom</span>
+        <button class="close-button" (click)="closeImageModal()">✕</button>
+      </div>
+    </div>
+    <div class="image-modal-body" [class.zoomed]="isImageZoomed()">
+      <img 
+        [src]="modalImageUrl()" 
+        [alt]="modalImageTitle()" 
+        class="zoomable-image"
+        [class.zoomed]="isImageZoomed()"
+        (click)="onImageClick($event)"
+      />
+    </div>
+    <div class="image-modal-footer">
+      <button class="btn-download" (click)="downloadImage()">
+        📥 Abrir no S3
+      </button>
+      <button class="btn-close" (click)="closeImageModal()">
+        Fechar
+      </button>
+    </div>
+  </div>
+</div>
 
 

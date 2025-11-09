@@ -36,6 +36,7 @@
     "@aws-sdk/s3-request-presigner": "^3.925.0",
     "aws-amplify": "^6.15.7",
     "chart.js": "^4.5.1",
+    "medium-zoom": "^1.1.0",
     "ng2-charts": "^5.0.4",
     "rxjs": "^7.8.1",
     "tslib": "^2.3.0",

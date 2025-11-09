@@ -33,6 +33,12 @@ export class HistoryComponent {
   readonly loadingMedia = signal(false);
   readonly syncingHistory = signal(false);
   readonly loadError = signal<string | null>(null);
+  readonly showClearConfirmModal = signal(false);
+  readonly showImageModal = signal(false);
+  readonly modalImageUrl = signal<string | null>(null);
+  readonly modalImageTitle = signal<string>('');
+  readonly isImageZoomed = signal(false);
+  readonly currentCaptureIndex = signal(0);
 
   readonly selectedEntry = computed<LivenessHistoryEntry | null>(() => {
     const id = this.selectedEntryId();
@@ -55,6 +61,32 @@ export class HistoryComponent {
     });
 
     void this.syncHistory();
+  }
+
+  onImageClick(event: Event): void {
+    event.stopPropagation();
+    // Alternar zoom
+    this.isImageZoomed.set(!this.isImageZoomed());
+  }
+
+  nextCapture(entry: LivenessHistoryEntry): void {
+    const total = entry.summary.captures.length;
+    this.currentCaptureIndex.set((this.currentCaptureIndex() + 1) % total);
+  }
+
+  prevCapture(entry: LivenessHistoryEntry): void {
+    const total = entry.summary.captures.length;
+    this.currentCaptureIndex.set((this.currentCaptureIndex() - 1 + total) % total);
+  }
+
+  openCaptureImage(entry: LivenessHistoryEntry, capture: LivenessSummary['captures'][number], event: Event): void {
+    event.stopPropagation();
+    const url = this.getCaptureUrl(entry.id, capture);
+    if (url) {
+      this.modalImageUrl.set(url);
+      this.modalImageTitle.set(`Captura: ${capture.position}`);
+      this.showImageModal.set(true);
+    }
   }
 
   trackByEntry(_: number, entry: LivenessHistoryEntry): string {
@@ -120,8 +152,14 @@ export class HistoryComponent {
   async openCapture(entry: LivenessHistoryEntry, capture: LivenessSummary['captures'][number], event: Event): Promise<void> {
     event.stopPropagation();
     try {
-      const url = await this.s3Service.getSignedUrl(capture.s3Key);
-      window.open(url, '_blank');
+      const url = this.getCaptureUrl(entry.id, capture);
+      if (url) {
+        this.modalImageUrl.set(url);
+        this.modalImageTitle.set(`Captura: ${capture.position}`);
+        this.showImageModal.set(true);
+      } else {
+        this.loadError.set('URL da captura não disponível.');
+      }
     } catch (error) {
       console.error('[HistoryComponent] Falha ao abrir captura.', error);
       this.loadError.set('Não foi possível abrir a captura selecionada.');
@@ -149,18 +187,48 @@ export class HistoryComponent {
       return;
     }
     try {
-      const url = await this.s3Service.getSignedUrl(entry.summary.documentKey);
-      window.open(url, '_blank');
+      const url = this.getDocumentUrl(entry.id);
+      if (url) {
+        this.modalImageUrl.set(url);
+        this.modalImageTitle.set('Documento de Referência');
+        this.showImageModal.set(true);
+      } else {
+        this.loadError.set('URL do documento não disponível.');
+      }
     } catch (error) {
       console.error('[HistoryComponent] Falha ao abrir documento.', error);
       this.loadError.set('Não foi possível abrir o documento associado à sessão.');
     }
   }
 
-  clearHistory(): void {
+  openClearConfirmModal(): void {
+    this.showClearConfirmModal.set(true);
+  }
+
+  closeClearConfirmModal(): void {
+    this.showClearConfirmModal.set(false);
+  }
+
+  confirmClearHistory(): void {
     this.historyService.clear();
     this.mediaCacheSignal.set({});
+    this.closeClearConfirmModal();
   }
+
+  closeImageModal(): void {
+    this.isImageZoomed.set(false);
+    this.showImageModal.set(false);
+    this.modalImageUrl.set(null);
+    this.modalImageTitle.set('');
+  }
+
+  downloadImage(): void {
+    const url = this.modalImageUrl();
+    if (url) {
+      window.open(url, '_blank');
+    }
+  }
+
 
   private async ensureMediaUrls(entryId: string, force: boolean): Promise<void> {
     const entry = this.historyEntries().find(item => item.id === entryId);
