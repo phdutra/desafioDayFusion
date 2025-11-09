@@ -1,0 +1,68 @@
+<section class="enrollment-container">
+  <div class="enrollment-card">
+    <header>
+      <h1>Cadastro Facial</h1>
+      <p>Vamos registrar seu rosto com segurança. CPF: <strong>{{ formattedCpf() }}</strong></p>
+    </header>
+
+    <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+      <div class="form-row">
+        <label for="name">Nome completo</label>
+        <input
+          id="name"
+          type="text"
+          placeholder="Informe seu nome completo"
+          formControlName="name" />
+      </div>
+
+      <div class="capture-section">
+        <div class="capture-header">
+          <h2>Captura facial 3D</h2>
+          <button type="button" (click)="openCapture()">Iniciar captura</button>
+        </div>
+
+        <p class="capture-tip">
+          Garanta boa iluminação e centralize o rosto na câmera. Você poderá revisar a foto antes de concluir.
+        </p>
+
+        <div class="capture-preview" *ngIf="hasCapture(); else emptyCapture">
+          <img [src]="captureSummary()?.previewUrl" alt="Pré-visualização da captura" />
+          <div class="capture-meta">
+            <span>Confiança: {{ captureSummary()?.confidence | number : '1.0-2' }}%</span>
+            <span>Posição: {{ captureSummary()?.position }}</span>
+          </div>
+          <button type="button" class="remove" (click)="removeCapture()">Capturar novamente</button>
+        </div>
+        <ng-template #emptyCapture>
+          <div class="capture-placeholder">
+            <span>Nenhuma captura disponível ainda.</span>
+          </div>
+        </ng-template>
+
+        <p *ngIf="livenessError()" class="warning">
+          {{ livenessError() }}
+        </p>
+      </div>
+
+      <button type="submit" class="submit" [disabled]="isSubmitting()">
+        {{ isSubmitting() ? 'Salvando cadastro...' : 'Concluir cadastro' }}
+      </button>
+    </form>
+
+    <p *ngIf="errorMessage()" class="error">
+      {{ errorMessage() }}
+    </p>
+  </div>
+</section>
+
+<div class="modal-backdrop" *ngIf="isModalOpen()">
+  <div class="modal-content">
+    <app-liveness-modal
+      [voiceSteps]="voiceSteps()"
+      [documentFile]="null"
+      (sessionCompleted)="handleSessionCompleted($event)"
+      (sessionFailed)="handleSessionFailed($event)">
+    </app-liveness-modal>
+  </div>
+</div>
+

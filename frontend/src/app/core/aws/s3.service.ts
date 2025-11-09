@@ -71,7 +71,10 @@ export class S3Service {
   async uploadLivenessAsset(sessionId: string, position: string, blob: Blob): Promise<UploadResult> {
     const extension = this.resolveExtension(blob.type, 'jpg');
     const key = `liveness/${sessionId}/${Date.now()}-${position}.${extension}`;
-    return this.uploadBlobToS3(key, blob);
+    console.log('[S3Service] Upload liveness asset:', { sessionId, position, key, blobSize: blob.size });
+    const result = await this.uploadBlobToS3(key, blob);
+    console.log('[S3Service] Upload completo:', result);
+    return result;
   }
 
   async uploadLivenessVideo(sessionId: string, blob: Blob, mimeType: string): Promise<UploadResult> {

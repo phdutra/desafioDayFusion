@@ -1,33 +1,99 @@
 import { Injectable, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { BehaviorSubject, Observable, tap } from 'rxjs';
-import { AuthRequest, AuthResponse, User } from '../../shared/models/transaction.model';
 import { environment } from '../../../environments/environment';
+import {
+  AuthResponse,
+  CpfLookupResponse,
+  FaceEnrollmentRequest,
+  FaceEnrollmentResponse,
+  FaceLoginRequest,
+  FaceLoginResponse,
+  RefreshTokenRequest,
+  UserProfile
+} from '../../shared/models/auth.model';
 
 @Injectable({
   providedIn: 'root'
 })
 export class AuthService {
   private readonly API_URL = environment.apiUrl;
-  private currentUserSubject = new BehaviorSubject<User | null>(null);
+  private readonly storageAccessKey = 'access_token';
+  private readonly storageRefreshKey = 'refresh_token';
+  private readonly storageUserKey = 'user_id';
+
+  private currentUserSubject = new BehaviorSubject<UserProfile | null>(null);
   public currentUser$ = this.currentUserSubject.asObservable();
   public isAuthenticated = signal(false);
 
-  constructor(private http: HttpClient) {
-    this.loadStoredAuth();
+  constructor(private readonly http: HttpClient) {
+    // Atrasa a inicialização para evitar dependência circular com o interceptor
+    setTimeout(() => this.loadStoredAuth(), 0);
   }
 
-  login(credentials: AuthRequest): Observable<AuthResponse> {
-    return this.http.post<AuthResponse>(`${this.API_URL}/auth/login`, credentials)
+  checkCpf(cpf: string): Observable<CpfLookupResponse> {
+    const sanitized = this.sanitizeCpf(cpf);
+    return this.http.get<CpfLookupResponse>(`${this.API_URL}/usuario/${sanitized}`);
+  }
+
+  registerFace(payload: FaceEnrollmentRequest): Observable<FaceEnrollmentResponse> {
+    const body: FaceEnrollmentRequest = {
+      ...payload,
+      cpf: this.sanitizeCpf(payload.cpf)
+    };
+
+    return this.http.post<FaceEnrollmentResponse>(`${this.API_URL}/auth/cadastro-facial`, body)
       .pipe(
-        tap(response => {
-          this.storeAuth(response);
-          this.isAuthenticated.set(true);
+        tap((response) => {
+          this.handleAuthResponse(response.tokens);
         })
       );
   }
 
-  logout(): Observable<any> {
+  loginWithFace(payload: FaceLoginRequest): Observable<FaceLoginResponse> {
+    const body: FaceLoginRequest = {
+      ...payload,
+      cpf: this.sanitizeCpf(payload.cpf)
+    };
+
+    console.log('[AuthService] Login facial - Payload:', body);
+
+    return this.http.post<FaceLoginResponse>(`${this.API_URL}/auth/validar-face`, body, {
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+      }
+    })
+      .pipe(
+        tap((response) => {
+          console.log('[AuthService] ==================== RESPOSTA DA API ====================');
+          console.log('[AuthService] Resposta COMPLETA (stringify):', JSON.stringify(response, null, 2));
+          console.log('[AuthService] response:', response);
+          console.log('[AuthService] response.user:', response.user);
+          console.log('[AuthService] response.user?.name:', response.user?.name);
+          console.log('[AuthService] Object.keys(response):', Object.keys(response));
+          console.log('[AuthService] ====================================================');
+          if (response.success) {
+            this.handleAuthResponse(response.tokens);
+          }
+        })
+      );
+  }
+
+  refreshSession(request: RefreshTokenRequest): Observable<AuthResponse> {
+    const body: RefreshTokenRequest = {
+      ...request,
+      cpf: this.sanitizeCpf(request.cpf)
+    };
+
+    return this.http.post<AuthResponse>(`${this.API_URL}/auth/refresh`, body)
+      .pipe(
+        tap((tokens) => this.handleAuthResponse(tokens))
+      );
+  }
+
+  logout(): Observable<unknown> {
     return this.http.post(`${this.API_URL}/auth/logout`, {})
       .pipe(
         tap(() => {
@@ -37,44 +103,69 @@ export class AuthService {
       );
   }
 
-  getCurrentUser(): Observable<User> {
-    return this.http.get<User>(`${this.API_URL}/auth/me`);
+  getCurrentUser(): Observable<UserProfile> {
+    return this.http.get<UserProfile>(`${this.API_URL}/auth/me`);
   }
 
   getToken(): string | null {
-    return localStorage.getItem('access_token');
+    return localStorage.getItem(this.storageAccessKey);
   }
 
-  refreshToken(): Observable<AuthResponse> {
-    const refreshToken = localStorage.getItem('refresh_token');
-    return this.http.post<AuthResponse>(`${this.API_URL}/auth/refresh`, refreshToken)
-      .pipe(
-        tap(response => {
-          this.storeAuth(response);
-        })
-      );
+  private handleAuthResponse(tokens: AuthResponse): void {
+    this.storeAuth(tokens);
+    this.isAuthenticated.set(true);
+    this.fetchCurrentUser();
   }
 
-  private storeAuth(response: AuthResponse): void {
-    localStorage.setItem('access_token', response.accessToken);
-    localStorage.setItem('refresh_token', response.refreshToken);
-    localStorage.setItem('user_id', response.userId);
+  private fetchCurrentUser(): void {
+    console.log('[AuthService] Buscando dados do usuário atual...');
+    this.getCurrentUser().subscribe({
+      next: (user) => {
+        console.log('[AuthService] Usuário recebido do backend:', user);
+        this.currentUserSubject.next(user);
+      },
+      error: (error) => {
+        console.error('[AuthService] Falha ao obter usuário atual:', error);
+        if (error?.status === 401) {
+          console.warn('[AuthService] Token inválido, limpando autenticação');
+          this.clearAuth();
+          this.isAuthenticated.set(false);
+        }
+        this.currentUserSubject.next(null);
+      }
+    });
+  }
+
+  private storeAuth(tokens: AuthResponse): void {
+    localStorage.setItem(this.storageAccessKey, tokens.accessToken);
+    localStorage.setItem(this.storageRefreshKey, tokens.refreshToken);
+    localStorage.setItem(this.storageUserKey, tokens.userId);
   }
 
   private clearAuth(): void {
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
-    localStorage.removeItem('user_id');
+    localStorage.removeItem(this.storageAccessKey);
+    localStorage.removeItem(this.storageRefreshKey);
+    localStorage.removeItem(this.storageUserKey);
     this.currentUserSubject.next(null);
   }
 
   private loadStoredAuth(): void {
     const token = this.getToken();
-    if (token) {
-      this.isAuthenticated.set(true);
-      this.getCurrentUser().subscribe(user => {
-        this.currentUserSubject.next(user);
-      });
+    console.log('[AuthService] Verificando token armazenado:', token ? 'Token encontrado' : 'Nenhum token');
+    
+    if (!token) {
+      console.log('[AuthService] Nenhum token encontrado, usuário não autenticado');
+      this.isAuthenticated.set(false);
+      this.currentUserSubject.next(null);
+      return;
     }
+
+    console.log('[AuthService] Token encontrado, buscando dados do usuário');
+    this.isAuthenticated.set(true);
+    this.fetchCurrentUser();
+  }
+
+  private sanitizeCpf(cpf: string): string {
+    return cpf.replace(/\D/g, '');
   }
 }

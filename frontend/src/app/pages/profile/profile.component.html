@@ -1,0 +1,93 @@
+<section class="profile-container">
+  <div class="profile-card">
+    <header class="profile-header">
+      <div>
+        <h1>Perfil do usuário</h1>
+        <p>Atualize suas informações e mantenha a biometria facial sincronizada com segurança.</p>
+      </div>
+      <span class="cpf-badge">CPF {{ formattedCpf() }}</span>
+    </header>
+
+    <div class="profile-overview">
+      <div class="avatar-wrapper">
+        <ng-container *ngIf="currentAvatar(); else avatarPlaceholder">
+          <img [src]="currentAvatar()!" alt="Foto do usuário" />
+        </ng-container>
+      </div>
+      <div class="overview-text">
+        <h2>{{ form.getRawValue().name || 'Usuário DayFusion' }}</h2>
+        <p>Últimas atualizações e capturas são armazenadas com auditoria completa na AWS.</p>
+      </div>
+    </div>
+
+    <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+      <div class="form-field">
+        <label for="name">Nome completo</label>
+        <input
+          id="name"
+          type="text"
+          placeholder="Informe seu nome completo"
+          formControlName="name" />
+        <small class="validation" *ngIf="form.controls.name.invalid && form.controls.name.touched">
+          Informe pelo menos 3 caracteres.
+        </small>
+      </div>
+
+      <section class="capture-card">
+        <div class="capture-header">
+          <div>
+            <h3>Reconhecimento facial</h3>
+            <p>Realize uma nova captura para garantir que seu perfil esteja atualizado.</p>
+          </div>
+          <button type="button" (click)="openCapture()">Capturar nova foto</button>
+        </div>
+
+        <div class="capture-preview" *ngIf="hasCapture(); else emptyCapture">
+          <img [src]="captureSummary()?.previewUrl" alt="Pré-visualização da captura" />
+          <div class="capture-meta">
+            <span>Confiança: {{ captureSummary()?.confidence | number : '1.0-2' }}%</span>
+            <span>Posição: {{ captureSummary()?.position }}</span>
+          </div>
+          <button type="button" class="remove" (click)="removeCapture()">Descartar captura</button>
+        </div>
+        <ng-template #emptyCapture>
+          <div class="capture-placeholder">
+            <span>Nenhuma captura recente realizada.</span>
+            <small>Utilize o botão acima para iniciar uma nova verificação em tempo real.</small>
+          </div>
+        </ng-template>
+
+        <p *ngIf="livenessError()" class="warning">
+          {{ livenessError() }}
+        </p>
+      </section>
+
+      <button type="submit" class="submit" [disabled]="isSubmitting()">
+        {{ isSubmitting() ? 'Atualizando...' : 'Salvar alterações' }}
+      </button>
+
+      <p *ngIf="errorMessage()" class="error">
+        {{ errorMessage() }}
+      </p>
+      <p *ngIf="successMessage()" class="success">
+        {{ successMessage() }}
+      </p>
+    </form>
+  </div>
+</section>
+
+<div class="modal-backdrop" *ngIf="isModalOpen()">
+  <div class="modal-content">
+    <app-liveness-modal
+      [voiceSteps]="voiceSteps()"
+      [documentFile]="null"
+      (sessionCompleted)="handleSessionCompleted($event)"
+      (sessionFailed)="handleSessionFailed($event)">
+    </app-liveness-modal>
+  </div>
+</div>
+
+<ng-template #avatarPlaceholder>
+  <div class="avatar-placeholder">{{ currentInitials() }}</div>
+</ng-template>
+

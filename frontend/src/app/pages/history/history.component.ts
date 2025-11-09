@@ -21,7 +21,14 @@ interface EntryMediaCache {
 export class HistoryComponent {
   private readonly mediaCacheSignal = signal<Record<string, EntryMediaCache>>({});
 
-  readonly historyEntries: Signal<LivenessHistoryEntry[]>;
+  // Filtra sessões: remove status "Revisar"
+  readonly historyEntries = computed<LivenessHistoryEntry[]>(() => {
+    return this.historyService.history().filter(entry => {
+      const status = entry.summary.status?.toLowerCase();
+      return status !== 'revisar';
+    });
+  });
+
   readonly selectedEntryId = signal<string | null>(null);
   readonly loadingMedia = signal(false);
   readonly syncingHistory = signal(false);
@@ -36,7 +43,6 @@ export class HistoryComponent {
     private readonly historyService: LivenessHistoryService,
     private readonly s3Service: S3Service
   ) {
-    this.historyEntries = this.historyService.history;
 
     effect(() => {
       const entries = this.historyEntries();

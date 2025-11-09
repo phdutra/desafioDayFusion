@@ -5,6 +5,7 @@ using Amazon.S3.Model;
 using DayFusion.API.Models;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using System.Threading;
 
 namespace DayFusion.API.Services;
 
@@ -15,10 +16,13 @@ public class RekognitionService : IRekognitionService
     private readonly IConfiguration _configuration;
     private readonly ILogger<RekognitionService> _logger;
     private readonly string _bucketName;
+    private readonly string _collectionId;
+    private readonly float _loginThreshold;
 
     // Thresholds for decision making
     private const float APPROVED_THRESHOLD = 99.0f;
     private const float MANUAL_REVIEW_THRESHOLD = 70.0f;
+    private const float DEFAULT_LOGIN_THRESHOLD = 90.0f;
 
     public RekognitionService(
         IAmazonRekognition rekognitionClient,
@@ -32,6 +36,13 @@ public class RekognitionService : IRekognitionService
         _logger = logger;
         _bucketName = _configuration["AWS:S3Bucket"] ?? _configuration["AWS_S3_BUCKET"]
             ?? throw new ArgumentNullException("AWS:S3Bucket", "Configure 'AWS:S3Bucket' in appsettings or 'AWS_S3_BUCKET' env var.");
+        _collectionId = _configuration["AWS:RekognitionCollection"] ?? _configuration["AWS_REKOGNITION_COLLECTION"]
+            ?? throw new ArgumentNullException("AWS:RekognitionCollection", "Configure 'AWS:RekognitionCollection' em appsettings ou 'AWS_REKOGNITION_COLLECTION' como variável de ambiente.");
+
+        if (!float.TryParse(_configuration["FaceRecognition:LoginThreshold"], out _loginThreshold))
+        {
+            _loginThreshold = DEFAULT_LOGIN_THRESHOLD;
+        }
     }
 
     public async Task<FaceComparisonResponse> CompareFacesAsync(FaceComparisonRequest request)
@@ -213,6 +224,161 @@ public class RekognitionService : IRekognitionService
             _logger.LogError(ex, "Error getting face similarity between {SourceKey} and {TargetKey}", 
                 sourceImageKey, targetImageKey);
             return 0f;
+        }
+    }
+
+    public async Task<string?> IndexFaceAsync(string imageKey, string externalImageId, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            _logger.LogInformation("Indexando face para ExternalImageId={ExternalId} usando imagem {ImageKey}", externalImageId, imageKey);
+
+            var indexRequest = new IndexFacesRequest
+            {
+                CollectionId = _collectionId,
+                ExternalImageId = externalImageId,
+                Image = new Image
+                {
+                    S3Object = new Amazon.Rekognition.Model.S3Object
+                    {
+                        Bucket = _bucketName,
+                        Name = imageKey
+                    }
+                },
+                DetectionAttributes = new List<string> { "DEFAULT" }
+            };
+
+            var response = await _rekognitionClient.IndexFacesAsync(indexRequest, cancellationToken);
+            var faceRecord = response.FaceRecords?.FirstOrDefault();
+            var faceId = faceRecord?.Face?.FaceId;
+
+            if (string.IsNullOrEmpty(faceId))
+            {
+                _logger.LogWarning("Nenhuma face indexada para ExternalImageId={ExternalId}", externalImageId);
+                return null;
+            }
+
+            _logger.LogInformation("Face indexada com sucesso. FaceId={FaceId}, ExternalImageId={ExternalId}", faceId, externalImageId);
+            return faceId;
+        }
+        catch (ResourceNotFoundException ex)
+        {
+            _logger.LogError(ex, "Coleção Rekognition {CollectionId} não encontrada ao indexar face. Configure a coleção antes de prosseguir.", _collectionId);
+            throw new InvalidOperationException($"Coleção de reconhecimento {_collectionId} não encontrada. Configure a coleção no AWS Rekognition.", ex);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Erro ao indexar face. ExternalImageId={ExternalId}, ImageKey={ImageKey}", externalImageId, imageKey);
+            throw;
+        }
+    }
+
+    public async Task<FaceMatchResult> SearchFaceByImageAsync(string imageKey, string? expectedFaceId, float similarityThreshold, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var threshold = similarityThreshold <= 0 ? _loginThreshold : similarityThreshold;
+
+            _logger.LogInformation("Buscando face na coleção {CollectionId} com imagem {ImageKey} e threshold {Threshold}", _collectionId, imageKey, threshold);
+
+            var request = new SearchFacesByImageRequest
+            {
+                CollectionId = _collectionId,
+                FaceMatchThreshold = threshold,
+                Image = new Image
+                {
+                    S3Object = new Amazon.Rekognition.Model.S3Object
+                    {
+                        Bucket = _bucketName,
+                        Name = imageKey
+                    }
+                },
+                MaxFaces = 5
+            };
+
+            var response = await _rekognitionClient.SearchFacesByImageAsync(request, cancellationToken);
+            if (response.FaceMatches == null || response.FaceMatches.Count == 0)
+            {
+                _logger.LogWarning("Nenhuma face correspondente encontrada para imagem {ImageKey}", imageKey);
+                return new FaceMatchResult
+                {
+                    IsSuccessful = false,
+                    Similarity = 0,
+                    Message = "Nenhuma correspondência encontrada."
+                };
+            }
+
+            var bestMatch = response.FaceMatches
+                .Where(match => match.Face != null)
+                .OrderByDescending(match => match.Similarity ?? 0f)
+                .FirstOrDefault();
+
+            if (bestMatch?.Face == null || !bestMatch.Similarity.HasValue)
+            {
+                return new FaceMatchResult
+                {
+                    IsSuccessful = false,
+                    Similarity = 0,
+                    Message = "Não foi possível determinar similaridade."
+                };
+            }
+
+            var matchedFaceId = bestMatch.Face.FaceId;
+            var similarity = bestMatch.Similarity!.Value;
+            var isSameFace = string.IsNullOrEmpty(expectedFaceId) || string.Equals(matchedFaceId, expectedFaceId, StringComparison.Ordinal);
+
+            var result = new FaceMatchResult
+            {
+                IsSuccessful = isSameFace && similarity >= threshold,
+                Similarity = similarity,
+                MatchedFaceId = matchedFaceId,
+                Message = isSameFace
+                    ? $"Melhor correspondência encontrada com similaridade {similarity:F2}%."
+                    : $"Face encontrada não corresponde ao FaceId esperado. FaceIdEncontrado={matchedFaceId}"
+            };
+
+            _logger.LogInformation("Resultado da busca de face: IsSuccessful={Success}, Similarity={Similarity}, ExpectedFaceId={ExpectedFaceId}, MatchedFaceId={MatchedFaceId}",
+                result.IsSuccessful, result.Similarity, expectedFaceId, matchedFaceId);
+
+            return result;
+        }
+        catch (ResourceNotFoundException ex)
+        {
+            _logger.LogError(ex, "Coleção Rekognition {CollectionId} não encontrada ao buscar imagem {ImageKey}.", _collectionId, imageKey);
+            throw new InvalidOperationException($"Coleção de reconhecimento {_collectionId} não encontrada. Configure a coleção no AWS Rekognition.", ex);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Erro ao buscar face por imagem {ImageKey}", imageKey);
+            throw;
+        }
+    }
+
+    public async Task<bool> DeleteFaceAsync(string faceId, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(faceId))
+            {
+                return false;
+            }
+
+            var request = new DeleteFacesRequest
+            {
+                CollectionId = _collectionId,
+                FaceIds = new List<string> { faceId }
+            };
+
+            var response = await _rekognitionClient.DeleteFacesAsync(request, cancellationToken);
+            var deleted = response.DeletedFaces?.Contains(faceId) ?? false;
+
+            _logger.LogInformation("Remoção de face {FaceId} na coleção {CollectionId}. Sucesso={Success}", faceId, _collectionId, deleted);
+            return deleted;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Erro ao remover face {FaceId} da coleção {CollectionId}", faceId, _collectionId);
+            throw;
         }
     }
 

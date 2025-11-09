@@ -47,6 +47,8 @@ export class LivenessModalComponent implements OnDestroy {
 
   private stream?: MediaStream;
   private videoRecorder: MediaRecorderController | null = null;
+  private shouldAbort = false;
+  private skipNextStart = false;
 
   constructor(
     private readonly cognitoService: CognitoService,
@@ -60,7 +62,15 @@ export class LivenessModalComponent implements OnDestroy {
       return;
     }
 
+    if (this.skipNextStart) {
+      this.skipNextStart = false;
+      this.shouldAbort = false;
+      return;
+    }
+
+    speechSynthesis.cancel();
     this.resetState();
+    this.shouldAbort = false;
     this.updateProgress(5);
     this.isRunning = true;
     this.statusMessage = 'Preparando sessão...';
@@ -107,23 +117,32 @@ export class LivenessModalComponent implements OnDestroy {
       }
       this.updateProgress(25);
 
-      const baseProgress = 30;
-      const stepsRange = 60;
+      const baseProgress = 25;
+      const stepsRange = 55;
 
       await speakSequence(
         this.voiceSteps,
         (step, index) => {
-          this.statusMessage = `Instrução ${index + 1}/${this.voiceSteps.length}: ${step.texto}`;
+          if (this.shouldAbort) {
+            return;
+          }
+          this.statusMessage = `🎤 ${step.texto}...`;
           console.info('[LivenessModal] Instrução anunciada.', { index, step });
         },
         (step, index) => {
+          if (this.shouldAbort) {
+            return;
+          }
           const ratio = (index + 1) / this.voiceSteps.length;
           const percent = baseProgress + ratio * stepsRange;
           this.updateProgress(percent);
-          this.statusMessage = `Captura da posição ${step.posicao} realizada.`;
+          this.statusMessage = `📸 Captura ${index + 1}/${this.voiceSteps.length} concluída`;
           console.info('[LivenessModal] Captura concluída.', { position: step.posicao, index });
         },
         async (step) => {
+          if (this.shouldAbort) {
+            return;
+          }
           if (!videoElement) {
             throw new Error('Vídeo não inicializado.');
           }
@@ -152,11 +171,18 @@ export class LivenessModalComponent implements OnDestroy {
           if (!referenceFaceBytes) {
             referenceFaceBytes = bytes;
           }
-        }
+        },
+        () => this.shouldAbort
       );
 
-      this.statusMessage = 'Analisando capturas...';
-      this.updateProgress(90);
+      if (this.shouldAbort) {
+        this.statusMessage = 'Sessão cancelada pelo usuário.';
+        this.errorMessage = null;
+        return;
+      }
+
+      this.statusMessage = 'Processando capturas...';
+      this.updateProgress(85);
 
       if (this.videoRecorder) {
         console.info('[LivenessModal] Finalizando gravação de vídeo.');
@@ -167,16 +193,21 @@ export class LivenessModalComponent implements OnDestroy {
           durationMs: recordedVideo.durationMs
         });
         this.videoRecorder = null;
-        this.updateProgress(95);
+        this.updateProgress(90);
       }
 
       stopMediaStream(this.stream);
       this.stream = undefined;
-      this.updateProgress(99);
+      
+      // Processar análise com progresso incremental
+      this.statusMessage = 'Analisando resultados...';
+      this.updateProgress(92);
 
       const livenessScore = captures.length
         ? captures.reduce((acc, item) => acc + item.confidence, 0) / captures.length
         : 0;
+      
+      this.updateProgress(96);
 
       let faceMatchScore: number | undefined;
 
@@ -233,7 +264,13 @@ export class LivenessModalComponent implements OnDestroy {
 
       console.info('[LivenessModal] Sessão concluída.', summary);
 
+      // Animação de finalização até 100%
+      this.statusMessage = 'Finalizando...';
       this.updateProgress(100);
+      
+      // Aguardar animação de finalização antes de emitir conclusão
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
       this.statusMessage = 'Sessão concluída com sucesso.';
       this.sessionCompleted.emit(summary);
     } catch (error: any) {
@@ -246,6 +283,10 @@ export class LivenessModalComponent implements OnDestroy {
       this.statusMessage = 'Erro durante a sessão.';
       this.sessionFailed.emit(message);
     } finally {
+      if (this.shouldAbort) {
+        this.statusMessage = 'Sessão cancelada pelo usuário.';
+        this.errorMessage = null;
+      }
       stopMediaStream(this.stream);
       this.stream = undefined;
       this.isRunning = false;
@@ -263,18 +304,34 @@ export class LivenessModalComponent implements OnDestroy {
   }
 
   cancelSession(): void {
+    const wasRunning = this.isRunning;
+    this.shouldAbort = true;
+    this.skipNextStart = !wasRunning;
+    speechSynthesis.cancel();
+
     this.statusMessage = 'Sessão cancelada pelo usuário.';
     this.errorMessage = null;
     this.isRunning = false;
     this.progress = 0;
     stopMediaStream(this.stream);
     this.stream = undefined;
+
+    if (this.videoRecorder) {
+      const recorder = this.videoRecorder;
+      this.videoRecorder = null;
+      if (recorder) {
+        void recorder.stopRecording().catch((stopError) => {
+          console.warn('[LivenessModal] Erro ao finalizar gravação ao cancelar sessão.', stopError);
+        });
+      }
+    }
   }
 
   ngOnDestroy(): void {
+    this.shouldAbort = true;
+    speechSynthesis.cancel();
     stopMediaStream(this.stream);
     this.stream = undefined;
-    speechSynthesis.cancel();
   }
 
   private resetState(): void {

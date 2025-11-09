@@ -1,0 +1,53 @@
+<section class="auth-container">
+  <div class="auth-card">
+    <header>
+      <h1>{{ greeting() }}</h1>
+      <p>Confirme sua identidade com FaceID. CPF: <strong>{{ formattedCpf() }}</strong></p>
+    </header>
+
+    <div class="status-panel">
+      <ng-container *ngIf="successMessage(); else errorBlock">
+        <div class="status success">
+          <span class="icon">✅</span>
+          <span>{{ successMessage() }}</span>
+        </div>
+      </ng-container>
+      <ng-template #errorBlock>
+        <div class="status" [class.error]="errorMessage()">
+          <span class="icon">{{ errorMessage() ? '⚠️' : '🛈' }}</span>
+          <span>
+            {{ errorMessage() ?? 'Clique em "Iniciar verificação" para capturar seu rosto em tempo real.' }}
+          </span>
+        </div>
+      </ng-template>
+    </div>
+
+    <div class="actions">
+      <button type="button" (click)="startAuthentication()" [disabled]="isAuthenticating()">
+        {{ isAuthenticating() ? 'Processando...' : 'Iniciar verificação' }}
+      </button>
+      <button type="button" class="secondary" (click)="retryAuthentication()" *ngIf="lastCapture()">
+        Capturar novamente
+      </button>
+    </div>
+
+    <div class="capture-preview" *ngIf="lastCapture()">
+      <img [src]="lastCapture()?.previewUrl" alt="Última captura facial" />
+      <div class="meta">
+        Similaridade estimada: {{ lastCapture()?.confidence | number : '1.0-2' }}%
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="modal-backdrop" *ngIf="isModalOpen()">
+  <div class="modal-content">
+    <app-liveness-modal
+      [voiceSteps]="voiceSteps()"
+      [documentFile]="null"
+      (sessionCompleted)="handleSessionCompleted($event)"
+      (sessionFailed)="handleSessionFailed($event)">
+    </app-liveness-modal>
+  </div>
+</div>
+

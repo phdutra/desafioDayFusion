@@ -40,19 +40,6 @@
   </div>
 </section>
 
-  <section class="instructions">
-    <h3>Sequência configurada</h3>
-    <ul>
-      <li *ngFor="let step of voiceSteps; index as i">
-        <span class="step-index">{{ i + 1 }}</span>
-        <div>
-          <p class="step-text">{{ step.texto }}</p>
-          <small>Delay: {{ step.delay }}ms · Posição: {{ step.posicao }}</small>
-        </div>
-      </li>
-    </ul>
-  </section>
-
   <section class="status-section" *ngIf="statusMessage || errorMessage">
     <div class="status-message" [class.error]="errorMessage">
       <span class="status-icon">{{ errorMessage ? '⚠️' : '✅' }}</span>

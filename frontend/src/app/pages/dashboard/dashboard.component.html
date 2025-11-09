@@ -1,114 +1,175 @@
-<div class="dashboard">
-  <header class="dashboard-header">
+<div class="dashboard-page fade-in-up">
+  <header class="page-header">
     <div>
-      <h1>DayFusion Liveness</h1>
-      <p>POC integrada com AWS Rekognition, S3 e Cognito Identity Pool.</p>
+      <h1 class="gradient-text">📊 Dashboard</h1>
+      <p class="subtitle">Visão geral do sistema de reconhecimento facial</p>
     </div>
-    <div class="header-actions">
-      <div class="badge">
-        <span class="badge-dot live"></span>
-        <span>WebRTC Ready</span>
-      </div>
-      <div class="badge secondary">
-        <span class="badge-dot aws"></span>
-        <span>AWS Sync</span>
-      </div>
-    </div>
+    <button class="btn-primary" (click)="startNewCapture()">
+      <span>➕</span>
+      <span>Nova Captura</span>
+    </button>
   </header>
 
-  <section class="grid">
-    <app-config-panel
-      class="panel"
-      [steps]="voiceSteps()"
-      (stepsChange)="onStepsChange($event)"
-    ></app-config-panel>
-
-    <div class="panel">
-      <div class="document-card">
-        <h2>Documento de Referência</h2>
-        <p>Faça upload de um documento (RG/CNH) para comparação facial.</p>
-
-        <div class="document-input">
-          <label class="upload-button">
-            <input type="file" accept="image/*" (change)="onDocumentSelected($event)" hidden />
-            <span>📄 Selecionar documento</span>
-          </label>
-
-          <div class="document-info" *ngIf="documentFile as doc; else noDocument">
-            <div>
-              <strong>{{ doc.name }}</strong>
-              <p>{{ doc.size / 1024 | number:'1.0-0' }} KB</p>
-            </div>
-            <button class="btn ghost" (click)="clearDocument()">Remover</button>
-          </div>
-          <ng-template #noDocument>
-            <p class="document-placeholder">Nenhum documento selecionado.</p>
-          </ng-template>
-        </div>
+  <!-- Cards de Estatísticas Principais -->
+  <section class="stats-grid">
+    <div class="stat-card total">
+      <div class="stat-icon">🎯</div>
+      <div class="stat-content">
+        <div class="stat-value">{{ stats().totalSessions }}</div>
+        <div class="stat-label">Total de Sessões</div>
       </div>
+    </div>
 
-      <app-liveness-modal
-        [voiceSteps]="voiceSteps()"
-        [documentFile]="documentFile"
-        (sessionCompleted)="handleSessionCompleted($event)"
-        (sessionFailed)="handleSessionFailed($event)"
-      ></app-liveness-modal>
+    <div class="stat-card approved">
+      <div class="stat-icon">✅</div>
+      <div class="stat-content">
+        <div class="stat-value">{{ stats().approved }}</div>
+        <div class="stat-label">Aprovados</div>
+        <div class="stat-percentage">{{ stats().approvalRate | number:'1.1-1' }}%</div>
+      </div>
+    </div>
+
+    <div class="stat-card rejected">
+      <div class="stat-icon">❌</div>
+      <div class="stat-content">
+        <div class="stat-value">{{ stats().rejected }}</div>
+        <div class="stat-label">Rejeitados</div>
+        <div class="stat-percentage">{{ stats().rejectionRate | number:'1.1-1' }}%</div>
+      </div>
+    </div>
+
+    <!-- Card dinâmico para outros status (se existirem) -->
+    <div class="stat-card others" *ngIf="stats().others > 0">
+      <div class="stat-icon">📋</div>
+      <div class="stat-content">
+        <div class="stat-value">{{ stats().others }}</div>
+        <div class="stat-label">Outros Status</div>
+      </div>
     </div>
   </section>
 
-  <section class="result-section" *ngIf="lastResult() || errorMessage()">
-    <h2>Resultado da Análise</h2>
-
-    <div class="result-grid" *ngIf="lastResult(); else errorBlock">
-      <div class="result-card" [class.approved]="lastResult()?.status === 'Aprovado'" [class.rejected]="lastResult()?.status === 'Rejeitado'">
-        <div class="result-header">
-          <span class="result-icon">
-            {{ lastResult()?.status === 'Aprovado' ? '✅' : lastResult()?.status === 'Rejeitado' ? '❌' : '⚠️' }}
-          </span>
-          <div>
-            <h3>Status: {{ lastResult()?.status }}</h3>
-            <p>Liveness médio {{ lastResult()?.livenessScore }} · Match documento {{ lastResult()?.faceMatchScore ?? 'N/A' }}</p>
+  <!-- Gráficos e Métricas -->
+  <section class="charts-section">
+    <!-- Distribuição por Status -->
+    <div class="chart-card">
+      <h3 class="chart-title">📈 Distribuição por Status</h3>
+      <div class="status-distribution">
+        <div 
+          *ngFor="let item of stats().statusDistribution" 
+          class="status-bar-wrapper">
+          <div class="status-bar-header">
+            <span class="status-label">
+              {{ getStatusIcon(item.status) }} {{ item.status }}
+            </span>
+            <span class="status-count">{{ item.count }} ({{ item.percentage | number:'1.0-0' }}%)</span>
           </div>
-        </div>
-
-        <pre *ngIf="resultJson()" class="result-json">{{ resultJson() }}</pre>
-      </div>
-
-      <div class="captures-card" *ngIf="lastResult()?.captures?.length">
-        <h3>Capturas Enviadas ao S3</h3>
-        <div class="captures-grid">
-          <figure *ngFor="let capture of lastResult()?.captures">
-            <img [src]="capture.previewUrl" [alt]="capture.position" />
-            <figcaption>
-              <strong>{{ capture.position }}</strong>
-              <span>Confiança {{ capture.confidence | number:'1.0-0' }}%</span>
-            </figcaption>
-          </figure>
-        </div>
-      </div>
-
-      <div class="video-card" *ngIf="lastResult()?.video?.url">
-        <h3>Vídeo da Sessão</h3>
-        <video controls [src]="lastResult()?.video?.url" preload="metadata"></video>
-        <div class="video-meta">
-          <span>{{ lastResult()?.video?.mimeType }}</span>
-          <span>{{ (lastResult()?.video?.size ?? 0) / (1024 * 1024) | number:'1.1-1' }} MB</span>
-          <span>Duração {{ (lastResult()?.video?.durationMs ?? 0) / 1000 | number:'1.0-1' }} s</span>
+          <div class="status-bar-track">
+            <div 
+              class="status-bar-fill" 
+              [class]="getStatusColor(item.status)"
+              [style.width.%]="item.percentage">
+            </div>
+          </div>
         </div>
       </div>
     </div>
 
-    <ng-template #errorBlock>
-      <div class="result-card rejected">
-        <div class="result-header">
-          <span class="result-icon">⚠️</span>
-          <div>
-            <h3>Falha ao executar sessão</h3>
-            <p>{{ errorMessage() }}</p>
+    <!-- Scores Médios -->
+    <div class="chart-card">
+      <h3 class="chart-title">🎯 Scores Médios</h3>
+      <div class="scores-container">
+        <div class="score-item">
+          <div class="score-label">Liveness Score</div>
+          <div class="score-value-large">{{ stats().avgLivenessScore | number:'1.1-1' }}%</div>
+          <div class="score-bar">
+            <div 
+              class="score-bar-fill"
+              [class]="getProgressColor(stats().avgLivenessScore)"
+              [style.width.%]="stats().avgLivenessScore">
+            </div>
+          </div>
+        </div>
+        
+        <div class="score-item">
+          <div class="score-label">Face Match Score</div>
+          <div class="score-value-large">
+            {{ stats().avgFaceMatchScore > 0 ? (stats().avgFaceMatchScore | number:'1.1-1') + '%' : 'N/A' }}
+          </div>
+          <div class="score-bar" *ngIf="stats().avgFaceMatchScore > 0">
+            <div 
+              class="score-bar-fill"
+              [class]="getProgressColor(stats().avgFaceMatchScore)"
+              [style.width.%]="stats().avgFaceMatchScore">
+            </div>
           </div>
         </div>
       </div>
-    </ng-template>
+    </div>
+  </section>
+
+  <!-- Distribuição por Faixa de Score -->
+  <section class="score-ranges-section" *ngIf="stats().scoreRanges.length > 0">
+    <h3 class="section-title">📊 Distribuição por Faixa de Score (Liveness)</h3>
+    <div class="score-ranges-grid">
+      <div 
+        *ngFor="let range of stats().scoreRanges" 
+        class="score-range-card">
+        <div class="range-label">{{ range.range }}%</div>
+        <div class="range-value">{{ range.count }}</div>
+        <div class="range-suffix">sessões</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Sessões Recentes -->
+  <section class="recent-sessions-section" *ngIf="stats().recentSessions.length > 0">
+    <div class="section-header">
+      <h3 class="section-title">🕐 Sessões Recentes</h3>
+      <button class="btn-link" (click)="viewAllHistory()">
+        Ver todas →
+      </button>
+    </div>
+    
+    <div class="sessions-list">
+      <div 
+        *ngFor="let session of stats().recentSessions" 
+        class="session-card"
+        [class]="getStatusColor(session.status)"
+        (click)="viewSession(session.sessionId)">
+        <div class="session-header">
+          <span class="session-icon">{{ getStatusIcon(session.status) }}</span>
+          <span class="session-status">{{ session.status }}</span>
+          <span class="session-date">{{ session.createdAt | date:'dd/MM/yyyy HH:mm' }}</span>
+        </div>
+        <div class="session-details">
+          <div class="session-detail">
+            <span class="detail-label">Liveness:</span>
+            <span class="detail-value">{{ session.livenessScore | number:'1.0-0' }}%</span>
+          </div>
+          <div class="session-detail">
+            <span class="detail-label">Match:</span>
+            <span class="detail-value">
+              {{ session.faceMatchScore ? (session.faceMatchScore | number:'1.0-0') + '%' : 'N/A' }}
+            </span>
+          </div>
+          <div class="session-detail">
+            <span class="detail-label">ID:</span>
+            <span class="detail-value session-id">{{ session.sessionId }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Estado Vazio -->
+  <section class="empty-state" *ngIf="stats().totalSessions === 0">
+    <div class="empty-icon">📊</div>
+    <h3>Nenhuma sessão registrada</h3>
+    <p>Comece realizando sua primeira captura facial 3D</p>
+    <button class="btn-primary" (click)="startNewCapture()">
+      <span>🚀</span>
+      <span>Iniciar Primeira Captura</span>
+    </button>
   </section>
 </div>
 

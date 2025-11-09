@@ -62,24 +62,6 @@ export interface ReviewRequest {
   notes?: string;
 }
 
-export interface AuthRequest {
-  username: string;
-  password: string;
-}
-
-export interface AuthResponse {
-  accessToken: string;
-  refreshToken: string;
-  expiresAt: string;
-  userId: string;
-}
-
-export interface User {
-  userId: string;
-  username: string;
-  claims: Array<{ type: string; value: string }>;
-}
-
 // Face Liveness 3D Models
 export interface StartLivenessRequest {
   transactionId?: string;

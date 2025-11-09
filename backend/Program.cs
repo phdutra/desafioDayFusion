@@ -107,8 +107,13 @@ builder.Services.AddScoped<IDynamoDBContext, DynamoDBContext>();
 builder.Services.AddScoped<IS3Service, S3Service>();
 builder.Services.AddScoped<IRekognitionService, RekognitionService>();
 builder.Services.AddScoped<IDynamoDBService, DynamoDBService>();
+builder.Services.AddScoped<IUserProfileService, UserProfileService>();
 
 // Configure JWT Authentication (placeholder - in production, use AWS Cognito)
+var jwtSecret = builder.Configuration["JWT:Secret"] ?? builder.Configuration["JWT_SECRET"] ?? "your-secret-key-here";
+var jwtIssuer = builder.Configuration["JWT:Issuer"] ?? builder.Configuration["JWT_ISSUER"];
+var jwtAudience = builder.Configuration["JWT:Audience"] ?? builder.Configuration["JWT_AUDIENCE"];
+
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
@@ -118,10 +123,10 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateAudience = true,
             ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
-            ValidIssuer = builder.Configuration["JWT_ISSUER"],
-            ValidAudience = builder.Configuration["JWT_AUDIENCE"],
+            ValidIssuer = jwtIssuer,
+            ValidAudience = jwtAudience,
             IssuerSigningKey = new SymmetricSecurityKey(
-                Encoding.UTF8.GetBytes(builder.Configuration["JWT_SECRET"] ?? "your-secret-key-here"))
+                Encoding.UTF8.GetBytes(jwtSecret))
         };
     });
 

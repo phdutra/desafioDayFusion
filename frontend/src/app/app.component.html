@@ -1,48 +1,100 @@
-<div class="app-container">
-  <!-- Navigation Sidebar    -->
-  <nav class="sidebar">
-    <div class="sidebar-header">
-      <div class="logo">
-        <div class="logo-icon">
-          <img src="assets/images/logo_dayfusion.png" alt="DayFusion Logo" />
-          <div class="logo-reflection"></div>
-          <div class="logo-text">
-            <span class="logo-title">DayFusion</span>
-            <span class="logo-subtitle">Reconhecimento Facial</span>
+<ng-container *ngIf="showShell(); else authLayout">
+  <div class="app-container">
+    <nav class="sidebar">
+      <div class="sidebar-header">
+        <div class="logo">
+          <div class="logo-icon">
+            <img src="assets/images/logo_dayfusion.png" alt="DayFusion Logo" />
+            <div class="logo-reflection"></div>
+            <div class="logo-text">
+              <span class="logo-title">DayFusion</span>
+              <span class="logo-subtitle">Reconhecimento Facial</span>
+            </div>
           </div>
         </div>
       </div>
-    </div>
-    
-    <div class="sidebar-divider"></div>
-    
-    <ul class="nav-menu">
-      <li class="nav-item">
-        <a routerLink="/dashboard" routerLinkActive="active" class="nav-link">
-          <span class="nav-icon">🏠</span>
-          <span class="nav-text">Dashboard</span>
-        </a>
-      </li>
-      <li class="nav-item">
-        <a routerLink="/history" routerLinkActive="active" class="nav-link">
-          <span class="nav-icon">📊</span>
-          <span class="nav-text">Histórico</span>
-        </a>
-      </li>
-      <li class="nav-item">
-        <a routerLink="/capture3d" routerLinkActive="active" class="nav-link">
-          <span class="nav-icon">🧠</span>
-          <span class="nav-text">Captura 3D</span>
-        </a>
-      </li>
-    </ul>
-  </nav>
 
-  <!-- Main Content Area -->
-  <main class="main-content">
-    <!-- Page Content -->
-    <div class="page-content">
-      <router-outlet></router-outlet>
-    </div>
-  </main>
-</div>
+      <div class="sidebar-divider"></div>
+
+      <ul class="nav-menu">
+        <li class="nav-item">
+          <a routerLink="/dashboard" routerLinkActive="active" class="nav-link">
+            <span class="nav-icon">📊</span>
+            <span class="nav-text">Dashboard</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a routerLink="/capture3d" routerLinkActive="active" class="nav-link">
+            <span class="nav-icon">🧠</span>
+            <span class="nav-text">Captura 3D</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a routerLink="/history" routerLinkActive="active" class="nav-link">
+            <span class="nav-icon">📋</span>
+            <span class="nav-text">Histórico</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a routerLink="/settings" routerLinkActive="active" class="nav-link">
+            <span class="nav-icon">⚙️</span>
+            <span class="nav-text">Configurações</span>
+          </a>
+        </li>
+
+        <li class="nav-divider"></li>
+
+        <!-- Menu do Usuário: Avatar com Dropdown no Hover -->
+        <li class="nav-item user-menu-container" *ngIf="currentUser()">
+          <div class="user-avatar-trigger">
+            <div class="avatar">
+              <ng-container *ngIf="avatarUrl(); else avatarFallback">
+                <img [src]="avatarUrl()!" [alt]="displayName()" />
+              </ng-container>
+              <ng-template #avatarFallback>
+                <div class="avatar-fallback">{{ userInitials() }}</div>
+              </ng-template>
+            </div>
+            <div class="user-dropdown">
+              <div class="user-dropdown-header">
+                <div class="user-avatar-large">
+                  <ng-container *ngIf="avatarUrl(); else avatarLargeFallback">
+                    <img [src]="avatarUrl()!" [alt]="displayName()" />
+                  </ng-container>
+                  <ng-template #avatarLargeFallback>
+                    <div class="avatar-fallback">{{ userInitials() }}</div>
+                  </ng-template>
+                </div>
+                <div class="user-dropdown-info">
+                  <span class="user-dropdown-name">{{ displayName() }}</span>
+                  <span class="user-dropdown-cpf">CPF {{ displayCpf() }}</span>
+                </div>
+              </div>
+              <div class="user-dropdown-divider"></div>
+              <div class="user-dropdown-actions">
+                <button type="button" class="dropdown-action" (click)="goToProfile()">
+                  <span class="dropdown-icon">✏️</span>
+                  <span>Editar perfil</span>
+                </button>
+                <button type="button" class="dropdown-action logout" (click)="logout()">
+                  <span class="dropdown-icon">🚪</span>
+                  <span>Sair</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </li>
+      </ul>
+    </nav>
+
+    <main class="main-content">
+      <div class="page-content">
+        <router-outlet></router-outlet>
+      </div>
+    </main>
+  </div>
+</ng-container>
+
+<ng-template #authLayout>
+  <router-outlet></router-outlet>
+</ng-template>

@@ -1,0 +1,81 @@
+<section class="login-hero">
+  <div class="hero-content">
+    <div class="face-overlay"></div>
+    <div class="face-flare"></div>
+    <div class="hero-left">
+      <h1 class="brand-title">DayFusion</h1>
+      <p>Autenticação facial instantânea. Olhe para a câmera e confirme sua identidade.</p>
+      <button type="button" class="cta-button" (click)="startFaceLogin()" [disabled]="isModalOpen() || isAuthenticating()">
+        {{ isModalOpen() || isAuthenticating() ? 'Reconhecendo...' : 'Iniciar reconhecimento' }}
+      </button>
+      <span *ngIf="statusMessage()" class="status-message">
+        {{ statusMessage() }}
+      </span>
+    </div>
+
+    <div class="hero-hint" *ngIf="!showCpfFallback()">Clique e autentique via FaceID — sem digitar senha.</div>
+
+    <div class="hero-right" *ngIf="showCpfFallback()">
+      <div class="fallback-card">
+        <h2>Não reconhecido?</h2>
+        <p>Confirme seu CPF para localizar ou criar seu cadastro.</p>
+
+        <form [formGroup]="form" (ngSubmit)="onSubmit()" novalidate>
+          <label for="cpf">CPF</label>
+          <input
+            id="cpf"
+            type="text"
+            autocomplete="off"
+            inputmode="numeric"
+            placeholder="000.000.000-00"
+            formControlName="cpf"
+            (input)="onCpfInput($event)"
+            [class.invalid]="isCpfInvalid()" />
+          <small *ngIf="isCpfInvalid()" class="validation-message">
+            CPF deve conter 11 dígitos.
+          </small>
+
+          <button type="submit" [disabled]="loading()">
+            {{ loading() ? 'Verificando...' : 'Continuar com CPF' }}
+          </button>
+        </form>
+
+        <p *ngIf="errorMessage()" class="error-message">
+          {{ errorMessage() }}
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Modal de Captura Facial -->
+<div class="modal-backdrop" *ngIf="isModalOpen()">
+  <div class="modal-content">
+    <button
+      type="button"
+      class="modal-close"
+      (click)="closeModal()"
+      aria-label="Fechar reconhecimento facial">
+      X
+    </button>
+    <app-liveness-modal
+      [voiceSteps]="voiceSteps()"
+      [documentFile]="null"
+      (sessionCompleted)="handleSessionCompleted($event)"
+      (sessionFailed)="handleSessionFailed($event)">
+    </app-liveness-modal>
+  </div>
+</div>
+
+<!-- Modal de Espera/Autenticação -->
+<div class="wait-modal-backdrop" *ngIf="showWaitModal()">
+  <div class="wait-modal">
+    <div class="wait-spinner">
+      <div class="spinner-ring"></div>
+      <div class="spinner-ring"></div>
+      <div class="spinner-ring"></div>
+    </div>
+    <h2 class="wait-title">{{ waitModalTitle() }}</h2>
+    <p class="wait-message">{{ waitModalMessage() }}</p>
+  </div>
+</div>

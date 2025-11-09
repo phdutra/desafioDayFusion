@@ -22,23 +22,14 @@
     </div>
   </section>
 
-  <section class="steps-section">
-    <h3>Sequência configurada</h3>
-    <div class="steps-grid">
-      <div class="step-card" *ngFor="let step of voiceSteps(); index as i">
-        <div class="step-index">{{ i + 1 }}</div>
-        <div class="step-info">
-          <strong>{{ step.texto }}</strong>
-          <span>Delay: {{ step.delay }}ms · Posição: {{ step.posicao }}</span>
-        </div>
-      </div>
-    </div>
-  </section>
-
+  <!-- 1️⃣ PRIMEIRO: Documento de Referência -->
   <section class="document-upload-card">
     <div class="document-content">
-      <h3>Documento de Referência</h3>
-      <p>Faça upload de um documento (RG/CNH) para comparação facial nas próximas verificações.</p>
+      <div class="step-badge">
+        <span class="step-number">1</span>
+        <h3>Documento de Referência</h3>
+      </div>
+      <p>Primeiro, faça upload de um documento (RG/CNH) para comparação facial.</p>
       <div class="document-input">
         <label class="upload-button">
           <input type="file" accept="image/*" (change)="onDocumentSelected($event)" hidden />
@@ -54,6 +45,24 @@
         <ng-template #noDocument>
           <p class="document-placeholder">Nenhum documento selecionado.</p>
         </ng-template>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2️⃣ DEPOIS: Sequência de Captura -->
+  <section class="steps-section">
+    <div class="step-badge">
+      <span class="step-number">2</span>
+      <h3>Sequência de Captura Facial</h3>
+    </div>
+    <p class="section-description">Após anexar o documento, clique no botão acima para iniciar a captura facial 3D.</p>
+    <div class="steps-grid">
+      <div class="step-card" *ngFor="let step of voiceSteps(); index as i">
+        <div class="step-index">{{ i + 1 }}</div>
+        <div class="step-info">
+          <strong>{{ step.texto }}</strong>
+          <span>Delay: {{ step.delay }}ms · Posição: {{ step.posicao }}</span>
+        </div>
       </div>
     </div>
   </section>
@@ -88,6 +97,7 @@
     <span>⚠️ {{ errorMessage() }}</span>
   </div>
 
+  <!-- Modal de Captura Facial 3D -->
   <div class="modal-overlay" *ngIf="isModalOpen()">
     <div class="modal-wrapper">
       <button class="modal-close" (click)="closeModal()">✕</button>
@@ -97,6 +107,26 @@
         (sessionCompleted)="handleSessionCompleted($event)"
         (sessionFailed)="handleSessionFailed($event)">
       </app-liveness-modal>
+    </div>
+  </div>
+
+  <!-- Modal de Alerta: Documento Obrigatório -->
+  <div class="modal-overlay" *ngIf="showAlertModal()">
+    <div class="alert-modal">
+      <div class="alert-icon">⚠️</div>
+      <h3>Documento Obrigatório</h3>
+      <p>Por favor, anexe um documento de identificação (RG ou CNH) antes de iniciar a verificação facial 3D.</p>
+      <div class="alert-steps">
+        <div class="alert-step">
+          <span class="alert-step-number">1</span>
+          <span>Selecione um documento (RG/CNH)</span>
+        </div>
+        <div class="alert-step">
+          <span class="alert-step-number">2</span>
+          <span>Clique em "Iniciar Verificação 3D"</span>
+        </div>
+      </div>
+      <button class="btn-alert" (click)="closeAlertModal()">Entendi</button>
     </div>
   </div>
 </div>

@@ -1,9 +1,10 @@
 import { CommonModule } from '@angular/common'
-import { Component, computed, signal, ViewChild } from '@angular/core'
+import { Component, computed, HostListener, inject, signal, ViewChild } from '@angular/core'
 import { LivenessModalComponent } from '../../components/liveness-modal/liveness-modal.component'
 import { LivenessSummary } from '../../core/models/liveness-result.model'
 import { VoiceStep } from '../../core/models/voice-step.model'
 import { LivenessHistoryService } from '../../core/services/liveness-history.service'
+import { VoiceStepsConfigService } from '../../core/services/voice-steps-config.service'
 
 @Component({
   selector: 'app-capture3d',
@@ -13,14 +14,13 @@ import { LivenessHistoryService } from '../../core/services/liveness-history.ser
   styleUrls: ['./capture3d.component.scss']
 })
 export class Capture3dComponent {
+  private readonly historyService = inject(LivenessHistoryService)
+  private readonly voiceStepsConfig = inject(VoiceStepsConfigService)
+  
   @ViewChild(LivenessModalComponent) livenessModal?: LivenessModalComponent
 
-  readonly voiceSteps = signal<VoiceStep[]>([
-    { texto: 'Olhe para frente', delay: 1500, posicao: 'frente' },
-    { texto: 'Vire à esquerda', delay: 2000, posicao: 'esquerda' },
-    { texto: 'Vire à direita', delay: 2000, posicao: 'direita' },
-    { texto: 'Piscar e sorrir', delay: 2000, posicao: 'piscar_sorrir' }
-  ])
+  // Usar o serviço compartilhado para obter as instruções configuradas no Dashboard
+  readonly voiceSteps = this.voiceStepsConfig.steps
 
   lastResult = signal<LivenessSummary | null>(null)
   errorMessage = signal<string | null>(null)
@@ -49,12 +49,43 @@ export class Capture3dComponent {
     }
   })
 
-  constructor(private readonly historyService: LivenessHistoryService) {}
+  showAlertModal = signal<boolean>(false)
+
+  constructor() {
+    // Log para debug: mostrar que está usando instruções do serviço compartilhado
+    console.log('🎤 Capture3D inicializado com', this.voiceSteps().length, 'instruções de voz')
+  }
+
+  @HostListener('window:keydown.escape', ['$event'])
+  handleEscapeKey(event: KeyboardEvent): void {
+    // Fechar modal de captura se estiver aberto
+    if (this.isModalOpen()) {
+      event.preventDefault()
+      console.log('⌨️ ESC pressionado - fechando modal de captura')
+      this.closeModal()
+    }
+    // Fechar modal de alerta se estiver aberto
+    else if (this.showAlertModal()) {
+      event.preventDefault()
+      console.log('⌨️ ESC pressionado - fechando modal de alerta')
+      this.closeAlertModal()
+    }
+  }
 
   openModal(): void {
+    // Valida se o documento foi anexado antes de abrir o modal de captura facial
+    if (!this.documentFile()) {
+      this.showAlertModal.set(true)
+      return
+    }
+
     this.errorMessage.set(null)
     this.isModalOpen.set(true)
     setTimeout(() => this.startSession(), 150)
+  }
+
+  closeAlertModal(): void {
+    this.showAlertModal.set(false)
   }
 
   closeModal(): void {
