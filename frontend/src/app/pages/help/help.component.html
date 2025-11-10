@@ -1,0 +1,527 @@
+<div class="help-container">
+  <!-- Sidebar de navegação -->
+  <aside class="help-sidebar">
+    <div class="help-sidebar-header">
+      <h2>📚 Documentação</h2>
+      <p>DayFusion Security</p>
+    </div>
+    
+    <nav class="help-nav">
+      @for (section of sections(); track section.id) {
+        <button 
+          class="help-nav-item" 
+          [class.active]="section.active"
+          (click)="selectSection(section.id)">
+          <span class="help-nav-icon">{{ section.icon }}</span>
+          <span class="help-nav-text">{{ section.title }}</span>
+        </button>
+      }
+    </nav>
+  </aside>
+
+  <!-- Conteúdo principal -->
+  <main class="help-content">
+    <!-- Seção: Anti-Deepfake -->
+    <section id="anti-deepfake" class="help-section">
+      <div class="section-header">
+        <h1>🛡️ Camada Anti-Deepfake</h1>
+        <p class="section-subtitle">Autenticação Facial de Nível Fintech</p>
+      </div>
+
+      <div class="info-card info-highlight">
+        <h3>🎯 Estratégia de Duas Camadas</h3>
+        <p>O DayFusion implementa proteção em <strong>dois níveis complementares</strong> para garantir autenticação facial segura contra fraudes avançadas:</p>
+      </div>
+
+      <div class="layers-grid">
+        <div class="layer-card layer-primary">
+          <div class="layer-number">1</div>
+          <h3>Face Liveness (AWS Rekognition)</h3>
+          <p class="layer-description">Garante que é uma <strong>pessoa real e presente</strong></p>
+          <ul class="layer-features">
+            <li>✅ Detecta fotos impressas</li>
+            <li>✅ Detecta replay de vídeos</li>
+            <li>✅ Detecta máscaras 3D</li>
+            <li>✅ Movimentos naturais em 3D</li>
+            <li>✅ Análise de profundidade facial</li>
+          </ul>
+        </div>
+
+        <div class="layer-card layer-secondary">
+          <div class="layer-number">2</div>
+          <h3>Anti-Deepfake (IA Própria)</h3>
+          <p class="layer-description">Detecta <strong>manipulações de vídeo/áudio e artefatos generativos</strong></p>
+          <ul class="layer-features">
+            <li>✅ Padrões de piscar naturais</li>
+            <li>✅ Análise de microexpressões</li>
+            <li>✅ Sincronismo áudio-vídeo (lip-sync)</li>
+            <li>✅ Artefatos GAN/Diffusion</li>
+            <li>✅ Inconsistências temporais</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="info-card info-comparison">
+        <h3>📊 Comparação de Proteções</h3>
+        <div class="comparison-table">
+          <table>
+            <thead>
+              <tr>
+                <th>Ameaça</th>
+                <th>Face Liveness</th>
+                <th>Anti-Deepfake</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Foto impressa</td>
+                <td class="status-full">✅ Detecta</td>
+                <td class="status-none">❌ Não detecta</td>
+              </tr>
+              <tr>
+                <td>Replay de vídeo</td>
+                <td class="status-full">✅ Detecta</td>
+                <td class="status-partial">⚠️ Parcial</td>
+              </tr>
+              <tr>
+                <td>Máscara 3D</td>
+                <td class="status-full">✅ Detecta</td>
+                <td class="status-none">❌ Não detecta</td>
+              </tr>
+              <tr>
+                <td>Deepfake (IA)</td>
+                <td class="status-partial">⚠️ Parcial</td>
+                <td class="status-full">✅ Detecta</td>
+              </tr>
+              <tr>
+                <td>Áudio sintético</td>
+                <td class="status-none">❌ Não analisa</td>
+                <td class="status-full">✅ Detecta</td>
+              </tr>
+              <tr>
+                <td>Artefatos GAN/Diffusion</td>
+                <td class="status-none">❌ Não detecta</td>
+                <td class="status-full">✅ Detecta</td>
+              </tr>
+              <tr>
+                <td>Lip-sync falso</td>
+                <td class="status-none">❌ Não verifica</td>
+                <td class="status-full">✅ Detecta</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Seção: Fluxo de Autenticação -->
+    <section id="fluxo" class="help-section">
+      <div class="section-header">
+        <h1>🔄 Fluxo de Autenticação Completo</h1>
+        <p class="section-subtitle">Pipeline de Segurança Multicamadas</p>
+      </div>
+
+      <div class="flow-diagram">
+        <div class="flow-step">
+          <div class="flow-step-number">1</div>
+          <div class="flow-step-content">
+            <h3>📹 Captura (Frontend)</h3>
+            <p>Vídeo curto de 3-5 segundos com áudio</p>
+            <div class="flow-step-details">
+              <span class="badge badge-tech">Angular 19</span>
+              <span class="badge badge-tech">MediaRecorder API</span>
+              <span class="badge badge-tech">WebRTC</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="flow-arrow">↓</div>
+
+        <div class="flow-step">
+          <div class="flow-step-number">2</div>
+          <div class="flow-step-content">
+            <h3>🧠 Face Liveness 3D</h3>
+            <p>Validação de presença real em 3D</p>
+            <div class="flow-step-details">
+              <span class="badge badge-aws">AWS Rekognition</span>
+              <span class="badge badge-data">LivenessDecision</span>
+              <span class="badge badge-data">Confidence Score</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="flow-arrow">↓</div>
+
+        <div class="flow-step">
+          <div class="flow-step-number">3</div>
+          <div class="flow-step-content">
+            <h3>🛡️ Anti-Deepfake (Lambda)</h3>
+            <p>Análise avançada de artefatos e sincronismo</p>
+            <div class="flow-step-details">
+              <span class="badge badge-ai">TensorFlow</span>
+              <span class="badge badge-ai">Hugging Face</span>
+              <span class="badge badge-data">DeepfakeScore</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="flow-arrow">↓</div>
+
+        <div class="flow-step">
+          <div class="flow-step-number">4</div>
+          <div class="flow-step-content">
+            <h3>⚖️ Decisão Final</h3>
+            <p>Aplicação de thresholds e políticas de risco</p>
+            <div class="flow-step-details">
+              <span class="badge badge-decision badge-success">APROVADO</span>
+              <span class="badge badge-decision badge-warning">REVISÃO</span>
+              <span class="badge badge-decision badge-danger">REJEITADO</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="flow-arrow">↓</div>
+
+        <div class="flow-step">
+          <div class="flow-step-number">5</div>
+          <div class="flow-step-content">
+            <h3>📊 Auditoria & Logs</h3>
+            <p>Registro completo para compliance LGPD/ISO</p>
+            <div class="flow-step-details">
+              <span class="badge badge-storage">DynamoDB</span>
+              <span class="badge badge-storage">S3 (lifecycle 24h)</span>
+              <span class="badge badge-storage">CloudWatch</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="info-card info-code">
+        <h3>🎯 Política de Decisão</h3>
+        <pre class="code-block"><code>IF LivenessDecision != "REAL_PERSON"
+  → REJEITAR
+
+ELSE IF DeepfakeScore >= 0.60
+  → REJEITAR (alto risco de deepfake)
+
+ELSE IF DeepfakeScore >= 0.30 AND DeepfakeScore < 0.60
+  → ENVIAR PARA REVISÃO MANUAL
+
+ELSE
+  → APROVAR (baixo risco)</code></pre>
+      </div>
+    </section>
+
+    <!-- Seção: Face Liveness 3D -->
+    <section id="face-liveness" class="help-section">
+      <div class="section-header">
+        <h1>🧠 Face Liveness 3D (AWS Rekognition)</h1>
+        <p class="section-subtitle">Validação de Presença Real com Profundidade 3D</p>
+      </div>
+
+      <div class="feature-grid">
+        <div class="feature-card">
+          <div class="feature-icon">👤</div>
+          <h3>Análise 3D Completa</h3>
+          <p>Valida profundidade facial, movimentos naturais e características biométricas em tempo real</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">🎭</div>
+          <h3>Anti-Spoofing</h3>
+          <p>Detecta tentativas de fraude com fotos, vídeos, máscaras e outros artefatos físicos</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">⚡</div>
+          <h3>Resposta Rápida</h3>
+          <p>Resultado em menos de 3 segundos com confidence score de até 99%</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">🔐</div>
+          <h3>Certificado AWS</h3>
+          <p>Tecnologia iBeta Level 1 & 2 compliant, utilizada por fintechs globais</p>
+        </div>
+      </div>
+
+      <div class="info-card">
+        <h3>📈 Métricas de Qualidade</h3>
+        <div class="metrics-grid">
+          <div class="metric-item">
+            <span class="metric-value">≥ 90%</span>
+            <span class="metric-label">LIVE (Aprovado)</span>
+          </div>
+          <div class="metric-item">
+            <span class="metric-value">70-89%</span>
+            <span class="metric-label">GOOD (Revisão)</span>
+          </div>
+          <div class="metric-item">
+            <span class="metric-value">50-69%</span>
+            <span class="metric-label">FAIR (Suspeito)</span>
+          </div>
+          <div class="metric-item">
+            <span class="metric-value">< 50%</span>
+            <span class="metric-label">POOR (Spoof)</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Seção: Comparação Facial -->
+    <section id="match" class="help-section">
+      <div class="section-header">
+        <h1>🎯 Comparação Facial (Face Match)</h1>
+        <p class="section-subtitle">Validação de Identidade por Similaridade</p>
+      </div>
+
+      <div class="match-flow">
+        <div class="match-source">
+          <h3>Imagem de Referência</h3>
+          <p>Foto do Liveness 3D<br/>(referência "viva")</p>
+          <div class="match-placeholder">
+            <span class="match-icon">🧑</span>
+            <span class="match-label">Reference.jpg</span>
+          </div>
+        </div>
+
+        <div class="match-comparison">
+          <div class="match-arrow">→</div>
+          <span class="match-vs">VS</span>
+          <div class="match-arrow">←</div>
+          <div class="match-algo">
+            <h4>AWS CompareFaces</h4>
+            <ul>
+              <li>128+ pontos faciais</li>
+              <li>Embeddings vetoriais</li>
+              <li>Threshold 80%</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="match-target">
+          <h3>Documento de Identidade</h3>
+          <p>RG, CNH, Passaporte<br/>(foto oficial)</p>
+          <div class="match-placeholder">
+            <span class="match-icon">📄</span>
+            <span class="match-label">Document.jpg</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="info-card info-success">
+        <h3>✅ Resultado do Match</h3>
+        <div class="match-result">
+          <div class="result-bar">
+            <div class="result-bar-fill" style="width: 93%">
+              <span class="result-bar-label">93% Similaridade</span>
+            </div>
+          </div>
+          <p class="result-message"><strong>APROVADO:</strong> Liveness = 98% + Similaridade = 93% → Identidade confirmada</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Seção: Arquitetura & APIs -->
+    <section id="api" class="help-section">
+      <div class="section-header">
+        <h1>⚙️ Arquitetura & APIs</h1>
+        <p class="section-subtitle">Stack Tecnológica e Endpoints</p>
+      </div>
+
+      <div class="architecture-diagram">
+        <div class="arch-layer arch-frontend">
+          <h3>Frontend</h3>
+          <div class="arch-components">
+            <span class="arch-tech">Angular 19</span>
+            <span class="arch-tech">TypeScript</span>
+            <span class="arch-tech">RxJS</span>
+            <span class="arch-tech">Standalone Components</span>
+          </div>
+        </div>
+
+        <div class="arch-arrow">⇅</div>
+
+        <div class="arch-layer arch-backend">
+          <h3>Backend API</h3>
+          <div class="arch-components">
+            <span class="arch-tech">.NET 9</span>
+            <span class="arch-tech">C# Controllers</span>
+            <span class="arch-tech">Dependency Injection</span>
+          </div>
+        </div>
+
+        <div class="arch-arrow">⇅</div>
+
+        <div class="arch-layer arch-aws">
+          <h3>AWS Services</h3>
+          <div class="arch-components">
+            <span class="arch-tech">Rekognition</span>
+            <span class="arch-tech">S3</span>
+            <span class="arch-tech">DynamoDB</span>
+            <span class="arch-tech">Lambda</span>
+            <span class="arch-tech">CloudWatch</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="api-endpoints">
+        <h3>📡 Principais Endpoints</h3>
+        
+        <div class="endpoint-card">
+          <span class="http-method http-post">POST</span>
+          <code>/api/liveness/session</code>
+          <p>Cria sessão de Face Liveness 3D</p>
+        </div>
+
+        <div class="endpoint-card">
+          <span class="http-method http-get">GET</span>
+          <code>/api/liveness/results?sessionId={{ '{' }}id{{ '}' }}</code>
+          <p>Obtém resultado do Liveness (com imagens)</p>
+        </div>
+
+        <div class="endpoint-card">
+          <span class="http-method http-post">POST</span>
+          <code>/api/liveness/compare</code>
+          <p>Compara referência Liveness com documento</p>
+        </div>
+
+        <div class="endpoint-card">
+          <span class="http-method http-post">POST</span>
+          <code>/api/anti-deepfake/analyze</code>
+          <p>Análise anti-deepfake via Lambda TF/HF</p>
+        </div>
+
+        <div class="endpoint-card">
+          <span class="http-method http-post">POST</span>
+          <code>/api/verify</code>
+          <p>Orquestra: Liveness + Anti-Deepfake + Match</p>
+        </div>
+
+        <div class="endpoint-card">
+          <span class="http-method http-get">GET</span>
+          <code>/api/sessions/{{ '{' }}id{{ '}' }}</code>
+          <p>Consulta auditoria de sessão</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Seção: Segurança -->
+    <section id="seguranca" class="help-section">
+      <div class="section-header">
+        <h1>🔒 Políticas de Segurança</h1>
+        <p class="section-subtitle">Compliance LGPD & ISO 27001</p>
+      </div>
+
+      <div class="security-grid">
+        <div class="security-card">
+          <div class="security-icon">🔐</div>
+          <h3>Criptografia</h3>
+          <ul>
+            <li>TLS 1.3 em trânsito</li>
+            <li>AES-256 em repouso (S3)</li>
+            <li>Presigned URLs temporárias</li>
+          </ul>
+        </div>
+
+        <div class="security-card">
+          <div class="security-icon">⏱️</div>
+          <h3>Retenção de Dados</h3>
+          <ul>
+            <li>Vídeos: 24h (lifecycle S3)</li>
+            <li>Logs de sessão: 90 dias</li>
+            <li>Auditoria: 5 anos</li>
+          </ul>
+        </div>
+
+        <div class="security-card">
+          <div class="security-icon">👁️</div>
+          <h3>Auditoria</h3>
+          <ul>
+            <li>SessionId rastreável</li>
+            <li>Device fingerprint</li>
+            <li>IP hash (SHA-256)</li>
+            <li>Versão de modelos</li>
+          </ul>
+        </div>
+
+        <div class="security-card">
+          <div class="security-icon">🛡️</div>
+          <h3>IAM & Permissões</h3>
+          <ul>
+            <li>Identity Pool Cognito</li>
+            <li>Roles mínimas (least privilege)</li>
+            <li>Rotação de credenciais</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="info-card info-warning">
+        <h3>⚠️ Boas Práticas</h3>
+        <ul class="best-practices">
+          <li>✅ <strong>Minimização de dados:</strong> Capture apenas o necessário (3-5s de vídeo)</li>
+          <li>✅ <strong>Consentimento explícito:</strong> Aviso antes de iniciar captura biométrica</li>
+          <li>✅ <strong>Explicabilidade:</strong> Salvar motivo da decisão (statusReason)</li>
+          <li>✅ <strong>Direito ao esquecimento:</strong> API para exclusão de dados biométricos</li>
+          <li>✅ <strong>Logs sem PII:</strong> Hash de CPF/IP, pseudonimização de userId</li>
+        </ul>
+      </div>
+
+      <div class="info-card">
+        <h3>📋 Checklist de Implementação</h3>
+        <div class="checklist">
+          <label class="checklist-item">
+            <input type="checkbox" checked disabled />
+            <span>Bucket S3 com versionamento e lifecycle ≤24h</span>
+          </label>
+          <label class="checklist-item">
+            <input type="checkbox" checked disabled />
+            <span>CORS configurado (localhost + domínios oficiais)</span>
+          </label>
+          <label class="checklist-item">
+            <input type="checkbox" checked disabled />
+            <span>Identity Pool com Rekognition Liveness + KVS WebRTC</span>
+          </label>
+          <label class="checklist-item">
+            <input type="checkbox" checked disabled />
+            <span>Tabela DynamoDB DayFusionSessions criada</span>
+          </label>
+          <label class="checklist-item">
+            <input type="checkbox" disabled />
+            <span>Lambda Anti-Deepfake (TF/HF) como container Docker</span>
+          </label>
+          <label class="checklist-item">
+            <input type="checkbox" disabled />
+            <span>Endpoints .NET implementados</span>
+          </label>
+          <label class="checklist-item">
+            <input type="checkbox" disabled />
+            <span>Captura 3-5s com áudio no Angular</span>
+          </label>
+          <label class="checklist-item">
+            <input type="checkbox" disabled />
+            <span>Métricas/Alarmes no CloudWatch</span>
+          </label>
+          <label class="checklist-item">
+            <input type="checkbox" disabled />
+            <span>Documentação de retenção e políticas LGPD</span>
+          </label>
+        </div>
+      </div>
+    </section>
+
+    <!-- Footer com contato -->
+    <footer class="help-footer">
+      <div class="footer-content">
+        <h3>📞 Precisa de Ajuda?</h3>
+        <p>Entre em contato com o DayFusion Core Team — Segurança & Biometria</p>
+        <div class="footer-links">
+          <a href="#" class="footer-link">📧 Suporte Técnico</a>
+          <a href="#" class="footer-link">📖 Documentação Completa</a>
+          <a href="#" class="footer-link">🔗 GitHub</a>
+        </div>
+      </div>
+    </footer>
+  </main>
+</div>
+

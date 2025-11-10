@@ -45,6 +45,10 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/capture3d/capture3d.component').then(m => m.Capture3dComponent)
   },
   {
+    path: 'help',
+    loadComponent: () => import('./pages/help/help.component').then(m => m.HelpComponent)
+  },
+  {
     path: '**',
     redirectTo: '/login'
   }
