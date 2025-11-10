@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, signal, OnInit, OnDestroy, HostListener } from '@angular/core';
+import { Component, signal, OnInit, HostListener } from '@angular/core';
 
 interface HelpSection {
   id: string;
@@ -15,7 +15,7 @@ interface HelpSection {
   templateUrl: './help.component.html',
   styleUrls: ['./help.component.scss']
 })
-export class HelpComponent implements OnInit, OnDestroy {
+export class HelpComponent implements OnInit {
   readonly sections = signal<HelpSection[]>([
     { id: 'anti-deepfake', title: 'Segurança Anti-Deepfake', icon: '🛡️', active: true },
     { id: 'fluxo', title: 'Fluxo de Autenticação', icon: '🔄', active: false },
@@ -27,58 +27,19 @@ export class HelpComponent implements OnInit, OnDestroy {
   ]);
 
   readonly currentSection = signal<string>('anti-deepfake');
-  
-  private intersectionObserver?: IntersectionObserver;
+  private readonly scrollOffset = 180;
   private userScrolling = false;
 
   ngOnInit(): void {
-    this.setupScrollSpy();
+    setTimeout(() => this.detectSectionInView(), 0);
   }
 
-  ngOnDestroy(): void {
-    if (this.intersectionObserver) {
-      this.intersectionObserver.disconnect();
+  @HostListener('window:scroll')
+  onWindowScroll(): void {
+    if (this.userScrolling) {
+      return;
     }
-  }
-
-  /**
-   * Configura o IntersectionObserver para detectar seções visíveis
-   */
-  private setupScrollSpy(): void {
-    const options = {
-      root: null,
-      rootMargin: '-20% 0px -60% 0px', // Ativa quando seção está no topo/meio da tela
-      threshold: [0, 0.1, 0.2, 0.3]
-    };
-
-    this.intersectionObserver = new IntersectionObserver((entries) => {
-      // Somente atualiza se não for scroll manual do usuário
-      if (this.userScrolling) return;
-
-      // Encontra a seção mais visível
-      const visibleEntries = entries
-        .filter(entry => entry.isIntersecting)
-        .sort((a, b) => b.intersectionRatio - a.intersectionRatio);
-
-      if (visibleEntries.length > 0) {
-        const mostVisible = visibleEntries[0];
-        const sectionId = mostVisible.target.id;
-        
-        if (sectionId && this.currentSection() !== sectionId) {
-          this.updateActiveSection(sectionId);
-        }
-      }
-    }, options);
-
-    // Observa todas as seções
-    setTimeout(() => {
-      this.sections().forEach(section => {
-        const element = document.getElementById(section.id);
-        if (element) {
-          this.intersectionObserver?.observe(element);
-        }
-      });
-    }, 100);
+    this.detectSectionInView();
   }
 
   /**
@@ -111,7 +72,37 @@ export class HelpComponent implements OnInit, OnDestroy {
     // Libera detecção automática após 1 segundo
     setTimeout(() => {
       this.userScrolling = false;
+      this.detectSectionInView();
     }, 1000);
+  }
+
+  /**
+   * Detecta qual seção está visível com base na posição do scroll
+   */
+  private detectSectionInView(): void {
+    const sections = this.sections();
+    if (sections.length === 0) {
+      return;
+    }
+
+    let activeId = sections[0].id;
+
+    for (const section of sections) {
+      const element = document.getElementById(section.id);
+      if (!element) {
+        continue;
+      }
+
+      const rect = element.getBoundingClientRect();
+
+      if (rect.top <= this.scrollOffset) {
+        activeId = section.id;
+      }
+    }
+
+    if (activeId && activeId !== this.currentSection()) {
+      this.updateActiveSection(activeId);
+    }
   }
 }
 

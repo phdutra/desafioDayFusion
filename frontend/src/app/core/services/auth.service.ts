@@ -25,10 +25,34 @@ export class AuthService {
   private currentUserSubject = new BehaviorSubject<UserProfile | null>(null);
   public currentUser$ = this.currentUserSubject.asObservable();
   public isAuthenticated = signal(false);
+  
+  // Flag para indicar se o logout foi voluntário (clique no botão Sair)
+  private isVoluntaryLogout = false;
 
   constructor(private readonly http: HttpClient) {
     // Atrasa a inicialização para evitar dependência circular com o interceptor
     setTimeout(() => this.loadStoredAuth(), 0);
+  }
+
+  /**
+   * Verifica se o logout atual é voluntário (usuário clicou em Sair)
+   */
+  isLogoutVoluntary(): boolean {
+    return this.isVoluntaryLogout;
+  }
+
+  /**
+   * Marca o início de um logout voluntário
+   */
+  private markVoluntaryLogout(): void {
+    this.isVoluntaryLogout = true;
+  }
+
+  /**
+   * Reseta a flag de logout voluntário
+   */
+  private resetVoluntaryLogout(): void {
+    this.isVoluntaryLogout = false;
   }
 
   checkCpf(cpf: string): Observable<CpfLookupResponse> {
@@ -94,11 +118,16 @@ export class AuthService {
   }
 
   logout(): Observable<unknown> {
+    // Marca como logout voluntário antes de fazer a requisição
+    this.markVoluntaryLogout();
+    
     return this.http.post(`${this.API_URL}/auth/logout`, {})
       .pipe(
         tap(() => {
           this.clearAuth();
           this.isAuthenticated.set(false);
+          // Reseta a flag após 500ms (tempo suficiente para o interceptor verificar)
+          setTimeout(() => this.resetVoluntaryLogout(), 500);
         })
       );
   }

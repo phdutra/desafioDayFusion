@@ -19,8 +19,10 @@ export const sessionExpiredInterceptor: HttpInterceptorFn = (req, next) => {
         // Limpa dados de autenticação
         authService.logout().subscribe();
         
-        // Mostra modal de sessão expirada
-        modalService.showModal();
+        // Mostra modal APENAS se NÃO for um logout voluntário
+        if (!authService.isLogoutVoluntary()) {
+          modalService.showModal();
+        }
       }
       
       return throwError(() => error);
