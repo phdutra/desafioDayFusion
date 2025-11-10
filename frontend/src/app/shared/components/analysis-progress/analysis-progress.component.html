@@ -1,0 +1,81 @@
+<div class="analysis-overlay" *ngIf="show" [@fadeIn]>
+  <div class="analysis-card" [@slideIn]>
+    <!-- Header -->
+    <div class="analysis-header">
+      <div class="icon-container" [class.error]="currentStep === 'error'">
+        <div class="spinner" *ngIf="currentStep !== 'complete' && currentStep !== 'error'"></div>
+        <svg *ngIf="currentStep === 'complete'" class="checkmark" viewBox="0 0 52 52">
+          <circle class="checkmark-circle" cx="26" cy="26" r="25" fill="none"/>
+          <path class="checkmark-check" fill="none" d="M14.1 27.2l7.1 7.2 16.7-16.8"/>
+        </svg>
+        <svg *ngIf="currentStep === 'error'" class="error-icon" viewBox="0 0 52 52">
+          <circle class="error-circle" cx="26" cy="26" r="25" fill="none"/>
+          <path class="error-cross" fill="none" d="M16 16 36 36 M36 16 16 36"/>
+        </svg>
+      </div>
+      
+      <h3 class="title">{{ stepLabel }}</h3>
+      <p class="description">{{ message || stepDescription }}</p>
+    </div>
+
+    <!-- Progress Bar -->
+    <div class="progress-container" *ngIf="currentStep !== 'complete' && currentStep !== 'error'">
+      <div class="progress-bar">
+        <div 
+          class="progress-fill" 
+          [style.width.%]="progressPercentage"
+        ></div>
+      </div>
+      <span class="progress-text">{{ progressPercentage | number:'1.0-0' }}%</span>
+    </div>
+
+    <!-- Steps Indicator -->
+    <div class="steps-container" *ngIf="currentStep !== 'error'">
+      <div class="step" [class.active]="isStepActive('recording')" [class.complete]="isStepComplete('recording')">
+        <div class="step-icon">
+          <span *ngIf="!isStepComplete('recording')">1</span>
+          <svg *ngIf="isStepComplete('recording')" viewBox="0 0 24 24">
+            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+          </svg>
+        </div>
+        <span class="step-label">Gravação</span>
+      </div>
+
+      <div class="step" [class.active]="isStepActive('uploading')" [class.complete]="isStepComplete('uploading')">
+        <div class="step-icon">
+          <span *ngIf="!isStepComplete('uploading')">2</span>
+          <svg *ngIf="isStepComplete('uploading')" viewBox="0 0 24 24">
+            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+          </svg>
+        </div>
+        <span class="step-label">Upload</span>
+      </div>
+
+      <div class="step" [class.active]="isStepActive('detecting')" [class.complete]="isStepComplete('detecting')">
+        <div class="step-icon">
+          <span *ngIf="!isStepComplete('detecting')">3</span>
+          <svg *ngIf="isStepComplete('detecting')" viewBox="0 0 24 24">
+            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+          </svg>
+        </div>
+        <span class="step-label">Detecção</span>
+      </div>
+
+      <div class="step" [class.active]="isStepActive('analyzing')" [class.complete]="isStepComplete('analyzing')">
+        <div class="step-icon">
+          <span *ngIf="!isStepComplete('analyzing')">4</span>
+          <svg *ngIf="isStepComplete('analyzing')" viewBox="0 0 24 24">
+            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+          </svg>
+        </div>
+        <span class="step-label">Análise IA</span>
+      </div>
+    </div>
+
+    <!-- Message for custom feedback -->
+    <p class="custom-message" *ngIf="message && currentStep !== 'error'">
+      {{ message }}
+    </p>
+  </div>
+</div>
+

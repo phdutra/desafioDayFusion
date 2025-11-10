@@ -112,6 +112,183 @@
           </table>
         </div>
       </div>
+
+      <div class="info-card info-highlight">
+        <h3>📹 Como Funciona a Captura de Vídeo</h3>
+        <p>Durante a verificação, o sistema grava um <strong>vídeo curto de 4 segundos com áudio</strong> que é analisado por inteligência artificial para detectar possíveis manipulações.</p>
+      </div>
+
+      <div class="info-card">
+        <h3>📊 O que o Sistema Analisa</h3>
+        <div class="analysis-grid">
+          <div class="analysis-item">
+            <div class="analysis-icon">👁️</div>
+            <h4>Padrão de Piscadas</h4>
+            <p><strong>Normal:</strong> 15-25 piscadas por minuto<br/>
+               <strong>Anômalo:</strong> Menos de 12 ou mais de 30 piscadas por minuto</p>
+            <p class="analysis-detail">Deepfakes frequentemente apresentam padrões irregulares de piscadas, muito rápidas ou muito lentas.</p>
+          </div>
+
+          <div class="analysis-item">
+            <div class="analysis-icon">🎤</div>
+            <h4>Sincronismo Áudio-Vídeo</h4>
+            <p><strong>OK:</strong> Movimento labial perfeitamente sincronizado<br/>
+               <strong>Lag:</strong> Atraso maior que 100ms<br/>
+               <strong>Mismatch:</strong> Dessincronia detectada</p>
+            <p class="analysis-detail">A análise de lip-sync identifica vídeos onde áudio e movimento labial não correspondem.</p>
+          </div>
+
+          <div class="analysis-item">
+            <div class="analysis-icon">🖼️</div>
+            <h4>Artefatos Generativos</h4>
+            <p><strong>GAN edges:</strong> Bordas artificiais ao redor do rosto<br/>
+               <strong>Warping:</strong> Distorções faciais sutis<br/>
+               <strong>Temporal:</strong> Inconsistências entre frames</p>
+            <p class="analysis-detail">IAs generativas (GAN/Diffusion) deixam marcas específicas que podem ser detectadas.</p>
+          </div>
+
+          <div class="analysis-item">
+            <div class="analysis-icon">😊</div>
+            <h4>Microexpressões Faciais</h4>
+            <p><strong>Natural:</strong> Expressões espontâneas e fluidas<br/>
+               <strong>Sintético:</strong> Expressões artificiais ou rígidas<br/>
+               <strong>Freezing:</strong> Congelamento momentâneo</p>
+            <p class="analysis-detail">Expressões faciais naturais são difíceis de replicar perfeitamente por IAs.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="info-card info-code">
+        <h3>⚖️ Política de Decisão com Thresholds</h3>
+        <p>O sistema calcula um <strong>DeepfakeScore</strong> de 0.0 a 1.0 e aplica thresholds para decisão:</p>
+        <div class="threshold-grid">
+          <div class="threshold-item threshold-success">
+            <div class="threshold-score">< 0.30</div>
+            <h4>✅ Vídeo Autêntico</h4>
+            <p>Baixo risco de deepfake. Padrões naturais detectados em todas as análises.</p>
+            <strong>Ação:</strong> Aprovado automaticamente
+          </div>
+
+          <div class="threshold-item threshold-warning">
+            <div class="threshold-score">0.30 - 0.60</div>
+            <h4>👀 Suspeito</h4>
+            <p>Risco moderado. Alguns indicadores anômalos detectados que requerem atenção.</p>
+            <strong>Ação:</strong> Revisão manual necessária
+          </div>
+
+          <div class="threshold-item threshold-danger">
+            <div class="threshold-score">≥ 0.60</div>
+            <h4>❌ Alta Probabilidade de Deepfake</h4>
+            <p>Alto risco de manipulação. Múltiplos artefatos ou padrões suspeitos detectados.</p>
+            <strong>Ação:</strong> Rejeitado por segurança
+          </div>
+        </div>
+      </div>
+
+      <div class="info-card info-warning">
+        <h3>🔐 Privacidade e Proteção de Dados (LGPD)</h3>
+        <p>Levamos sua privacidade a sério. Veja como protegemos seus dados:</p>
+        <ul class="privacy-list">
+          <li>
+            <strong>🔒 Criptografia Total:</strong> Vídeos são criptografados em repouso (S3-SSE) e em trânsito (TLS 1.3).
+          </li>
+          <li>
+            <strong>⏰ Retenção Temporária:</strong> Vídeos expiram automaticamente em <strong>24 horas</strong> via S3 Lifecycle Policy.
+          </li>
+          <li>
+            <strong>📝 Minimização de Dados:</strong> Apenas scores e indicadores são salvos permanentemente no banco de dados.
+          </li>
+          <li>
+            <strong>✅ 100% Compliance:</strong> Totalmente compatível com LGPD (Brasil) e ISO 27001 (internacional).
+          </li>
+          <li>
+            <strong>🗑️ Direito ao Esquecimento:</strong> Você pode solicitar remoção imediata de seus dados a qualquer momento.
+          </li>
+          <li>
+            <strong>🔍 Auditoria Completa:</strong> Todos os acessos e processamentos são registrados para rastreabilidade.
+          </li>
+        </ul>
+      </div>
+
+      <div class="info-card">
+        <h3>💡 Benefícios da Camada Anti-Deepfake</h3>
+        <div class="benefits-grid">
+          <div class="benefit-item">
+            <span class="benefit-icon">🛡️</span>
+            <h4>Segurança Reforçada</h4>
+            <p>Proteção contra fraudes avançadas que enganam sistemas tradicionais</p>
+          </div>
+          <div class="benefit-item">
+            <span class="benefit-icon">🎯</span>
+            <h4>Precisão Elevada</h4>
+            <p>Combinação de múltiplas análises aumenta taxa de detecção</p>
+          </div>
+          <div class="benefit-item">
+            <span class="benefit-icon">⚡</span>
+            <h4>Resposta Rápida</h4>
+            <p>Análise completa em menos de 1 segundo via Lambda IA</p>
+          </div>
+          <div class="benefit-item">
+            <span class="benefit-icon">🔄</span>
+            <h4>Sempre Atualizado</h4>
+            <p>Modelo de IA atualizado continuamente contra novas ameaças</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="info-card info-highlight">
+        <h3>🔬 Sobre o Modelo de IA Atual</h3>
+        <p>O sistema atualmente utiliza um <strong>modelo stub v1.0.0</strong> para validação da arquitetura:</p>
+        <ul>
+          <li>📊 <strong>Distribuição simulada:</strong> 80% vídeos naturais, 15% suspeitos, 5% deepfakes</li>
+          <li>🎯 <strong>Objetivo:</strong> Validar fluxo completo e interface antes do modelo real</li>
+          <li>⚡ <strong>Performance:</strong> ~500ms de análise (mesmo tempo esperado para modelo real)</li>
+        </ul>
+        <div class="future-model">
+          <h4>🚀 Próxima Versão: Modelo Real</h4>
+          <p>Em desenvolvimento: Modelo com <strong>TensorFlow e Hugging Face</strong> para análise genuína de deepfakes, treinado com datasets especializados.</p>
+          <div class="model-features">
+            <span class="feature-badge">Blink Detection (MediaPipe)</span>
+            <span class="feature-badge">Lip-Sync Analysis (Wav2Lip)</span>
+            <span class="feature-badge">GAN Detection (CNNDetection)</span>
+            <span class="feature-badge">Temporal Consistency</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="info-card">
+        <h3>📈 Exemplo de Resultado Real</h3>
+        <p>Quando você faz uma verificação, recebe um relatório completo como este:</p>
+        <div class="result-example">
+          <div class="result-header">
+            <span class="result-status result-approved">✅ Verificação Aprovada</span>
+            <span class="result-score">Score: 0.12</span>
+          </div>
+          <div class="result-details">
+            <div class="result-metric">
+              <span class="metric-label">Similaridade Facial:</span>
+              <span class="metric-value">93.5%</span>
+            </div>
+            <div class="result-metric">
+              <span class="metric-label">Deepfake Score:</span>
+              <span class="metric-value">0.12 (natural)</span>
+            </div>
+            <div class="result-metric">
+              <span class="metric-label">Padrão de Piscadas:</span>
+              <span class="metric-value">17.5/min (natural)</span>
+            </div>
+            <div class="result-metric">
+              <span class="metric-label">Sincronismo Áudio:</span>
+              <span class="metric-value">OK</span>
+            </div>
+            <div class="result-metric">
+              <span class="metric-label">Artefatos Detectados:</span>
+              <span class="metric-value">Nenhum</span>
+            </div>
+          </div>
+          <p class="result-message">✅ Identidade confirmada com segurança nível fintech. Todas as verificações passaram com sucesso.</p>
+        </div>
+      </div>
     </section>
 
     <!-- Seção: Fluxo de Autenticação -->
@@ -322,6 +499,208 @@ ELSE
       </div>
     </section>
 
+    <!-- Seção: Como Usar Anti-Deepfake -->
+    <section id="como-usar" class="help-section">
+      <div class="section-header">
+        <h1>🎬 Como Usar a Verificação Anti-Deepfake</h1>
+        <p class="section-subtitle">Guia Prático de Uso da Camada de Segurança Avançada</p>
+      </div>
+
+      <div class="info-card info-highlight">
+        <h3>📹 Captura de Vídeo com Áudio</h3>
+        <p>Durante a captura de selfie, o sistema grava um <strong>vídeo curto de 4 segundos com áudio</strong> para análise anti-deepfake.</p>
+      </div>
+
+      <div class="usage-steps">
+        <div class="usage-step">
+          <div class="usage-step-number">1</div>
+          <div class="usage-step-content">
+            <h3>Preparação da Câmera</h3>
+            <ul>
+              <li>✅ Posicione-se em ambiente bem iluminado</li>
+              <li>✅ Mantenha o rosto centralizado</li>
+              <li>✅ Certifique-se que o microfone está habilitado</li>
+              <li>✅ Evite movimentos bruscos</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="usage-step">
+          <div class="usage-step-number">2</div>
+          <div class="usage-step-content">
+            <h3>Durante a Gravação (4 segundos)</h3>
+            <ul>
+              <li>🎥 Sistema grava vídeo automaticamente</li>
+              <li>🎤 Áudio é capturado para análise de sincronismo</li>
+              <li>👁️ Pisque naturalmente (15-25 vezes/min)</li>
+              <li>💬 Fale algo se solicitado (lip-sync)</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="usage-step">
+          <div class="usage-step-number">3</div>
+          <div class="usage-step-content">
+            <h3>Análise Automática</h3>
+            <ul>
+              <li>☁️ Vídeo é enviado para S3 de forma segura</li>
+              <li>🤖 Lambda IA analisa o vídeo em ~500ms</li>
+              <li>📊 Score de deepfake é calculado (0.0-1.0)</li>
+              <li>✅ Resultado é retornado em tempo real</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="usage-step">
+          <div class="usage-step-number">4</div>
+          <div class="usage-step-content">
+            <h3>Decisão e Feedback</h3>
+            <ul>
+              <li>✅ Score < 0.30 → <strong>Aprovado</strong> (vídeo autêntico)</li>
+              <li>👀 Score 0.30-0.60 → <strong>Revisão Manual</strong></li>
+              <li>❌ Score ≥ 0.60 → <strong>Rejeitado</strong> (suspeita de deepfake)</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="info-card info-code">
+        <h3>📊 O que o Sistema Analisa</h3>
+        <div class="analysis-grid">
+          <div class="analysis-item">
+            <div class="analysis-icon">👁️</div>
+            <h4>Padrão de Piscadas</h4>
+            <p><strong>Normal:</strong> 15-25 piscadas/min<br/>
+               <strong>Anômalo:</strong> < 12 ou > 30 piscadas/min</p>
+          </div>
+
+          <div class="analysis-item">
+            <div class="analysis-icon">🎤</div>
+            <h4>Sincronismo Áudio-Vídeo</h4>
+            <p><strong>OK:</strong> Movimento labial sincronizado<br/>
+               <strong>Lag:</strong> Atraso > 100ms<br/>
+               <strong>Mismatch:</strong> Dessincronia detectada</p>
+          </div>
+
+          <div class="analysis-item">
+            <div class="analysis-icon">🖼️</div>
+            <h4>Artefatos Generativos</h4>
+            <p><strong>GAN edges:</strong> Bordas artificiais<br/>
+               <strong>Warping:</strong> Distorções faciais<br/>
+               <strong>Temporal:</strong> Inconsistências entre frames</p>
+          </div>
+
+          <div class="analysis-item">
+            <div class="analysis-icon">😊</div>
+            <h4>Microexpressões</h4>
+            <p><strong>Natural:</strong> Expressões espontâneas<br/>
+               <strong>Sintético:</strong> Expressões artificiais<br/>
+               <strong>Freezing:</strong> Congelamento facial</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="info-card info-warning">
+        <h3>⚠️ Importante: Privacidade e Retenção</h3>
+        <ul>
+          <li>🔒 Vídeos são criptografados em repouso (S3-SSE) e em trânsito (TLS)</li>
+          <li>⏰ Vídeos expiram automaticamente em <strong>24 horas</strong> (S3 Lifecycle)</li>
+          <li>📝 Somente scores e indicadores são salvos no DynamoDB</li>
+          <li>✅ 100% compliance com LGPD e ISO 27001</li>
+          <li>🗑️ Você pode solicitar remoção imediata via suporte</li>
+        </ul>
+      </div>
+
+      <div class="info-card">
+        <h3>🎨 Interface de Feedback</h3>
+        <p>Durante a análise, você verá um feedback visual com as seguintes etapas:</p>
+        <div class="progress-example">
+          <div class="progress-step">
+            <span class="progress-badge progress-recording">1. Gravando vídeo...</span>
+          </div>
+          <div class="progress-step">
+            <span class="progress-badge progress-uploading">2. Enviando para análise...</span>
+          </div>
+          <div class="progress-step">
+            <span class="progress-badge progress-detecting">3. Detectando rosto...</span>
+          </div>
+          <div class="progress-step">
+            <span class="progress-badge progress-analyzing">4. Analisando autenticidade...</span>
+          </div>
+          <div class="progress-step">
+            <span class="progress-badge progress-complete">5. Análise completa! ✅</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="info-card info-comparison">
+        <h3>📈 Interpretando os Resultados</h3>
+        <table class="results-table">
+          <thead>
+            <tr>
+              <th>DeepfakeScore</th>
+              <th>BlinkPattern</th>
+              <th>AudioSync</th>
+              <th>Status</th>
+              <th>Ação</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="row-success">
+              <td>0.12</td>
+              <td>natural</td>
+              <td>ok</td>
+              <td><span class="badge badge-success">✅ Aprovado</span></td>
+              <td>Prosseguir</td>
+            </tr>
+            <tr class="row-warning">
+              <td>0.45</td>
+              <td>natural</td>
+              <td>lag</td>
+              <td><span class="badge badge-warning">👀 Revisão</span></td>
+              <td>Análise manual</td>
+            </tr>
+            <tr class="row-danger">
+              <td>0.78</td>
+              <td>anomalous</td>
+              <td>mismatch</td>
+              <td><span class="badge badge-danger">❌ Rejeitado</span></td>
+              <td>Bloqueado</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="info-card info-code">
+        <h3>💻 Exemplo de Resposta da API</h3>
+        <pre class="code-block"><code>{{ '{' }}
+  "transactionId": "550e8400-e29b-41d4-a716-446655440000",
+  "similarityScore": 93.5,
+  "status": "Approved",
+  "message": "✅ Verificação aprovada (Face: 93.5% | Deepfake: 0.12)",
+  "antiDeepfake": {{ '{' }}
+    "deepfakeScore": 0.12,
+    "blinkRate": 17.5,
+    "blinkPattern": "natural",
+    "audioSync": "ok",
+    "detectedArtifacts": [],
+    "modelVersion": "1.0.0-stub"
+  {{ '}' }}
+{{ '}' }}</code></pre>
+      </div>
+
+      <div class="info-card info-highlight">
+        <h3>🔬 Modelo Atual: Stub v1.0.0</h3>
+        <p>A versão atual utiliza um <strong>stub (simulação)</strong> para validação da arquitetura. Retorna scores simulados com distribuição:</p>
+        <ul>
+          <li>📊 80% dos vídeos: score < 0.30 (natural)</li>
+          <li>📊 15% dos vídeos: score 0.30-0.60 (suspeito)</li>
+          <li>📊 5% dos vídeos: score > 0.60 (deepfake)</li>
+        </ul>
+        <p><strong>Próxima versão:</strong> Modelo real com TensorFlow/Hugging Face para análise genuína de deepfakes.</p>
+      </div>
+    </section>
+
     <!-- Seção: Arquitetura & APIs -->
     <section id="api" class="help-section">
       <div class="section-header">
@@ -394,8 +773,8 @@ ELSE
 
         <div class="endpoint-card">
           <span class="http-method http-post">POST</span>
-          <code>/api/verify</code>
-          <p>Orquestra: Liveness + Anti-Deepfake + Match</p>
+          <code>/api/verification/verify</code>
+          <p>Orquestra: Face Comparison + Anti-Deepfake + Decisão</p>
         </div>
 
         <div class="endpoint-card">

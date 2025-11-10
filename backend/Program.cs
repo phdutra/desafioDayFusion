@@ -4,6 +4,7 @@ using Amazon;
 using Amazon.Runtime;
 using Amazon.Rekognition;
 using Amazon.S3;
+using Amazon.Lambda;
 using Amazon.Extensions.NETCore.Setup;
 using DayFusion.API.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -101,6 +102,7 @@ builder.Services.AddSingleton<IAmazonS3>(sp =>
 });
 builder.Services.AddAWSService<IAmazonRekognition>();
 builder.Services.AddAWSService<IAmazonDynamoDB>();
+builder.Services.AddAWSService<IAmazonLambda>();
 builder.Services.AddScoped<IDynamoDBContext, DynamoDBContext>();
 
 // Configure application services
@@ -108,6 +110,7 @@ builder.Services.AddScoped<IS3Service, S3Service>();
 builder.Services.AddScoped<IRekognitionService, RekognitionService>();
 builder.Services.AddScoped<IDynamoDBService, DynamoDBService>();
 builder.Services.AddScoped<IUserProfileService, UserProfileService>();
+builder.Services.AddScoped<IAntiDeepfakeService, AntiDeepfakeService>();
 
 // Configure JWT Authentication (placeholder - in production, use AWS Cognito)
 var jwtSecret = builder.Configuration["JWT:Secret"] ?? builder.Configuration["JWT_SECRET"] ?? "your-secret-key-here";

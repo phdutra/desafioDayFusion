@@ -36,6 +36,16 @@ public class Transaction
     public DateTime? ReviewedAt { get; set; }
     
     public string? RejectionReason { get; set; }
+    
+    // Anti-Deepfake Layer
+    public float? DeepfakeScore { get; set; }  // 0.0 - 1.0 (probabilidade de ser deepfake)
+    public string? BlinkPattern { get; set; }   // "natural" | "anomalous" | "error"
+    public string? AudioSync { get; set; }      // "ok" | "lag" | "mismatch" | "error"
+    public List<string>? DetectedArtifacts { get; set; }  // ["gan_edges", "warping", etc]
+    public string? VideoKey { get; set; }       // chave S3 do vídeo curto
+    public string? ModelVersion { get; set; }   // versão do modelo anti-deepfake
+    public string? DeviceInfo { get; set; }     // JSON serializado (browser, OS, IP hash)
+    public DateTime? VideoExpiresAt { get; set; }  // lifecycle S3 (1h-24h)
 }
 
 public enum TransactionStatus

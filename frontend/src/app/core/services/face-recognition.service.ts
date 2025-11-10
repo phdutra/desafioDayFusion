@@ -128,4 +128,60 @@ export class FaceRecognitionService {
     // Usar GET conforme README ao invés de POST
     return this.http.get<LivenessResultResponse>(`${this.API_URL}/liveness/results?sessionId=${request.sessionId}`);
   }
+
+  // Anti-Deepfake Layer
+  /**
+   * Upload de vídeo para S3 usando presigned URL
+   */
+  uploadVideoToS3(videoBlob: Blob, transactionId?: string): Observable<{ key: string }> {
+    const fileName = `video-${Date.now()}.webm`;
+    
+    // Criar observable que faz upload em 2 etapas
+    return new Observable(observer => {
+      // 1. Solicitar URL assinada
+      this.generatePresignedUrl({ 
+        fileName, 
+        contentType: 'video/webm',
+        transactionId 
+      }).subscribe({
+        next: (urlResponse) => {
+          // 2. Upload direto para S3
+          this.http.put(urlResponse.url, videoBlob, {
+            headers: { 'Content-Type': 'video/webm' }
+          }).subscribe({
+            next: () => {
+              console.log('✅ Vídeo uploaded:', urlResponse.key);
+              observer.next({ key: urlResponse.key });
+              observer.complete();
+            },
+            error: (error) => {
+              console.error('❌ Erro no upload do vídeo para S3:', error);
+              observer.error(error);
+            }
+          });
+        },
+        error: (error) => {
+          console.error('❌ Erro ao gerar presigned URL:', error);
+          observer.error(error);
+        }
+      });
+    });
+  }
+
+  /**
+   * Analisa vídeo para detectar deepfakes
+   */
+  analyzeAntiDeepfake(videoKey: string, sessionId?: string): Observable<any> {
+    return this.http.post(`${this.API_URL}/anti-deepfake/analyze`, {
+      videoKey,
+      sessionId
+    });
+  }
+
+  /**
+   * Verificação completa: Face Comparison + Anti-Deepfake
+   */
+  verifyWithAntiDeepfake(request: any): Observable<any> {
+    return this.http.post(`${this.API_URL}/verification/verify`, request);
+  }
 }
