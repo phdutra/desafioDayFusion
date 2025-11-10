@@ -32,34 +32,37 @@ export class StatisticsService {
     const historyEntries = this.historyService.history()
     const allSessions = historyEntries.map(entry => entry.summary)
     
-    if (allSessions.length === 0) {
+    // Filtrar status "Revisar" de TODAS as visualizações do dashboard
+    const filteredSessions = allSessions.filter((s: LivenessSummary) => s.status !== 'Revisar')
+    
+    if (filteredSessions.length === 0) {
       return this.getEmptyStats()
     }
 
-    const approved = allSessions.filter((s: LivenessSummary) => s.status === 'Aprovado').length
-    const rejected = allSessions.filter((s: LivenessSummary) => s.status === 'Rejeitado').length
-    const others = allSessions.filter((s: LivenessSummary) => 
+    const approved = filteredSessions.filter((s: LivenessSummary) => s.status === 'Aprovado').length
+    const rejected = filteredSessions.filter((s: LivenessSummary) => s.status === 'Rejeitado').length
+    const others = filteredSessions.filter((s: LivenessSummary) => 
       s.status !== 'Aprovado' && s.status !== 'Rejeitado'
     ).length
     
-    const totalSessions = allSessions.length
+    const totalSessions = filteredSessions.length
     const approvalRate = totalSessions > 0 ? (approved / totalSessions) * 100 : 0
     const rejectionRate = totalSessions > 0 ? (rejected / totalSessions) * 100 : 0
 
-    // Calcular média de scores
+    // Calcular média de scores (apenas sessões visíveis)
     const avgLivenessScore = this.calculateAverage(
-      allSessions.map((s: LivenessSummary) => s.livenessScore)
+      filteredSessions.map((s: LivenessSummary) => s.livenessScore)
     )
     
-    const faceMatchScores = allSessions
+    const faceMatchScores = filteredSessions
       .map((s: LivenessSummary) => s.faceMatchScore)
       .filter((score): score is number => score !== undefined && score !== null)
     
     const avgFaceMatchScore = this.calculateAverage(faceMatchScores)
 
-    // Distribuição por status - agregar todos os status dinamicamente
+    // Distribuição por status - apenas sessões visíveis (sem "Revisar")
     const statusMap = new Map<string, number>()
-    allSessions.forEach((s: LivenessSummary) => {
+    filteredSessions.forEach((s: LivenessSummary) => {
       const status = s.status || 'Indefinido'
       statusMap.set(status, (statusMap.get(status) || 0) + 1)
     })
@@ -72,12 +75,12 @@ export class StatisticsService {
       }))
       .sort((a, b) => b.count - a.count) // Ordenar por quantidade (maior primeiro)
 
-    // Distribuição por faixa de score
-    const scoreRanges = this.getScoreRanges(allSessions)
+    // Distribuição por faixa de score (apenas sessões visíveis)
+    const scoreRanges = this.getScoreRanges(filteredSessions)
 
-    // Sessões recentes (últimas 5) - Filtra sessões com status "Revisar"
-    const recentSessions = allSessions
-      .filter((s: LivenessSummary) => s.status !== 'Revisar')
+    // Sessões recentes (últimas 5) - Apenas Aprovado e Rejeitado
+    const recentSessions = filteredSessions
+      .filter((s: LivenessSummary) => s.status === 'Aprovado' || s.status === 'Rejeitado')
       .slice(0, 5)
 
     return {
@@ -147,12 +150,15 @@ export class StatisticsService {
     const cutoffDate = new Date()
     cutoffDate.setDate(cutoffDate.getDate() - days)
 
-    const filteredSessions = allSessions.filter((session: LivenessSummary) => {
-      const sessionDate = new Date(session.createdAt)
-      return sessionDate >= cutoffDate
-    })
+    const filteredSessions = allSessions
+      .filter((session: LivenessSummary) => {
+        const sessionDate = new Date(session.createdAt)
+        return sessionDate >= cutoffDate
+      })
+      // Filtrar status "Revisar" do dashboard
+      .filter((s: LivenessSummary) => s.status !== 'Revisar')
 
-    // Calcular estatísticas para o período filtrado
+    // Calcular estatísticas para o período filtrado (sem "Revisar")
     const approved = filteredSessions.filter((s: LivenessSummary) => s.status === 'Aprovado').length
     const rejected = filteredSessions.filter((s: LivenessSummary) => s.status === 'Rejeitado').length
     const others = filteredSessions.filter((s: LivenessSummary) => 
@@ -173,7 +179,7 @@ export class StatisticsService {
     
     const avgFaceMatchScore = this.calculateAverage(faceMatchScores)
 
-    // Distribuição por status para o período
+    // Distribuição por status para o período (sem "Revisar")
     const statusMap = new Map<string, number>()
     filteredSessions.forEach((s: LivenessSummary) => {
       const status = s.status || 'Indefinido'
@@ -198,7 +204,7 @@ export class StatisticsService {
       avgLivenessScore,
       avgFaceMatchScore,
       recentSessions: filteredSessions
-        .filter((s: LivenessSummary) => s.status !== 'Revisar')
+        .filter((s: LivenessSummary) => s.status === 'Aprovado' || s.status === 'Rejeitado')
         .slice(0, 5),
       statusDistribution,
       scoreRanges: this.getScoreRanges(filteredSessions)

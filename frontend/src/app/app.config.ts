@@ -7,11 +7,12 @@ import { environment } from '../environments/environment';
 
 import { routes } from './app.routes';
 import { authInterceptor } from './core/interceptors/auth.interceptor';
+import { sessionExpiredInterceptor } from './core/interceptors/session-expired.interceptor';
 
 export const appConfig: ApplicationConfig = {
   providers: [
     provideRouter(routes),
-    provideHttpClient(withInterceptors([authInterceptor])),
+    provideHttpClient(withInterceptors([authInterceptor, sessionExpiredInterceptor])),
     provideAnimationsAsync(),
     provideZoneChangeDetection({ eventCoalescing: true }),
     provideServiceWorker('ngsw-worker.js', {

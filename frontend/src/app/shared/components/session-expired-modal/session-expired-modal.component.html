@@ -1,0 +1,21 @@
+<div class="modal-overlay" *ngIf="isOpen()" (click)="goToLogin()">
+  <div class="modal-container" (click)="$event.stopPropagation()">
+    <div class="modal-icon">
+      <span class="icon-alert">⏱️</span>
+    </div>
+    
+    <h2 class="modal-title">Sessão Expirada</h2>
+    
+    <p class="modal-message">
+      Sua sessão expirou por motivos de segurança.
+      <br>
+      Por favor, faça login novamente para continuar.
+    </p>
+    
+    <button type="button" class="btn-login" (click)="goToLogin()">
+      <span class="btn-icon">🔐</span>
+      <span>Ir para Login</span>
+    </button>
+  </div>
+</div>
+

@@ -5,10 +5,11 @@ import { Subject, filter, take, takeUntil } from 'rxjs';
 import { AuthService } from './core/services/auth.service';
 import { UserProfile } from './shared/models/auth.model';
 import { FaceRecognitionService } from './core/services/face-recognition.service';
+import { SessionExpiredModalComponent } from './shared/components/session-expired-modal/session-expired-modal.component';
 
 @Component({
   selector: 'app-root',
-  imports: [CommonModule, RouterOutlet, RouterLink, RouterLinkActive],
+  imports: [CommonModule, RouterOutlet, RouterLink, RouterLinkActive, SessionExpiredModalComponent],
   templateUrl: './app.component.html',
   styleUrl: './app.component.scss'
 })
