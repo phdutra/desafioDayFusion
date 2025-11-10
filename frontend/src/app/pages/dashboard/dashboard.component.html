@@ -1,8 +1,8 @@
 <div class="dashboard-page fade-in-up">
   <header class="page-header">
     <div>
-      <h1 class="gradient-text">📊 Dashboard</h1>
-      <p class="subtitle">Visão geral do sistema de reconhecimento facial</p>
+      <h1 class="gradient-text">📊 Dashboard Analytics</h1>
+      <p class="subtitle">Visão geral completa do sistema de reconhecimento facial 3D</p>
     </div>
     <button class="btn-primary" (click)="startNewCapture()">
       <span>➕</span>
@@ -10,152 +10,251 @@
     </button>
   </header>
 
-  <!-- Cards de Estatísticas Principais -->
+  <!-- Cards de Estatísticas Principais com Contadores Animados -->
   <section class="stats-grid">
-    <div class="stat-card total">
-      <div class="stat-icon">🎯</div>
+    <div class="stat-card total shimmer">
+      <div class="stat-icon-container">
+        <div class="stat-icon">🎯</div>
+        <div class="stat-icon-bg"></div>
+      </div>
       <div class="stat-content">
-        <div class="stat-value">{{ stats().totalSessions }}</div>
+        <div class="stat-value">
+          {{ animatedTotalSessions() }}
+        </div>
         <div class="stat-label">Total de Sessões</div>
+        <div class="stat-trend positive">
+          <span class="trend-icon">📈</span>
+          <span>+12% este mês</span>
+        </div>
       </div>
     </div>
 
-    <div class="stat-card approved">
-      <div class="stat-icon">✅</div>
+    <div class="stat-card approved shimmer">
+      <div class="stat-icon-container">
+        <div class="stat-icon">✅</div>
+        <div class="stat-icon-bg approved-bg"></div>
+      </div>
       <div class="stat-content">
-        <div class="stat-value">{{ stats().approved }}</div>
+        <div class="stat-value">
+          {{ animatedApproved() }}
+        </div>
         <div class="stat-label">Aprovados</div>
-        <div class="stat-percentage">{{ stats().approvalRate | number:'1.1-1' }}%</div>
+        <div class="stat-percentage">
+          {{ animatedApprovalRate() | number:'1.1-1' }}%
+        </div>
       </div>
     </div>
 
-    <div class="stat-card rejected">
-      <div class="stat-icon">❌</div>
+    <div class="stat-card rejected shimmer">
+      <div class="stat-icon-container">
+        <div class="stat-icon">❌</div>
+        <div class="stat-icon-bg rejected-bg"></div>
+      </div>
       <div class="stat-content">
-        <div class="stat-value">{{ stats().rejected }}</div>
+        <div class="stat-value">
+          {{ animatedRejected() }}
+        </div>
         <div class="stat-label">Rejeitados</div>
-        <div class="stat-percentage">{{ stats().rejectionRate | number:'1.1-1' }}%</div>
+        <div class="stat-percentage red">
+          {{ animatedRejectionRate() | number:'1.1-1' }}%
+        </div>
       </div>
     </div>
 
-    <!-- Card dinâmico para outros status (se existirem) -->
-    <div class="stat-card others" *ngIf="stats().others > 0">
-      <div class="stat-icon">📋</div>
+    <div class="stat-card avg-score shimmer">
+      <div class="stat-icon-container">
+        <div class="stat-icon">🎖️</div>
+        <div class="stat-icon-bg score-bg"></div>
+      </div>
       <div class="stat-content">
-        <div class="stat-value">{{ stats().others }}</div>
-        <div class="stat-label">Outros Status</div>
+        <div class="stat-value">
+          {{ animatedAvgScore() | number:'1.1-1' }}%
+        </div>
+        <div class="stat-label">Score Médio</div>
+        <div class="stat-trend positive" *ngIf="stats().avgLivenessScore >= 80">
+          <span class="trend-icon">⭐</span>
+          <span>Excelente</span>
+        </div>
       </div>
     </div>
   </section>
 
-  <!-- Gráficos e Métricas -->
+  <!-- Gráficos Interativos -->
   <section class="charts-section">
-    <!-- Distribuição por Status -->
-    <div class="chart-card">
-      <h3 class="chart-title">📈 Distribuição por Status</h3>
-      <div class="status-distribution">
-        <div 
-          *ngFor="let item of stats().statusDistribution" 
-          class="status-bar-wrapper">
-          <div class="status-bar-header">
-            <span class="status-label">
-              {{ getStatusIcon(item.status) }} {{ item.status }}
-            </span>
-            <span class="status-count">{{ item.count }} ({{ item.percentage | number:'1.0-0' }}%)</span>
-          </div>
-          <div class="status-bar-track">
-            <div 
-              class="status-bar-fill" 
-              [class]="getStatusColor(item.status)"
-              [style.width.%]="item.percentage">
-            </div>
-          </div>
-        </div>
+    <!-- Gráfico Donut - Distribuição por Status -->
+    <div class="chart-card glass-effect" *ngIf="stats().totalSessions > 0">
+      <div class="chart-header">
+        <h3 class="chart-title">
+          <span class="chart-icon">📊</span>
+          Distribuição por Status
+        </h3>
+        <span class="chart-badge">Geral</span>
       </div>
+      <apx-chart
+        [series]="donutChartOptions.series!"
+        [chart]="donutChartOptions.chart!"
+        [labels]="donutChartOptions.labels!"
+        [colors]="donutChartOptions.colors!"
+        [legend]="donutChartOptions.legend!"
+        [plotOptions]="donutChartOptions.plotOptions!"
+        [dataLabels]="donutChartOptions.dataLabels!"
+        [tooltip]="donutChartOptions.tooltip!"
+        [responsive]="donutChartOptions.responsive!">
+      </apx-chart>
     </div>
 
-    <!-- Scores Médios -->
-    <div class="chart-card">
-      <h3 class="chart-title">🎯 Scores Médios</h3>
-      <div class="scores-container">
-        <div class="score-item">
-          <div class="score-label">Liveness Score</div>
-          <div class="score-value-large">{{ stats().avgLivenessScore | number:'1.1-1' }}%</div>
-          <div class="score-bar">
-            <div 
-              class="score-bar-fill"
-              [class]="getProgressColor(stats().avgLivenessScore)"
-              [style.width.%]="stats().avgLivenessScore">
-            </div>
-          </div>
-        </div>
-        
-        <div class="score-item">
-          <div class="score-label">Face Match Score</div>
-          <div class="score-value-large">
-            {{ stats().avgFaceMatchScore > 0 ? (stats().avgFaceMatchScore | number:'1.1-1') + '%' : 'N/A' }}
-          </div>
-          <div class="score-bar" *ngIf="stats().avgFaceMatchScore > 0">
-            <div 
-              class="score-bar-fill"
-              [class]="getProgressColor(stats().avgFaceMatchScore)"
-              [style.width.%]="stats().avgFaceMatchScore">
-            </div>
-          </div>
-        </div>
+    <!-- Gráfico Radial - Taxa de Aprovação -->
+    <div class="chart-card glass-effect" *ngIf="stats().totalSessions > 0">
+      <div class="chart-header">
+        <h3 class="chart-title">
+          <span class="chart-icon">🎯</span>
+          Taxa de Aprovação
+        </h3>
+        <span class="chart-badge success">Alta</span>
       </div>
+      <apx-chart
+        [series]="radialChartOptions.series!"
+        [chart]="radialChartOptions.chart!"
+        [plotOptions]="radialChartOptions.plotOptions!"
+        [fill]="radialChartOptions.fill!"
+        [stroke]="radialChartOptions.stroke!"
+        [labels]="radialChartOptions.labels!"
+        [colors]="radialChartOptions.colors!">
+      </apx-chart>
     </div>
   </section>
 
-  <!-- Distribuição por Faixa de Score -->
-  <section class="score-ranges-section" *ngIf="stats().scoreRanges.length > 0">
-    <h3 class="section-title">📊 Distribuição por Faixa de Score (Liveness)</h3>
-    <div class="score-ranges-grid">
-      <div 
-        *ngFor="let range of stats().scoreRanges" 
-        class="score-range-card">
-        <div class="range-label">{{ range.range }}%</div>
-        <div class="range-value">{{ range.count }}</div>
-        <div class="range-suffix">sessões</div>
+  <!-- Gráfico de Linha - Evolução dos Scores -->
+  <section class="full-width-section" *ngIf="stats().recentSessions.length > 0">
+    <div class="chart-card glass-effect">
+      <div class="chart-header">
+        <h3 class="chart-title">
+          <span class="chart-icon">📈</span>
+          Evolução dos Scores (Últimas 10 Sessões)
+        </h3>
+        <span class="chart-badge info">Tendência</span>
       </div>
+      <apx-chart
+        [series]="lineChartOptions.series!"
+        [chart]="lineChartOptions.chart!"
+        [stroke]="lineChartOptions.stroke!"
+        [colors]="lineChartOptions.colors!"
+        [xaxis]="lineChartOptions.xaxis!"
+        [yaxis]="lineChartOptions.yaxis!"
+        [grid]="lineChartOptions.grid!"
+        [legend]="lineChartOptions.legend!"
+        [dataLabels]="lineChartOptions.dataLabels!"
+        [tooltip]="lineChartOptions.tooltip!">
+      </apx-chart>
     </div>
   </section>
 
-  <!-- Sessões Recentes -->
+  <!-- Gráfico de Barras - Faixas de Score -->
+  <section class="full-width-section" *ngIf="stats().scoreRanges.length > 0">
+    <div class="chart-card glass-effect">
+      <div class="chart-header">
+        <h3 class="chart-title">
+          <span class="chart-icon">📊</span>
+          Distribuição por Faixa de Score (Liveness)
+        </h3>
+        <span class="chart-badge warning">Análise</span>
+      </div>
+      <apx-chart
+        [series]="barChartOptions.series!"
+        [chart]="barChartOptions.chart!"
+        [plotOptions]="barChartOptions.plotOptions!"
+        [dataLabels]="barChartOptions.dataLabels!"
+        [xaxis]="barChartOptions.xaxis!"
+        [yaxis]="barChartOptions.yaxis!"
+        [colors]="barChartOptions.colors!"
+        [fill]="barChartOptions.fill!"
+        [grid]="barChartOptions.grid!"
+        [tooltip]="barChartOptions.tooltip!">
+      </apx-chart>
+    </div>
+  </section>
+
+  <!-- Sessões Recentes com Design Aprimorado -->
   <section class="recent-sessions-section" *ngIf="stats().recentSessions.length > 0">
     <div class="section-header">
-      <h3 class="section-title">🕐 Sessões Recentes</h3>
+      <div>
+        <h3 class="section-title">
+          <span class="section-icon">🕐</span>
+          Atividade Recente
+        </h3>
+        <p class="section-subtitle">Últimas verificações realizadas</p>
+      </div>
       <button class="btn-link" (click)="viewAllHistory()">
-        Ver todas →
+        Ver todas
+        <span class="arrow">→</span>
       </button>
     </div>
     
     <div class="sessions-list">
       <div 
-        *ngFor="let session of stats().recentSessions" 
-        class="session-card"
+        *ngFor="let session of stats().recentSessions; let i = index" 
+        class="session-card glass-effect"
         [class]="getStatusColor(session.status)"
-        (click)="viewSession(session.sessionId)">
-        <div class="session-header">
-          <span class="session-icon">{{ getStatusIcon(session.status) }}</span>
-          <span class="session-status">{{ session.status }}</span>
-          <span class="session-date">{{ session.createdAt | date:'dd/MM/yyyy HH:mm' }}</span>
+        (click)="viewSession(session.sessionId)"
+        [style.animation-delay.ms]="i * 50">
+        <div class="session-left">
+          <div class="session-icon-wrapper" [class]="getStatusColor(session.status)">
+            <span class="session-icon">{{ getStatusIcon(session.status) }}</span>
+          </div>
+          <div class="session-info">
+            <div class="session-header-info">
+              <span class="session-status">{{ session.status }}</span>
+              <span class="session-badge" [class]="getStatusColor(session.status)">
+                {{ session.status }}
+              </span>
+            </div>
+            <div class="session-date">
+              <span class="date-icon">📅</span>
+              {{ session.createdAt | date:'dd/MM/yyyy HH:mm' }}
+            </div>
+          </div>
         </div>
+        
         <div class="session-details">
-          <div class="session-detail">
-            <span class="detail-label">Liveness:</span>
-            <span class="detail-value">{{ session.livenessScore | number:'1.0-0' }}%</span>
+          <div class="session-detail liveness-detail">
+            <div class="detail-icon">🔍</div>
+            <div class="detail-content">
+              <span class="detail-label">Liveness</span>
+              <span class="detail-value">{{ session.livenessScore | number:'1.0-0' }}%</span>
+              <div class="mini-progress">
+                <div class="mini-progress-bar" 
+                     [class]="getProgressColor(session.livenessScore)"
+                     [style.width.%]="session.livenessScore">
+                </div>
+              </div>
+            </div>
           </div>
-          <div class="session-detail">
-            <span class="detail-label">Match:</span>
-            <span class="detail-value">
-              {{ session.faceMatchScore ? (session.faceMatchScore | number:'1.0-0') + '%' : 'N/A' }}
-            </span>
+          
+          <div class="session-detail match-detail" *ngIf="session.faceMatchScore">
+            <div class="detail-icon">👤</div>
+            <div class="detail-content">
+              <span class="detail-label">Face Match</span>
+              <span class="detail-value">{{ session.faceMatchScore | number:'1.0-0' }}%</span>
+              <div class="mini-progress">
+                <div class="mini-progress-bar" 
+                     [class]="getProgressColor(session.faceMatchScore)"
+                     [style.width.%]="session.faceMatchScore">
+                </div>
+              </div>
+            </div>
           </div>
-          <div class="session-detail">
-            <span class="detail-label">ID:</span>
-            <span class="detail-value session-id">{{ session.sessionId }}</span>
+          
+          <div class="session-detail id-detail">
+            <div class="detail-icon">🔑</div>
+            <div class="detail-content">
+              <span class="detail-label">Session ID</span>
+              <span class="detail-value session-id">{{ session.sessionId }}</span>
+            </div>
           </div>
+        </div>
+        
+        <div class="session-arrow">
+          <span>›</span>
         </div>
       </div>
     </div>

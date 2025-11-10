@@ -37,7 +37,8 @@
 - Componentes: sempre standalone, imports explícitos
 
 ## Organização de Arquivos
-- Novos arquivos `.md` devem ser criados na pasta `doc`
+- **NÃO criar arquivos `.md` automaticamente** - apenas quando explicitamente solicitado pelo usuário
+- Se criar arquivos `.md`, devem ir na pasta `doc`
 - Novos arquivos `.sh` devem ser criados na pasta `scripts`
 
 ## Tratamento de Erros

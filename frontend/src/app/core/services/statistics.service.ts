@@ -75,8 +75,10 @@ export class StatisticsService {
     // Distribuição por faixa de score
     const scoreRanges = this.getScoreRanges(allSessions)
 
-    // Sessões recentes (últimas 5)
-    const recentSessions = allSessions.slice(0, 5)
+    // Sessões recentes (últimas 5) - Filtra sessões com status "Revisar"
+    const recentSessions = allSessions
+      .filter((s: LivenessSummary) => s.status !== 'Revisar')
+      .slice(0, 5)
 
     return {
       totalSessions,
@@ -195,7 +197,9 @@ export class StatisticsService {
       rejectionRate,
       avgLivenessScore,
       avgFaceMatchScore,
-      recentSessions: filteredSessions.slice(0, 5),
+      recentSessions: filteredSessions
+        .filter((s: LivenessSummary) => s.status !== 'Revisar')
+        .slice(0, 5),
       statusDistribution,
       scoreRanges: this.getScoreRanges(filteredSessions)
     }
