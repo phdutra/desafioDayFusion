@@ -111,6 +111,30 @@ export class AuthService {
     return localStorage.getItem(this.storageAccessKey);
   }
 
+  /**
+   * Verifica se o usuário atual é Admin
+   */
+  isAdmin(): boolean {
+    const user = this.currentUserSubject.value;
+    return user?.role === 'Admin' || user?.Role === 'Admin';
+  }
+
+  /**
+   * Verifica se o usuário atual está aprovado
+   */
+  isUserApproved(): boolean {
+    const user = this.currentUserSubject.value;
+    return user?.isApproved === true || user?.IsApproved === true;
+  }
+
+  /**
+   * Obtém a role do usuário atual
+   */
+  getUserRole(): string {
+    const user = this.currentUserSubject.value;
+    return user?.role || user?.Role || 'User';
+  }
+
   private handleAuthResponse(tokens: AuthResponse): void {
     this.storeAuth(tokens);
     this.isAuthenticated.set(true);
@@ -143,9 +167,9 @@ export class AuthService {
   }
 
   private clearAuth(): void {
-    localStorage.removeItem(this.storageAccessKey);
-    localStorage.removeItem(this.storageRefreshKey);
-    localStorage.removeItem(this.storageUserKey);
+    // Limpa TODOS os dados do localStorage e sessionStorage
+    localStorage.clear();
+    sessionStorage.clear();
     this.currentUserSubject.next(null);
   }
 

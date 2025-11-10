@@ -134,6 +134,8 @@ public class UserProfileService : IUserProfileService
         }
 
         UserProfile? user = null;
+        bool isNewUser = false;
+        
         try
         {
             user = await _context.LoadAsync<UserProfile>(sanitizedCpf, cancellationToken);
@@ -143,12 +145,16 @@ public class UserProfileService : IUserProfileService
             _logger.LogWarning(ex, "Tabela DynamoDB não encontrada ao atualizar dados faciais do CPF {Cpf}. Um novo registro será preparado.", sanitizedCpf);
         }
 
-        user ??= new UserProfile
+        if (user == null)
         {
-            Cpf = sanitizedCpf,
-            Name = name,
-            CreatedAt = DateTime.UtcNow
-        };
+            isNewUser = true;
+            user = new UserProfile
+            {
+                Cpf = sanitizedCpf,
+                Name = name,
+                CreatedAt = DateTime.UtcNow
+            };
+        }
 
         user.Name = name;
         user.FaceId = faceId;
@@ -156,8 +162,28 @@ public class UserProfileService : IUserProfileService
         user.FaceImageUrl = $"s3://{_bucketName}/{imageKey}";
         user.UpdatedAt = DateTime.UtcNow;
 
+        // Configuração automática: CPF master é sempre Admin e aprovado
+        if (sanitizedCpf == "22710105861")
+        {
+            user.Role = "Admin";
+            user.IsApproved = true;
+            _logger.LogInformation("🔐 CPF Master {Cpf} configurado como Admin e aprovado automaticamente", sanitizedCpf);
+        }
+        // Se for o primeiro usuário do sistema, torna Admin automaticamente
+        else if (isNewUser)
+        {
+            var allUsers = await GetAllUsersAsync(cancellationToken);
+            if (allUsers.Count == 0)
+            {
+                user.Role = "Admin";
+                user.IsApproved = true;
+                _logger.LogInformation("🔐 Primeiro usuário do sistema {Cpf} configurado como Admin automaticamente", sanitizedCpf);
+            }
+        }
+
         await SaveAsyncSafe(user, cancellationToken);
-        _logger.LogInformation("Atualizados dados faciais para CPF {Cpf}", sanitizedCpf);
+        _logger.LogInformation("Atualizados dados faciais para CPF {Cpf} (Role: {Role}, IsApproved: {IsApproved})", 
+            sanitizedCpf, user.Role, user.IsApproved);
         return user;
     }
 
@@ -173,6 +199,63 @@ public class UserProfileService : IUserProfileService
         user.UpdatedAt = loginDateUtc;
         await SaveAsyncSafe(user, cancellationToken);
         _logger.LogInformation("Atualizado LastLoginAt para CPF {Cpf}", user.Cpf);
+        return user;
+    }
+
+    public async Task<List<UserProfile>> GetAllUsersAsync(CancellationToken cancellationToken = default)
+    {
+        var users = new List<UserProfile>();
+        
+        try
+        {
+            var search = _context.ScanAsync<UserProfile>(new List<ScanCondition>());
+            
+            while (!search.IsDone)
+            {
+                var batch = await search.GetNextSetAsync(cancellationToken);
+                users.AddRange(batch);
+            }
+            
+            _logger.LogInformation("Listados {Count} usuários do sistema", users.Count);
+        }
+        catch (ResourceNotFoundException ex)
+        {
+            _logger.LogWarning(ex, "Tabela DynamoDB não encontrada ao listar usuários.");
+        }
+        
+        return users;
+    }
+
+    public async Task<UserProfile?> UpdateApprovalStatusAsync(string cpf, bool isApproved, CancellationToken cancellationToken = default)
+    {
+        var user = await GetByCpfAsync(cpf, cancellationToken);
+        if (user is null)
+        {
+            return null;
+        }
+
+        user.IsApproved = isApproved;
+        user.UpdatedAt = DateTime.UtcNow;
+        await SaveAsyncSafe(user, cancellationToken);
+        
+        var status = isApproved ? "aprovado" : "rejeitado";
+        _logger.LogInformation("Usuário {Cpf} foi {Status}", user.Cpf, status);
+        return user;
+    }
+
+    public async Task<UserProfile?> UpdateRoleAsync(string cpf, string role, CancellationToken cancellationToken = default)
+    {
+        var user = await GetByCpfAsync(cpf, cancellationToken);
+        if (user is null)
+        {
+            return null;
+        }
+
+        user.Role = role;
+        user.UpdatedAt = DateTime.UtcNow;
+        await SaveAsyncSafe(user, cancellationToken);
+        
+        _logger.LogInformation("Role do usuário {Cpf} atualizada para {Role}", user.Cpf, role);
         return user;
     }
 

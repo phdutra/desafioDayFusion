@@ -44,6 +44,13 @@ export class AppComponent implements OnDestroy {
 
   private readonly destroy$ = new Subject<void>();
 
+  /**
+   * Verifica se o usuário atual é Admin
+   */
+  isAdmin(): boolean {
+    return this.authService.isAdmin();
+  }
+
   constructor(
     private readonly router: Router,
     private readonly authService: AuthService,
@@ -97,15 +104,26 @@ export class AppComponent implements OnDestroy {
     void this.router.navigate(['/perfil']);
   }
 
+  goToUserManagement(): void {
+    void this.router.navigate(['/user-management']);
+  }
+
   logout(): void {
+    // Limpa TODOS os dados do localStorage e sessionStorage
+    localStorage.clear();
+    sessionStorage.clear();
+
     this.authService.logout()
       .pipe(take(1))
       .subscribe({
         next: () => {
-          void this.router.navigate(['/login']);
+          // Recarrega a página para garantir estado limpo
+          window.location.href = '/login';
         },
         error: (error) => {
           console.error('[AppComponent] Falha ao realizar logout.', error);
+          // Mesmo com erro, redireciona para o login
+          window.location.href = '/login';
         }
       });
   }

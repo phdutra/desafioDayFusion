@@ -38,6 +38,18 @@ public class UserProfile
     [DynamoDBProperty]
     public DateTime? LastLoginAt { get; set; }
 
+    /// <summary>
+    /// Role do usuário: "Admin" (master) ou "User" (padrão)
+    /// </summary>
+    [DynamoDBProperty]
+    public string Role { get; set; } = "User";
+
+    /// <summary>
+    /// Indica se o usuário foi aprovado pelo administrador para acessar o sistema
+    /// </summary>
+    [DynamoDBProperty]
+    public bool IsApproved { get; set; } = false;
+
     [DynamoDBIgnore]
     public bool HasFaceId => !string.IsNullOrWhiteSpace(FaceId);
 }

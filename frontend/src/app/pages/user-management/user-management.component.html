@@ -1,0 +1,197 @@
+<div class="user-management-page fade-in-up">
+  <header class="page-header">
+    <div>
+      <h1 class="gradient-text">👥 Gerenciamento de Usuários</h1>
+      <p class="subtitle">Aprovar, rejeitar e gerenciar permissões de usuários</p>
+    </div>
+    <button class="btn-refresh" (click)="loadUsers()">
+      <span>🔄</span>
+      <span>Atualizar</span>
+    </button>
+  </header>
+
+  <!-- Messages -->
+  @if (successMessage()) {
+    <div class="alert alert-success">
+      ✅ {{ successMessage() }}
+    </div>
+  }
+
+  @if (error()) {
+    <div class="alert alert-error">
+      ❌ {{ error() }}
+    </div>
+  }
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button 
+      class="tab" 
+      [class.active]="selectedTab() === 'pending'"
+      (click)="selectTab('pending')">
+      <span class="tab-icon">⏳</span>
+      <span>Pendentes</span>
+      <span class="badge">{{ pendingUsers().length }}</span>
+    </button>
+    <button 
+      class="tab" 
+      [class.active]="selectedTab() === 'all'"
+      (click)="selectTab('all')">
+      <span class="tab-icon">📋</span>
+      <span>Todos</span>
+      <span class="badge">{{ users().length }}</span>
+    </button>
+  </div>
+
+  <!-- Loading -->
+  @if (loading()) {
+    <div class="loading-container">
+      <div class="spinner"></div>
+      <p>Carregando usuários...</p>
+    </div>
+  }
+
+  <!-- Pending Users Table -->
+  @if (!loading() && selectedTab() === 'pending') {
+    @if (pendingUsers().length === 0) {
+      <div class="empty-state">
+        <div class="empty-icon">✨</div>
+        <h3>Nenhum usuário pendente</h3>
+        <p>Todos os cadastros foram revisados!</p>
+      </div>
+    } @else {
+      <div class="table-container">
+        <table class="users-table">
+          <thead>
+            <tr>
+              <th>Nome</th>
+              <th>CPF</th>
+              <th>Role</th>
+              <th>Face ID</th>
+              <th>Cadastro</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (user of pendingUsers(); track user.cpf) {
+              <tr class="user-row">
+                <td>
+                  <div class="user-name">
+                    <span class="avatar">{{ user.name.charAt(0) }}</span>
+                    <span>{{ user.name }}</span>
+                  </div>
+                </td>
+                <td>
+                  <span class="cpf">{{ formatCpf(user.cpf) }}</span>
+                </td>
+                <td>
+                  <span class="role-badge" [class]="getRoleColor(user.role)">
+                    {{ user.role }}
+                  </span>
+                </td>
+                <td>
+                  <span class="face-status" [class.has-face]="user.hasFaceId">
+                    {{ user.hasFaceId ? '✅ Sim' : '❌ Não' }}
+                  </span>
+                </td>
+                <td>
+                  <span class="date">{{ formatDate(user.createdAt) }}</span>
+                </td>
+                <td>
+                  <div class="action-buttons">
+                    <button class="btn-approve" (click)="approveUser(user)" title="Aprovar">
+                      ✅ Aprovar
+                    </button>
+                    <button class="btn-reject" (click)="rejectUser(user)" title="Rejeitar">
+                      ❌ Rejeitar
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  }
+
+  <!-- All Users Table -->
+  @if (!loading() && selectedTab() === 'all') {
+    @if (users().length === 0) {
+      <div class="empty-state">
+        <div class="empty-icon">👥</div>
+        <h3>Nenhum usuário cadastrado</h3>
+        <p>Aguardando primeiros cadastros...</p>
+      </div>
+    } @else {
+      <div class="table-container">
+        <table class="users-table">
+          <thead>
+            <tr>
+              <th>Nome</th>
+              <th>CPF</th>
+              <th>Role</th>
+              <th>Status</th>
+              <th>Face ID</th>
+              <th>Cadastro</th>
+              <th>Último Login</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (user of users(); track user.cpf) {
+              <tr class="user-row">
+                <td>
+                  <div class="user-name">
+                    <span class="avatar">{{ user.name.charAt(0) }}</span>
+                    <span>{{ user.name }}</span>
+                  </div>
+                </td>
+                <td>
+                  <span class="cpf">{{ formatCpf(user.cpf) }}</span>
+                </td>
+                <td>
+                  <span class="role-badge" [class]="getRoleColor(user.role)">
+                    {{ user.role }}
+                  </span>
+                </td>
+                <td>
+                  <span class="status-badge" [class]="getStatusColor(user.isApproved)">
+                    {{ user.isApproved ? '✅ Aprovado' : '⏳ Pendente' }}
+                  </span>
+                </td>
+                <td>
+                  <span class="face-status" [class.has-face]="user.hasFaceId">
+                    {{ user.hasFaceId ? '✅ Sim' : '❌ Não' }}
+                  </span>
+                </td>
+                <td>
+                  <span class="date">{{ formatDate(user.createdAt) }}</span>
+                </td>
+                <td>
+                  <span class="date">{{ formatDate(user.lastLoginAt) }}</span>
+                </td>
+                <td>
+                  <div class="action-buttons">
+                    <button 
+                      class="btn-role" 
+                      (click)="toggleRole(user)" 
+                      title="Alterar Role">
+                      🔄 {{ user.role === 'Admin' ? 'User' : 'Admin' }}
+                    </button>
+                    @if (!user.isApproved) {
+                      <button class="btn-approve" (click)="approveUser(user)" title="Aprovar">
+                        ✅
+                      </button>
+                    }
+                  </div>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  }
+</div>
+

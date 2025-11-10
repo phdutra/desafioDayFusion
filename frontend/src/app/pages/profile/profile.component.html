@@ -5,7 +5,12 @@
         <h1>Perfil do usuário</h1>
         <p>Atualize suas informações e mantenha a biometria facial sincronizada com segurança.</p>
       </div>
-      <span class="cpf-badge">CPF {{ formattedCpf() }}</span>
+      <div class="header-badges">
+        <span class="cpf-badge">CPF {{ formattedCpf() }}</span>
+        <span class="role-badge" [class.admin]="isAdmin()">
+          {{ isAdmin() ? '👑 ADMIN' : '👤 USER' }}
+        </span>
+      </div>
     </header>
 
     <div class="profile-overview">
@@ -76,8 +81,11 @@
   </div>
 </section>
 
-<div class="modal-backdrop" *ngIf="isModalOpen()">
-  <div class="modal-content">
+<div class="modal-backdrop" *ngIf="isModalOpen()" (click)="onBackdropClick($event)">
+  <div class="modal-content" (click)="$event.stopPropagation()">
+    <button type="button" class="modal-close-btn" (click)="closeCapture()" title="Fechar (ESC)">
+      <span>✕</span>
+    </button>
     <app-liveness-modal
       [voiceSteps]="voiceSteps()"
       [documentFile]="null"

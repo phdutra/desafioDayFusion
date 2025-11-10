@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnDestroy, ViewChild, computed, inject, signal } from '@angular/core';
+import { Component, HostListener, OnDestroy, ViewChild, computed, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { finalize, takeUntil } from 'rxjs';
 import { Subject } from 'rxjs';
@@ -97,6 +97,25 @@ export class ProfileComponent implements OnDestroy {
   ngOnDestroy(): void {
     this.destroy$.next();
     this.destroy$.complete();
+  }
+
+  @HostListener('document:keydown.escape', ['$event'])
+  onEscapeKey(event: KeyboardEvent): void {
+    if (this.isModalOpen()) {
+      event.preventDefault();
+      this.closeCapture();
+    }
+  }
+
+  isAdmin(): boolean {
+    return this.authService.isAdmin();
+  }
+
+  onBackdropClick(event: MouseEvent): void {
+    // Fecha o modal ao clicar no backdrop (fundo escuro)
+    if (event.target === event.currentTarget) {
+      this.closeCapture();
+    }
   }
 
   openCapture(): void {

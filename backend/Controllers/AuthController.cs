@@ -167,12 +167,25 @@ public class AuthController : ControllerBase
                 return NotFound(new { message = "Reconhecimento realizado, porém usuário não localizado. Informe o CPF para continuar." });
             }
 
+            // Verificar se o usuário foi aprovado pelo administrador
+            if (!user.IsApproved)
+            {
+                _logger.LogWarning("Tentativa de login de usuário não aprovado. CPF={Cpf}", user.Cpf);
+                return Unauthorized(new FaceLoginResponse
+                {
+                    Success = false,
+                    SimilarityScore = matchResult.Similarity,
+                    Message = "Aguardando aprovação do administrador. Sua conta está pendente de autorização.",
+                    Tokens = new AuthResponse()
+                });
+            }
+
             await _userProfileService.UpdateLastLoginAsync(user.Cpf, DateTime.UtcNow, cancellationToken);
             cpf = user.Cpf;
             var tokens = GenerateTokens(user);
 
-            var userData = new { Cpf = user.Cpf, Name = user.Name };
-            _logger.LogInformation("=== DADOS DO USUÁRIO: Cpf={Cpf}, Name={Name} ===", userData.Cpf, userData.Name);
+            var userData = new { Cpf = user.Cpf, Name = user.Name, Role = user.Role, IsApproved = user.IsApproved };
+            _logger.LogInformation("=== DADOS DO USUÁRIO: Cpf={Cpf}, Name={Name}, Role={Role}, IsApproved={IsApproved} ===", userData.Cpf, userData.Name, userData.Role, userData.IsApproved);
 
             var response = new FaceLoginResponse
             {
@@ -263,6 +276,8 @@ public class AuthController : ControllerBase
             {
                 Cpf = user?.Cpf ?? cpf,
                 Name = user?.Name ?? User.Identity?.Name ?? string.Empty,
+                Role = user?.Role ?? "User",
+                IsApproved = user?.IsApproved ?? false,
                 FaceImageKey = user?.FaceImageKey,
                 FaceImageUrl = user?.FaceImageUrl,
                 HasFaceId = user?.HasFaceId ?? false,
@@ -309,6 +324,9 @@ public class AuthController : ControllerBase
             new(JwtRegisteredClaimNames.Sub, user.Cpf),
             new("cpf", user.Cpf),
             new(ClaimTypes.Name, user.Name),
+            new(ClaimTypes.Role, user.Role),
+            new("role", user.Role),
+            new("isApproved", user.IsApproved.ToString()),
             new("faceId", user.FaceId ?? string.Empty)
         };
 

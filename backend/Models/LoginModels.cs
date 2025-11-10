@@ -61,7 +61,7 @@ public class FaceLoginResponse
     public float SimilarityScore { get; set; }
     public string Message { get; set; } = string.Empty;
     public AuthResponse Tokens { get; set; } = new();
-    public object? User { get; set; } // Dados do usuário autenticado (Cpf, Name)
+    public object? User { get; set; } // Dados do usuário autenticado (Cpf, Name, Role, IsApproved)
 }
 
 public class RefreshTokenRequest

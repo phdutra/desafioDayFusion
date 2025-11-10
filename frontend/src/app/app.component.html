@@ -78,16 +78,25 @@
                   </ng-template>
                 </div>
                 <div class="user-dropdown-info">
-                  <span class="user-dropdown-name">{{ displayName() }}</span>
+                  <span class="user-dropdown-name">
+                    {{ displayName() }}
+                    <span class="admin-badge-small" *ngIf="isAdmin()">ADMIN</span>
+                  </span>
                   <span class="user-dropdown-cpf">CPF {{ displayCpf() }}</span>
                 </div>
               </div>
               <div class="user-dropdown-divider"></div>
               <div class="user-dropdown-actions">
                 <button type="button" class="dropdown-action" (click)="goToProfile()">
-                  <span class="dropdown-icon">✏️</span>
-                  <span>Editar perfil</span>
+                  <span class="dropdown-icon">👤</span>
+                  <span>Meu Perfil</span>
                 </button>
+                <button type="button" class="dropdown-action admin-action" (click)="goToUserManagement()" *ngIf="isAdmin()">
+                  <span class="dropdown-icon">👥</span>
+                  <span>Gerenciar Usuários</span>
+                  <span class="admin-badge-inline">ADMIN</span>
+                </button>
+                <div class="user-dropdown-divider" *ngIf="isAdmin()"></div>
                 <button type="button" class="dropdown-action logout" (click)="logout()">
                   <span class="dropdown-icon">🚪</span>
                   <span>Sair</span>

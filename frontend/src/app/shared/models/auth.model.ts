@@ -8,6 +8,8 @@ export interface AuthResponse {
 export interface UserProfile {
   cpf: string;
   name: string;
+  role: string;
+  isApproved: boolean;
   faceImageKey?: string;
   faceImageUrl?: string;
   hasFaceId?: boolean;
@@ -15,6 +17,8 @@ export interface UserProfile {
   // Backend response uses PascalCase, so we need to handle both
   Cpf?: string;
   Name?: string;
+  Role?: string;
+  IsApproved?: boolean;
   FaceImageKey?: string;
   FaceImageUrl?: string;
   HasFaceId?: boolean;
@@ -57,7 +61,9 @@ export interface FaceLoginResponse {
   tokens: AuthResponse;
   user?: {
     cpf?: string;
-    name?: string; // Backend serializa em camelCase (PropertyNamingPolicy = CamelCase)
+    name?: string;
+    role?: string;
+    isApproved?: boolean;
   };
 }
 

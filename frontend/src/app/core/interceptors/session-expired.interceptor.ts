@@ -12,8 +12,12 @@ export const sessionExpiredInterceptor: HttpInterceptorFn = (req, next) => {
     catchError((error: HttpErrorResponse) => {
       // Detecta erro 401 (Unauthorized) - sessão expirada
       if (error.status === 401) {
+        // Limpa TODOS os dados do localStorage e sessionStorage
+        localStorage.clear();
+        sessionStorage.clear();
+        
         // Limpa dados de autenticação
-        authService.logout();
+        authService.logout().subscribe();
         
         // Mostra modal de sessão expirada
         modalService.showModal();

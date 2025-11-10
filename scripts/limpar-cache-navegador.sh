@@ -1,0 +1,39 @@
+#!/bin/bash
+
+echo "🧹 INSTRUÇÕES PARA LIMPAR CACHE DO NAVEGADOR"
+echo "════════════════════════════════════════════════"
+echo ""
+echo "Execute no Console do Navegador (F12):"
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "// 1. Limpar localStorage"
+echo "localStorage.clear();"
+echo ""
+echo "// 2. Limpar sessionStorage"
+echo "sessionStorage.clear();"
+echo ""
+echo "// 3. Verificar usuário atual"
+echo "console.log('User ID:', localStorage.getItem('user_id'));"
+echo "console.log('Token:', localStorage.getItem('access_token'));"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+echo "Ou use estes atalhos:"
+echo ""
+echo "Chrome/Edge:"
+echo "  • Mac: Cmd + Shift + Delete"
+echo "  • Windows/Linux: Ctrl + Shift + Delete"
+echo ""
+echo "Firefox:"
+echo "  • Mac: Cmd + Shift + Delete"
+echo "  • Windows/Linux: Ctrl + Shift + Delete"
+echo ""
+echo "Safari:"
+echo "  • Mac: Cmd + Option + E"
+echo ""
+echo "Depois:"
+echo "1. ✅ Selecione 'Cached images and files'"
+echo "2. ✅ Selecione 'Cookies and other site data'"
+echo "3. ✅ Clique em 'Clear data'"
+echo "4. ✅ Recarregue a página (F5)"
+echo ""
+

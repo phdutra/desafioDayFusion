@@ -102,6 +102,32 @@
   list-style: none;
 }
 
+// Link administrativo especial
+.admin-link {
+  background: rgba(239, 68, 68, 0.1);
+  border-left: 3px solid #ef4444;
+
+  &:hover {
+    background: rgba(239, 68, 68, 0.2);
+  }
+
+  &.active {
+    background: rgba(239, 68, 68, 0.25);
+    border-left-color: #ef4444;
+  }
+
+  .admin-badge {
+    margin-left: auto;
+    padding: 0.25rem 0.5rem;
+    background: rgba(239, 68, 68, 0.3);
+    color: #ef4444;
+    font-size: 0.65rem;
+    font-weight: 700;
+    border-radius: 6px;
+    letter-spacing: 0.5px;
+  }
+}
+
 // Menu do Usuário com Hover
 .user-menu-container {
   margin-top: auto;
@@ -176,6 +202,19 @@
     font-size: 0.7rem;
     color: rgba(203, 213, 225, 0.6);
     letter-spacing: 0.02em;
+  }
+
+  .admin-badge-small {
+    display: inline-block;
+    margin-left: 0.5rem;
+    padding: 0.15rem 0.4rem;
+    background: rgba(239, 68, 68, 0.2);
+    color: #ef4444;
+    font-size: 0.6rem;
+    font-weight: 700;
+    border-radius: 4px;
+    letter-spacing: 0.5px;
+    vertical-align: middle;
   }
 
   // Efeito hover no avatar
@@ -338,6 +377,28 @@
     background: rgba(59, 130, 246, 0.25);
     color: #f8fafc;
     transform: translateX(3px);
+  }
+
+  &.admin-action {
+    background: rgba(239, 68, 68, 0.1);
+    border-left: 2px solid rgba(239, 68, 68, 0.4);
+    
+    &:hover {
+      background: rgba(239, 68, 68, 0.2);
+      color: #fecaca;
+      border-left-color: #ef4444;
+    }
+
+    .admin-badge-inline {
+      margin-left: auto;
+      padding: 0.2rem 0.5rem;
+      background: rgba(239, 68, 68, 0.3);
+      color: #ef4444;
+      font-size: 0.65rem;
+      font-weight: 700;
+      border-radius: 6px;
+      letter-spacing: 0.5px;
+    }
   }
 
   &.logout {
