@@ -50,16 +50,22 @@
 
         <li class="nav-divider"></li>
 
-        <!-- Menu do Usuário: Avatar com Dropdown no Hover -->
+        <!-- Menu do Usuário: Avatar com Nome e Dropdown no Hover -->
         <li class="nav-item user-menu-container" *ngIf="currentUser()">
           <div class="user-avatar-trigger">
-            <div class="avatar">
-              <ng-container *ngIf="avatarUrl(); else avatarFallback">
-                <img [src]="avatarUrl()!" [alt]="displayName()" />
-              </ng-container>
-              <ng-template #avatarFallback>
-                <div class="avatar-fallback">{{ userInitials() }}</div>
-              </ng-template>
+            <div class="user-info-visible">
+              <div class="avatar">
+                <ng-container *ngIf="avatarUrl(); else avatarFallback">
+                  <img [src]="avatarUrl()!" [alt]="displayName()" />
+                </ng-container>
+                <ng-template #avatarFallback>
+                  <div class="avatar-fallback">{{ userInitials() }}</div>
+                </ng-template>
+              </div>
+              <div class="user-name-visible">
+                <span class="user-name-text">{{ displayName() }}</span>
+                <span class="user-cpf-text">{{ displayCpf() }}</span>
+              </div>
             </div>
             <div class="user-dropdown">
               <div class="user-dropdown-header">

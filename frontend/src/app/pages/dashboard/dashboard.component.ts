@@ -119,15 +119,15 @@ export class DashboardComponent implements OnInit {
   private getChartColorForStatus(status: string): string {
     switch (status) {
       case 'Aprovado':
-        return '#00ff88' // Verde
+        return '#22c55e' // Verde escuro profissional
       case 'Rejeitado':
-        return '#ff4444' // Vermelho
+        return '#f87171' // Vermelho coral suave
       case 'Revisar':
-        return '#ffaa00' // Laranja
+        return '#fbbf24' // Amarelo dourado suave
       case 'Pendente':
-        return '#6366f1' // Azul
+        return '#818cf8' // Azul lavanda suave
       default:
-        return '#8892b0' // Cinza
+        return '#94a3b8' // Cinza azulado suave
     }
   }
 
