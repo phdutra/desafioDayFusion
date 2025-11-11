@@ -131,12 +131,19 @@ export class AuthService {
     return this.http.post(`${this.API_URL}/auth/logout`, {})
       .pipe(
         tap(() => {
-          this.clearAuth();
-          this.isAuthenticated.set(false);
+          this.executeLocalLogout();
           // Reseta a flag após 500ms (tempo suficiente para o interceptor verificar)
           setTimeout(() => this.resetVoluntaryLogout(), 500);
         })
       );
+  }
+
+  /**
+   * Executa o fluxo de logout local sem chamar a API
+   */
+  forceLogout(): void {
+    this.executeLocalLogout();
+    this.resetVoluntaryLogout();
   }
 
   getCurrentUser(): Observable<UserProfile> {
@@ -207,6 +214,11 @@ export class AuthService {
     localStorage.clear();
     sessionStorage.clear();
     this.currentUserSubject.next(null);
+  }
+
+  private executeLocalLogout(): void {
+    this.clearAuth();
+    this.isAuthenticated.set(false);
   }
 
   private loadStoredAuth(): void {
