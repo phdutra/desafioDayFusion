@@ -209,13 +209,15 @@ export class LivenessModalComponent implements OnDestroy {
       
       this.updateProgress(96);
 
-      let faceMatchScore: number | undefined;
+    let faceMatchScore: number | undefined;
+    let faceMatchReason: string | undefined;
 
       if (this.documentFile && referenceFaceBytes) {
         const documentBlob = this.documentFile;
         const documentBytes = await blobToUint8Array(documentBlob);
-        const faceMatch = await this.rekognitionService.compareFaces(referenceFaceBytes, documentBytes);
+      const faceMatch = await this.rekognitionService.compareFaces(referenceFaceBytes, documentBytes);
         faceMatchScore = faceMatch.similarity;
+      faceMatchReason = faceMatch.reason;
         documentUpload = await this.s3Service.uploadLivenessAsset(sessionId, 'document', documentBlob);
       }
 
@@ -237,8 +239,9 @@ export class LivenessModalComponent implements OnDestroy {
         }
       }
 
-      const isLive = livenessScore >= 70;
-      const hasStrongMatch = faceMatchScore === undefined || faceMatchScore >= 80;
+    const isLive = livenessScore >= 70;
+    const hasStrongMatch = faceMatchScore === undefined || faceMatchScore >= 80;
+    const documentRejected = this.documentFile !== null && faceMatchScore === 0;
 
       const metadata: Record<string, string> = {};
       if (this.documentFile?.name) {
@@ -247,6 +250,9 @@ export class LivenessModalComponent implements OnDestroy {
       if (documentUpload?.url) {
         metadata['documentUrl'] = documentUpload.url;
       }
+    if (faceMatchReason) {
+      metadata['faceMatchReason'] = faceMatchReason;
+    }
 
       const summary: LivenessSummary = {
         sessionId,
@@ -254,7 +260,7 @@ export class LivenessModalComponent implements OnDestroy {
         isLive,
         livenessScore: Number(livenessScore.toFixed(2)),
         faceMatchScore: faceMatchScore !== undefined ? Number(faceMatchScore.toFixed(2)) : undefined,
-        status: !isLive ? 'Rejeitado' : hasStrongMatch ? 'Aprovado' : 'Revisar',
+      status: !isLive ? 'Rejeitado' : documentRejected ? 'Rejeitado' : hasStrongMatch ? 'Aprovado' : 'Revisar',
         captures,
         video: videoSummary,
         documentKey: documentUpload?.key ?? undefined,
