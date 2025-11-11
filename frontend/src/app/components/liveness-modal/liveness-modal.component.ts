@@ -14,7 +14,7 @@ import {
   RecordedMedia
 } from '../../core/utils/media-recorder.util';
 import { captureFrame, blobToUint8Array } from '../../core/utils/photo-capture.util';
-import { speakSequence } from '../../core/utils/voice-sequence.util';
+import { cancelSpeech, speakSequence } from '../../core/utils/voice-sequence.util';
 
 interface CaptureInternal {
   position: string;
@@ -68,7 +68,7 @@ export class LivenessModalComponent implements OnDestroy {
       return;
     }
 
-    speechSynthesis.cancel();
+    cancelSpeech();
     this.resetState();
     this.shouldAbort = false;
     this.updateProgress(5);
@@ -307,7 +307,7 @@ export class LivenessModalComponent implements OnDestroy {
     const wasRunning = this.isRunning;
     this.shouldAbort = true;
     this.skipNextStart = !wasRunning;
-    speechSynthesis.cancel();
+    cancelSpeech();
 
     this.statusMessage = 'Sessão cancelada pelo usuário.';
     this.errorMessage = null;
@@ -329,7 +329,7 @@ export class LivenessModalComponent implements OnDestroy {
 
   ngOnDestroy(): void {
     this.shouldAbort = true;
-    speechSynthesis.cancel();
+    cancelSpeech();
     stopMediaStream(this.stream);
     this.stream = undefined;
   }
