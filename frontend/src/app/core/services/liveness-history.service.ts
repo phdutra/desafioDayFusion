@@ -104,10 +104,10 @@ export class LivenessHistoryService {
     }
 
     try {
-      const endpoint = `${baseUrl}/liveness/history?limit=${limit}&expiryMinutes=${expiryMinutes}`;
-      const items = await firstValueFrom(this.http.get<LivenessHistoryApiItem[]>(endpoint));
-      const remoteEntries = items.map((item) => this.mapRemoteItem(item));
-      this.historySignal.update((current) => this.mergeEntries(current, remoteEntries));
+      //const endpoint = `${baseUrl}/liveness/history?limit=${limit}&expiryMinutes=${expiryMinutes}`;
+      //const items = await firstValueFrom(this.http.get<LivenessHistoryApiItem[]>(endpoint));
+      //const remoteEntries = items.map((item) => this.mapRemoteItem(item));
+      //this.historySignal.update((current) => this.mergeEntries(current, remoteEntries));
     } catch (error) {
       console.error('[LivenessHistoryService] Erro ao buscar histórico remoto.', error);
       throw error;

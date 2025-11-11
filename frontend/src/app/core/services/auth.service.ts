@@ -210,9 +210,9 @@ export class AuthService {
   }
 
   private clearAuth(): void {
-    // Limpa TODOS os dados do localStorage e sessionStorage
-    localStorage.clear();
-    sessionStorage.clear();
+    localStorage.removeItem(this.storageAccessKey);
+    localStorage.removeItem(this.storageRefreshKey);
+    localStorage.removeItem(this.storageUserKey);
     this.currentUserSubject.next(null);
   }
 

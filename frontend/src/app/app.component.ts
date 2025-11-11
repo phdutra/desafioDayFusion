@@ -110,9 +110,8 @@ export class AppComponent implements OnDestroy {
   }
 
   logout(): void {
-    // Limpa TODOS os dados do localStorage e sessionStorage
-    localStorage.clear();
-    sessionStorage.clear();
+    // localStorage.clear(); // Mantido comentado para preservar dados locais durante o logout
+   // sessionStorage.clear();
 
     this.authService.logout()
       .pipe(take(1))
