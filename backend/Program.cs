@@ -71,7 +71,12 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
     {
-        policy.WithOrigins("http://localhost:4200", "https://localhost:4200")
+        policy.WithOrigins(
+                "http://localhost:4200",
+                "https://localhost:4200",
+                "http://localhost:3000",
+                "https://dayfusion.app",
+                "https://d14vqj8spvlhxs.cloudfront.net")
               .AllowAnyHeader()
               .AllowAnyMethod()
               .AllowCredentials()
@@ -135,10 +140,19 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 builder.Services.AddAuthorization();
 
+var swaggerEnabled = builder.Configuration.GetValue<bool?>("Swagger:Enabled")
+    ?? builder.Configuration.GetValue<bool?>("Swagger__Enabled")
+    ?? false;
+
+var httpsRedirectEnabled = builder.Configuration.GetValue<bool?>("App:HttpsRedirect")
+    ?? builder.Configuration.GetValue<bool?>("App__HttpsRedirect")
+    ?? builder.Environment.IsDevelopment();
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline
-if (app.Environment.IsDevelopment())
+var enableSwagger = app.Environment.IsDevelopment() || swaggerEnabled;
+if (enableSwagger)
 {
     app.UseSwagger();
     app.UseSwaggerUI(c =>
@@ -148,8 +162,11 @@ if (app.Environment.IsDevelopment())
     });
 }
 
-// Enable HTTPS redirection for WebRTC (required for liveness)
-app.UseHttpsRedirection();
+if (httpsRedirectEnabled)
+{
+    // HTTPS redirecionado somente quando listener 443 estiver configurado
+    app.UseHttpsRedirection();
+}
 app.UseCors("AllowFrontend");
 app.UseAuthentication();
 app.UseAuthorization();
@@ -161,12 +178,21 @@ app.MapGet("/health", () => new { Status = "Healthy", Timestamp = DateTime.UtcNo
     .WithName("HealthCheck")
     .WithTags("Health");
 
-// Redirect root to Swagger UI for convenience
-app.MapGet("/", context =>
+if (enableSwagger)
 {
-    context.Response.Redirect("/swagger");
-    return Task.CompletedTask;
-});
+    // Redirect root to Swagger UI when habilitado
+    app.MapGet("/", context =>
+    {
+        context.Response.Redirect("/swagger");
+        return Task.CompletedTask;
+    });
+}
+else
+{
+    app.MapGet("/", () => Results.Json(new { Status = "DayFusion API running", Timestamp = DateTime.UtcNow }))
+        .WithName("RootStatus")
+        .WithTags("Health");
+}
 
 #if DEBUG
 app.MapGet("/debug/endpoints", (IEnumerable<EndpointDataSource> endpointSources) =>
