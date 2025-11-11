@@ -6,6 +6,7 @@ import { environment } from '../../../environments/environment';
 export interface CompareFacesResult {
   similarity: number;
   matched: boolean;
+  reason?: 'NO_FACE_DETECTED' | 'ERROR';
 }
 
 @Injectable({
@@ -53,9 +54,30 @@ export class RekognitionService {
         similarity: match?.Similarity ?? 0,
         matched: Boolean(match && (match.Similarity ?? 0) >= similarityThreshold)
       };
-    } catch (error) {
+    } catch (error: any) {
+      const name = error?.name ?? error?.__type ?? 'UnknownError';
+      const message = error?.message ?? error?.Message ?? 'Unexpected error';
+
+      if (name === 'InvalidParameterException' && message.includes('invalid parameters')) {
+        console.warn('[RekognitionService] CompareFacesCommand sem face detectada em uma das imagens.', {
+          sourceBytesLength: sourceBytes.length,
+          targetBytesLength: targetBytes.length,
+          error: message
+        });
+
+        return {
+          similarity: 0,
+          matched: false,
+          reason: 'NO_FACE_DETECTED'
+        };
+      }
+
       console.error('[RekognitionService] CompareFacesCommand falhou.', error);
-      throw error;
+      return {
+        similarity: 0,
+        matched: false,
+        reason: 'ERROR'
+      };
     }
   }
 
