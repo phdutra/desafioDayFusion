@@ -77,5 +77,8 @@
     </div>
     <h2 class="wait-title">{{ waitModalTitle() }}</h2>
     <p class="wait-message">{{ waitModalMessage() }}</p>
+    <div class="wait-modal-actions" *ngIf="waitModalClosable()">
+      <button type="button" (click)="closeWaitModal()">Entendi</button>
+    </div>
   </div>
 </div>

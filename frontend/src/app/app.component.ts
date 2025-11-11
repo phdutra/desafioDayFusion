@@ -18,6 +18,7 @@ export class AppComponent implements OnDestroy {
   readonly showShell = signal(true);
   readonly currentUser = signal<UserProfile | null>(null);
   readonly avatarUrl = signal<string | null>(null);
+  readonly isSidebarOpen = signal(false);
   readonly displayName = computed(() => {
     const user = this.currentUser();
     return user?.name || user?.Name || 'Usuário';
@@ -128,9 +129,20 @@ export class AppComponent implements OnDestroy {
       });
   }
 
+  toggleSidebar(): void {
+    this.isSidebarOpen.update((value) => !value);
+  }
+
+  closeSidebar(): void {
+    if (this.isSidebarOpen()) {
+      this.isSidebarOpen.set(false);
+    }
+  }
+
   private updateShellVisibility(url: string): void {
     const path = url.split('?')[0];
     this.showShell.set(!this.authRoutes.has(path));
+    this.isSidebarOpen.set(false);
   }
 
   private loadAvatar(key: string): void {

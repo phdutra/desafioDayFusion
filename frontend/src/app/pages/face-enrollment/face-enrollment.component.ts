@@ -122,16 +122,23 @@ export class FaceEnrollmentComponent {
     this.errorMessage.set(null);
     this.isSubmitting.set(true);
 
-    this.authService.registerFace({
-      cpf: this.cpf,
-      name: this.form.getRawValue().name.trim(),
-      imageKey: capture.s3Key
-    })
+    this.authService.registerFace(
+      {
+        cpf: this.cpf,
+        name: this.form.getRawValue().name.trim(),
+        imageKey: capture.s3Key
+      },
+      { autoLogin: false }
+    )
       .pipe(finalize(() => this.isSubmitting.set(false)))
       .subscribe({
         next: (response) => {
-          this.router.navigate(['/dashboard'], {
-            queryParams: { welcome: response.name }
+          this.router.navigate(['/login'], {
+            queryParams: {
+              approval: 'pending',
+              name: response.name || undefined
+            },
+            replaceUrl: true
           });
         },
         error: (error) => {

@@ -1,12 +1,21 @@
 .dashboard {
   display: flex;
   flex-direction: column;
-  gap: 2rem;
-  padding: 0;
+  gap: clamp(1.5rem, 3vw, 2.5rem);
+  padding: clamp(1.25rem, 3vw, 2rem) 0;
   color: #e2e8ff;
   background: radial-gradient(circle at top, rgba(45, 55, 130, 0.25), rgba(5, 8, 20, 0.95));
   min-height: 100%;
   width: 100%;
+}
+
+.settings-container {
+  width: min(1100px, 100%);
+  margin: 0 auto;
+  padding: 0 clamp(1rem, 4vw, 2.5rem) clamp(2rem, 5vw, 3rem);
+  display: flex;
+  flex-direction: column;
+  gap: clamp(1.75rem, 3vw, 2.5rem);
 }
 
 .dashboard-header {
@@ -14,25 +23,34 @@
   justify-content: space-between;
   align-items: flex-start;
   gap: 1.5rem;
-  padding: 2rem 2rem 0 2rem;
+  padding: 0;
+}
 
-  h1 {
-    margin: 0;
-    font-size: 2.5rem;
-    font-weight: 700;
-    color: #eff3ff;
-  }
+.header-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
 
-  p {
-    margin: 0.5rem 0 0;
-    color: #9ca7d5;
-  }
+.header-info h1 {
+  margin: 0;
+  font-size: clamp(2rem, 4vw, 2.6rem);
+  font-weight: 700;
+  color: #eff3ff;
+}
+
+.header-info p {
+  margin: 0;
+  color: #9ca7d5;
+  max-width: 520px;
 }
 
 .header-actions {
   display: flex;
   gap: 0.75rem;
   align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .badge {
@@ -45,11 +63,11 @@
   color: #dbe4ff;
   font-weight: 600;
   font-size: 0.85rem;
+}
 
-  &.secondary {
-    background: rgba(56, 189, 248, 0.12);
-    color: #bae6fd;
-  }
+.badge.secondary {
+  background: rgba(56, 189, 248, 0.12);
+  color: #bae6fd;
 }
 
 .badge-dot {
@@ -70,9 +88,8 @@
 
 .grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 2rem;
-  padding: 0 2rem 2rem 2rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: clamp(1.5rem, 3vw, 2rem);
   align-items: start;
 }
 
@@ -80,12 +97,13 @@
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
+  min-width: 0;
 }
 
 .document-card {
   background: rgba(9, 12, 25, 0.85);
   border-radius: 18px;
-  padding: 1.5rem;
+  padding: clamp(1.25rem, 2.5vw, 1.75rem);
   border: 1px solid rgba(59, 130, 246, 0.18);
   color: #d5ddff;
 
@@ -169,10 +187,10 @@
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
+}
 
-  h2 {
-    margin: 0;
-  }
+.result-section h2 {
+  margin: 0;
 }
 
 .result-grid {
@@ -321,23 +339,34 @@
   }
 }
 
-@media (max-width: 1024px) {
+@media (max-width: 900px) {
   .dashboard-header {
     flex-direction: column;
     align-items: flex-start;
-    padding: 1.5rem 1.5rem 0 1.5rem;
   }
 
-  .grid {
-    padding: 0 1.5rem 1.5rem 1.5rem;
+  .header-actions {
+    width: 100%;
+    justify-content: flex-start;
   }
 }
 
 @media (max-width: 640px) {
+  .settings-container {
+    padding: 0 clamp(1rem, 6vw, 1.5rem) clamp(1.75rem, 6vw, 2.5rem);
+  }
+
   .header-actions {
+    gap: 0.5rem;
+  }
+
+  .badge {
     width: 100%;
-    justify-content: flex-start;
-    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .result-grid {
+    grid-template-columns: 1fr;
   }
 }
 

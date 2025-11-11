@@ -1,6 +1,34 @@
 <ng-container *ngIf="showShell(); else authLayout">
   <div class="app-container">
-    <nav class="sidebar">
+    <header class="mobile-header">
+      <button type="button" class="menu-toggle" (click)="toggleSidebar()" aria-label="Abrir menu">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
+      <div class="mobile-logo">
+        <img src="assets/images/logo_dayfusion.png" alt="DayFusion Logo" />
+        <div class="mobile-logo-text">
+          <span>DayFusion</span>
+          <small>Reconhecimento facial</small>
+        </div>
+      </div>
+      <button class="mobile-profile" type="button" (click)="goToProfile()" *ngIf="currentUser()">
+        <ng-container *ngIf="avatarUrl(); else mobileAvatarFallback">
+          <img [src]="avatarUrl()!" [alt]="displayName()" />
+        </ng-container>
+        <ng-template #mobileAvatarFallback>
+          <span>{{ userInitials() }}</span>
+        </ng-template>
+      </button>
+    </header>
+
+    <div class="layout-wrapper">
+      <div class="sidebar-backdrop" *ngIf="isSidebarOpen()" (click)="closeSidebar()"></div>
+      <nav class="sidebar" [class.open]="isSidebarOpen()">
+        <button type="button" class="close-sidebar" (click)="closeSidebar()" aria-label="Fechar menu">
+          ✕
+        </button>
       <div class="sidebar-header">
         <div class="logo">
           <div class="logo-icon">
@@ -108,11 +136,12 @@
       </ul>
     </nav>
 
-    <main class="main-content">
-      <div class="page-content">
-        <router-outlet></router-outlet>
-      </div>
-    </main>
+      <main class="main-content" (click)="closeSidebar()">
+        <div class="page-content">
+          <router-outlet></router-outlet>
+        </div>
+      </main>
+    </div>
   </div>
 </ng-container>
 

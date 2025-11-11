@@ -1,11 +1,70 @@
 .help-container {
   display: flex;
+  flex-direction: column;
   min-height: 100vh;
   background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 100%);
   color: #e0e0e0;
+  overflow-x: hidden;
 }
 
-/* ===== SIDEBAR FIXO ===== */
+.help-mobile-header {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.25rem;
+  background: rgba(16, 16, 32, 0.95);
+  border-bottom: 1px solid rgba(79, 209, 197, 0.2);
+  position: sticky;
+  top: 0;
+  z-index: 120;
+
+  .mobile-menu-toggle {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 5px;
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    border: 1px solid rgba(79, 209, 197, 0.35);
+    background: rgba(20, 20, 40, 0.9);
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+
+    span {
+      width: 18px;
+      height: 2px;
+      background: #4fd1c5;
+      border-radius: 2px;
+    }
+
+    &:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 18px rgba(79, 209, 197, 0.35);
+    }
+  }
+
+  .mobile-header-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    text-align: right;
+  }
+
+  .mobile-header-title {
+    font-weight: 600;
+    color: #4fd1c5;
+  }
+
+  small {
+    font-size: 0.75rem;
+    color: rgba(224, 224, 224, 0.6);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+}
+
 .help-sidebar {
   width: 280px;
   background: rgba(20, 20, 40, 0.95);
@@ -13,36 +72,24 @@
   padding: 2rem 1rem;
   position: fixed;
   top: 0;
-  left: 250px; // Espaço para o menu principal do DayFusion
+  left: 250px;
   height: 100vh;
   overflow-y: auto;
   backdrop-filter: blur(10px);
-  z-index: 100;
+  z-index: 110;
+  transition: transform 0.3s ease;
 
-  &::-webkit-scrollbar {
-    width: 6px;
+  &.open {
+    transform: translateX(0);
   }
 
-  &::-webkit-scrollbar-track {
-    background: rgba(0, 0, 0, 0.2);
-  }
-
-  &::-webkit-scrollbar-thumb {
-    background: rgba(79, 209, 197, 0.3);
-    border-radius: 3px;
-
-    &:hover {
-      background: rgba(79, 209, 197, 0.5);
-    }
-  }
-
-  @media (max-width: 1024px) {
-    position: static;
-    width: 100%;
-    height: auto;
-    left: 0;
-    border-right: none;
-    border-bottom: 1px solid rgba(79, 209, 197, 0.2);
+  .close-sidebar {
+    display: none;
+    background: none;
+    border: none;
+    color: rgba(224, 224, 224, 0.7);
+    font-size: 1.2rem;
+    cursor: pointer;
   }
 }
 
@@ -115,8 +162,9 @@
   flex: 1;
   padding: 3rem;
   max-width: 1200px;
-  margin: 0 auto;
-  margin-left: 20%; // Espaço para menu principal (250px) + menu documentação (280px)
+  //margin: 0 auto;
+  margin-left: 20%;
+  box-sizing: border-box;
 
   @media (max-width: 1024px) {
     margin-left: 0;
@@ -1522,26 +1570,47 @@
     flex-direction: column;
   }
 
+  .help-mobile-header {
+    display: flex;
+  }
+
   .help-sidebar {
-    width: 100%;
-    height: auto;
-    position: static;
-    border-right: none;
-    border-bottom: 1px solid rgba(79, 209, 197, 0.2);
+    position: fixed;
+    inset: 0 auto 0 0;
+    width: min(280px, 80vw);
+    transform: translateX(-100%);
+    height: 100vh;
+    left: 0;
+    border-right: 1px solid rgba(79, 209, 197, 0.25);
+    border-bottom: none;
+    padding: 2rem 1.25rem;
+
+    &.open {
+      transform: translateX(0);
+      box-shadow: 0 0 40px rgba(0, 0, 0, 0.45);
+    }
+
+    .close-sidebar {
+      display: block;
+      margin-left: auto;
+      margin-bottom: 1rem;
+    }
   }
 
   .help-nav {
-    flex-direction: row;
-    flex-wrap: wrap;
+    flex-direction: column;
   }
 
   .help-nav-item {
     flex: 1;
     min-width: 150px;
   }
-}
 
-@media (max-width: 768px) {
+  .help-content {
+    margin-left: 0;
+    padding: 2rem 1.5rem 3rem;
+  }
+
   .section-header h1 {
     font-size: 2rem;
   }
@@ -1562,5 +1631,207 @@
       overflow-x: auto;
     }
   }
+}
+
+@media (max-width: 768px) {
+  .section-header h1 {
+    font-size: 2rem;
+  }
+}
+
+@media (max-width: 600px) {
+  .help-content {
+    padding: 1.25rem 1rem 2rem;
+  }
+
+  .section-header {
+    h1 {
+      font-size: 1.6rem;
+    }
+
+    .section-subtitle {
+      font-size: 0.95rem;
+    }
+  }
+
+  .info-card,
+  .layer-card,
+  .feature-card,
+  .security-card,
+  .benefit-item,
+  .threshold-item,
+  .analysis-item,
+  .usage-step,
+  .future-model,
+  .result-example,
+  .match-flow,
+  .endpoint-card {
+    margin-inline: auto;
+    border-radius: 10px;
+  }
+
+  .info-card h3,
+  .layer-card h3,
+  .feature-card h3,
+  .security-card h3,
+  .benefit-item h4,
+  .threshold-item h4,
+  .usage-step-content h3,
+  .analysis-item h4,
+  .result-example .result-header .result-score {
+    font-size: 1.05rem;
+  }
+
+  .info-card p,
+  .info-card li,
+  .privacy-list li,
+  .usage-step-content li,
+  .analysis-item p,
+  .threshold-item p,
+  .result-message,
+  .endpoint-card p {
+    font-size: 0.85rem;
+    line-height: 1.5;
+  }
+
+  .privacy-list li {
+    padding: 0.75rem;
+  }
+
+  .threshold-grid,
+  .layers-grid,
+  .feature-grid,
+  .security-grid,
+  .analysis-grid,
+  .benefits-grid {
+    gap: 1rem;
+  }
+
+  .threshold-item {
+    max-width: 320px;
+  }
+
+  .threshold-item .threshold-score {
+    font-size: 1.25rem;
+  }
+}
+
+.info-card,
+.result-example,
+.match-flow,
+.flow-diagram,
+.layers-grid,
+.feature-grid,
+.metrics-grid,
+.threshold-grid,
+.analysis-grid,
+.usage-steps,
+.architecture-diagram,
+.api-endpoints,
+.security-grid,
+.benefits-grid,
+.future-model,
+.progress-example,
+.checklist,
+.best-practices,
+.result-grid,
+.results-table,
+.video-card,
+.captures-card {
+  width: 100%;
+  max-width: 960px;
+  margin-inline: auto;
+  box-sizing: border-box;
+}
+
+.layers-grid,
+.feature-grid,
+.metrics-grid,
+.threshold-grid,
+.analysis-grid,
+.security-grid,
+.benefits-grid,
+.architecture-diagram,
+.progress-example,
+.checklist,
+.best-practices,
+.result-grid,
+.results-table {
+  justify-items: stretch;
+}
+
+.layer-card,
+.feature-card,
+.metric-item,
+.threshold-item,
+.analysis-item,
+.security-card,
+.benefit-item,
+.usage-step,
+.future-model,
+.result-example,
+.match-flow,
+.info-card,
+.progress-step {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.layers-grid {
+  width: 100%;
+  max-width: 960px;
+  margin-inline: auto;
+}
+
+.info-card,
+.layer-card,
+.feature-card,
+.metric-item,
+.analysis-item,
+.security-card,
+.benefit-item,
+.threshold-item,
+.usage-step,
+.result-example,
+.match-flow,
+.future-model,
+.progress-step,
+.endpoint-card,
+.match-placeholder,
+.arch-layer,
+.analysis-grid .analysis-item,
+.threshold-grid .threshold-item {
+  p,
+  li,
+  span,
+  code,
+  strong {
+    overflow-wrap: anywhere;
+    word-break: normal;
+    hyphens: auto;
+  }
+}
+
+.security-card ul li,
+.benefit-item p,
+.metric-item,
+.feature-card p,
+.layer-card .layer-description,
+.result-message {
+  font-size: clamp(0.82rem, 3.2vw, 0.95rem);
+  line-height: 1.5;
+}
+
+.layer-card,
+.feature-card,
+.security-card,
+.benefit-item,
+.metric-item,
+.threshold-item,
+.analysis-item,
+.result-example,
+.match-flow,
+.info-card {
+  padding: clamp(1rem, 4vw, 1.5rem);
 }
 

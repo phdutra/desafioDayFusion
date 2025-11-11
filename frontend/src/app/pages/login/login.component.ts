@@ -1,7 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { Component, HostListener, ViewChild, computed, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { finalize } from 'rxjs';
 import { LivenessModalComponent } from '../../components/liveness-modal/liveness-modal.component';
 import { VoiceStep } from '../../core/models/voice-step.model';
@@ -19,6 +19,7 @@ import { CpfLookupResponse } from '../../shared/models/auth.model';
 export class LoginComponent {
   @ViewChild(LivenessModalComponent) livenessModal?: LivenessModalComponent;
   private readonly fb = inject(FormBuilder);
+  private readonly route = inject(ActivatedRoute);
 
   // Login: captura silenciosa e rápida (sem instruções de voz)
   readonly voiceSteps = signal<VoiceStep[]>([
@@ -38,6 +39,7 @@ export class LoginComponent {
   readonly showWaitModal = signal(false);
   readonly waitModalTitle = signal<string>('Autenticando...');
   readonly waitModalMessage = signal<string>('Por favor, aguarde enquanto validamos sua identidade.');
+  readonly waitModalClosable = signal(false);
 
   readonly isCpfInvalid = computed(() => {
     const control = this.form.controls.cpf;
@@ -54,10 +56,14 @@ export class LoginComponent {
   ) {
     if (this.authService.getToken()) {
       this.router.navigate(['/dashboard']);
+      return;
     }
+
+    this.handleInitialApprovalPending();
   }
 
   startFaceLogin(): void {
+    this.waitModalClosable.set(false);
     this.statusMessage.set('Iniciando verificação facial segura...');
     this.errorMessage.set(null);
     this.showCpfFallback.set(false);
@@ -172,6 +178,7 @@ export class LoginComponent {
           console.log('[LoginComponent] JSON.stringify(response.user):', JSON.stringify(response.user));
           
           if (response.success) {
+            this.waitModalClosable.set(false);
             // Busca o nome do usuário autenticado
             // Primeiro tenta pegar de response.user, depois busca do currentUser após carregar
             let userName = response.user?.name || (response.user as any)?.name;
@@ -224,13 +231,26 @@ export class LoginComponent {
 
           // Falha na autenticação
           this.showWaitModal.set(false);
+          this.waitModalClosable.set(false);
+          if (this.isPendingApprovalMessage(response.message)) {
+            this.showPendingApprovalModal(response.message);
+            return;
+          }
           this.triggerFallback(response.message || 'Não reconhecemos seu rosto. Confirme seu CPF abaixo.');
         },
         error: (error) => {
           console.error('[LoginComponent] Erro no login facial:', error);
+          const rawMessage = error?.error?.message ?? error?.message;
+          const message = typeof rawMessage === 'string' ? rawMessage : null;
+
+          if (error?.status === 401 && this.isPendingApprovalMessage(message)) {
+            this.showPendingApprovalModal(message ?? undefined);
+            return;
+          }
+
           this.showWaitModal.set(false);
-          const message = error?.error?.message ?? 'Não reconhecemos seu rosto. Confirme seu CPF abaixo.';
-          this.triggerFallback(message);
+          this.waitModalClosable.set(false);
+          this.triggerFallback(message ?? 'Não reconhecemos seu rosto. Confirme seu CPF abaixo.');
         }
       });
   }
@@ -258,6 +278,59 @@ export class LoginComponent {
     this.showCpfFallback.set(true);
     this.isAuthenticating.set(false);
     this.errorMessage.set(null);
+  }
+
+  closeWaitModal(): void {
+    this.showWaitModal.set(false);
+    this.waitModalClosable.set(false);
+    this.waitModalTitle.set('Autenticando...');
+    this.waitModalMessage.set('Por favor, aguarde enquanto validamos sua identidade.');
+  }
+
+  private handleInitialApprovalPending(): void {
+    const approvalParam = this.route.snapshot.queryParamMap.get('approval');
+    if (approvalParam !== 'pending') {
+      return;
+    }
+
+    const nameParam = this.route.snapshot.queryParamMap.get('name');
+    const baseMessage = nameParam
+      ? `${nameParam}, recebemos seu cadastro. Assim que um administrador aprovar, você poderá acessar o sistema.`
+      : 'Recebemos seu cadastro. Assim que um administrador aprovar, você poderá acessar o sistema.';
+
+    this.showPendingApprovalModal(baseMessage);
+
+    setTimeout(() => {
+      void this.router.navigate([], {
+        relativeTo: this.route,
+        queryParams: { approval: null, name: null },
+        queryParamsHandling: 'merge',
+        replaceUrl: true
+      });
+    }, 0);
+  }
+
+  private showPendingApprovalModal(message?: string): void {
+    this.waitModalTitle.set('Cadastro em análise');
+    this.waitModalMessage.set(
+      message || 'Seu cadastro está pendente de aprovação. Tente novamente mais tarde.'
+    );
+    this.waitModalClosable.set(true);
+    this.showWaitModal.set(true);
+  }
+
+  private isPendingApprovalMessage(message?: string | null): boolean {
+    if (!message) {
+      return false;
+    }
+
+    const normalized = message.toLowerCase();
+    return (
+      normalized.includes('aguardando aprovação') ||
+      normalized.includes('pendente de autorização') ||
+      normalized.includes('pendente de aprovação') ||
+      normalized.includes('pendente')
+    );
   }
 
   private selectBestCapture(summary: LivenessSummary): LivenessCaptureSummary | null {

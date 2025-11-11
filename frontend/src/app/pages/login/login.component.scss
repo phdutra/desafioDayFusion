@@ -22,6 +22,7 @@
   align-items: flex-end;
   justify-content: center;
   overflow: hidden;
+  padding: clamp(2.5rem, 6vw, 5rem) clamp(2rem, 6vw, 4.5rem);
   background: url('/assets/images/logo_dayfusion.png') center / cover no-repeat;
 }
 
@@ -402,23 +403,133 @@
   }
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1024px) {
+  .hero-content {
+    min-height: auto;
+    align-items: center;
+    padding: clamp(3rem, 8vw, 4.5rem) clamp(2rem, 7vw, 3rem) clamp(2.25rem, 8vw, 3.5rem);
+  }
+
+  .hero-left {
+    margin-bottom: clamp(2rem, 5vw, 3.5rem);
+    max-width: 460px;
+  }
+
   .hero-right {
     position: static;
-    width: 100%;
-    margin: clamp(1.5rem, 4vw, 2.5rem) auto 0;
+    width: min(420px, 100%);
+    margin: clamp(1.75rem, 5vw, 3rem) auto 0;
+  }
+
+  .hero-hint {
+    left: auto;
+    right: auto;
+    bottom: auto;
+  }
+}
+
+@media (max-width: 768px) {
+  .login-page {
+    min-height: 100dvh;
+  }
+
+  .login-hero {
+    position: relative;
+  }
+
+  .hero-content {
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 2.5rem;
+    min-height: auto;
+    background-size: cover;
+    padding: clamp(2.4rem, 9vw, 3.2rem) clamp(1.5rem, 7vw, 2.5rem) clamp(2rem, 9vw, 3rem);
+  }
+
+  .hero-left {
+    align-items: center;
+    text-align: center;
+    margin-bottom: 0;
+    gap: 1rem;
+  }
+
+  .hero-left .cta-button {
+    width: min(320px, 100%);
+    padding: 0.95rem 1.2rem;
+  }
+
+  .hero-right {
+    width: min(420px, 100%);
+  }
+
+  .fallback-card {
+    padding: clamp(1.6rem, 5vw, 2rem);
+    border-radius: 20px;
+  }
+
+  .hero-hint {
+    position: static;
+    margin: 1.25rem auto 0;
+    text-align: center;
   }
 }
 
 @media (max-width: 640px) {
-  .hero-hint {
-    position: static;
-    margin: 1rem auto 0;
-    text-align: center;
+  .brand-title {
+    letter-spacing: 0.18em;
+    font-size: clamp(2rem, 7vw, 2.6rem);
+  }
+
+  .hero-left p {
+    font-size: clamp(1rem, 3.5vw, 1.1rem);
   }
 
   .hero-right {
     width: 100%;
+  }
+
+  .fallback-card p {
+    font-size: 0.95rem;
+  }
+
+  .fallback-card button {
+    font-size: 0.95rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .hero-content {
+    gap: 2rem;
+    padding: 2rem 1.25rem 2.4rem;
+  }
+
+  .hero-left {
+    max-width: 100%;
+  }
+
+  .hero-left .cta-button {
+    width: 100%;
+    font-size: 0.95rem;
+  }
+
+  .hero-hint {
+    font-size: 0.85rem;
+    padding: 0.75rem 1.1rem;
+  }
+
+  .fallback-card {
+    padding: 1.45rem;
+    border-radius: 18px;
+    gap: 1rem;
+  }
+
+  .fallback-card h2 {
+    font-size: 1.35rem;
+  }
+
+  .fallback-card input {
+    font-size: 0.95rem;
   }
 }
 
@@ -499,6 +610,39 @@
   font-size: 1.05rem;
   color: #cbd5e1;
   line-height: 1.6;
+}
+
+.wait-modal-actions {
+  margin-top: 2rem;
+  display: flex;
+  justify-content: center;
+
+  button {
+    padding: 0.85rem 2.4rem;
+    border: none;
+    border-radius: 999px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    background: linear-gradient(135deg, #38bdf8, #6366f1);
+    color: #0b1120;
+    box-shadow:
+      0 14px 30px rgba(99, 102, 241, 0.35),
+      inset 0 1px 0 rgba(255, 255, 255, 0.3);
+    transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+  }
+
+  button:hover {
+    transform: translateY(-2px);
+    box-shadow:
+      0 18px 40px rgba(99, 102, 241, 0.45),
+      inset 0 1px 0 rgba(255, 255, 255, 0.36);
+  }
+
+  button:focus-visible {
+    outline: 2px solid rgba(56, 189, 248, 0.9);
+    outline-offset: 3px;
+  }
 }
 
 @keyframes fadeIn {

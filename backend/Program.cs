@@ -165,7 +165,7 @@ if (enableSwagger)
 if (httpsRedirectEnabled)
 {
     // HTTPS redirecionado somente quando listener 443 estiver configurado
-    app.UseHttpsRedirection();
+app.UseHttpsRedirection();
 }
 app.UseCors("AllowFrontend");
 app.UseAuthentication();
@@ -181,11 +181,11 @@ app.MapGet("/health", () => new { Status = "Healthy", Timestamp = DateTime.UtcNo
 if (enableSwagger)
 {
     // Redirect root to Swagger UI when habilitado
-    app.MapGet("/", context =>
-    {
-        context.Response.Redirect("/swagger");
-        return Task.CompletedTask;
-    });
+app.MapGet("/", context =>
+{
+    context.Response.Redirect("/swagger");
+    return Task.CompletedTask;
+});
 }
 else
 {

@@ -34,9 +34,10 @@ export class UserManagementService {
    * Aprova um usuário (apenas Admin)
    */
   approveUser(cpf: string): Observable<{ message: string }> {
-    const request: ApproveUserRequest = { cpf, approve: true };
+    const sanitized = this.sanitizeCpf(cpf);
+    const request: ApproveUserRequest = { cpf: sanitized, approve: true };
     return this.http.put<{ message: string }>(
-      `${this.API_URL}/users/${cpf}/approve`,
+      `${this.API_URL}/users/${sanitized}/approve`,
       request
     );
   }
@@ -45,9 +46,10 @@ export class UserManagementService {
    * Rejeita um usuário (apenas Admin)
    */
   rejectUser(cpf: string): Observable<{ message: string }> {
-    const request: ApproveUserRequest = { cpf, approve: false };
+    const sanitized = this.sanitizeCpf(cpf);
+    const request: ApproveUserRequest = { cpf: sanitized, approve: false };
     return this.http.put<{ message: string }>(
-      `${this.API_URL}/users/${cpf}/approve`,
+      `${this.API_URL}/users/${sanitized}/approve`,
       request
     );
   }
@@ -56,11 +58,27 @@ export class UserManagementService {
    * Atualiza a role de um usuário (apenas Admin)
    */
   updateUserRole(cpf: string, role: 'Admin' | 'User'): Observable<{ message: string }> {
-    const request: UpdateRoleRequest = { cpf, role };
+    const sanitized = this.sanitizeCpf(cpf);
+    const request: UpdateRoleRequest = { cpf: sanitized, role };
     return this.http.put<{ message: string }>(
-      `${this.API_URL}/users/${cpf}/role`,
+      `${this.API_URL}/users/${sanitized}/role`,
       request
     );
+  }
+
+  /**
+   * Exclui um usuário definitivamente (apenas Admin)
+   */
+  deleteUser(cpf: string): Observable<{ message: string }> {
+    const sanitized = this.sanitizeCpf(cpf);
+    return this.http.delete<{ message: string }>(
+      `${this.API_URL}/users/${sanitized}`
+    );
+  }
+
+  private sanitizeCpf(cpf: string): string {
+    const digits = cpf.replace(/\D/g, '');
+    return digits.length === 11 ? digits : cpf;
   }
 }
 

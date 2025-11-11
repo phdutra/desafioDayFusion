@@ -259,6 +259,46 @@ public class UserProfileService : IUserProfileService
         return user;
     }
 
+    public async Task<bool> DeleteUserAsync(string cpf, CancellationToken cancellationToken = default)
+    {
+        var candidates = new List<string>();
+        var sanitizedCpf = SanitizeCpf(cpf);
+
+        if (!string.IsNullOrEmpty(sanitizedCpf))
+        {
+            candidates.Add(sanitizedCpf);
+        }
+
+        if (!string.IsNullOrWhiteSpace(cpf) && !candidates.Contains(cpf))
+        {
+            candidates.Add(cpf);
+        }
+
+        foreach (var candidate in candidates)
+        {
+            try
+            {
+                var existing = await _context.LoadAsync<UserProfile>(candidate, cancellationToken);
+                if (existing is null)
+                {
+                    continue;
+                }
+
+                await _context.DeleteAsync(existing, cancellationToken);
+                _logger.LogInformation("Usuário {Cpf} removido do DynamoDB", candidate);
+                return true;
+            }
+            catch (ResourceNotFoundException ex)
+            {
+                _logger.LogWarning(ex, "Tabela DynamoDB não encontrada ao excluir usuário {Cpf}.", candidate);
+                return false;
+            }
+        }
+
+        _logger.LogWarning("Tentativa de excluir usuário não localizado para CPF {Cpf}", cpf);
+        return false;
+    }
+
     private async Task SaveAsyncSafe(UserProfile user, CancellationToken cancellationToken)
     {
         try

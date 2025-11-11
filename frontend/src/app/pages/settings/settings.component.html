@@ -1,114 +1,116 @@
 <div class="dashboard">
-  <header class="dashboard-header">
-    <div>
-      <h1>⚙️ Configurações</h1>
-      <p>Personalize instruções de voz e teste o sistema de captura facial 3D.</p>
-    </div>
-    <div class="header-actions">
-      <div class="badge">
-        <span class="badge-dot live"></span>
-        <span>WebRTC Ready</span>
+  <div class="settings-container">
+    <header class="dashboard-header">
+      <div class="header-info">
+        <h1>⚙️ Configurações</h1>
+        <p>Personalize instruções de voz e teste o sistema de captura facial 3D.</p>
       </div>
-      <div class="badge secondary">
-        <span class="badge-dot aws"></span>
-        <span>AWS Sync</span>
+      <div class="header-actions">
+        <div class="badge">
+          <span class="badge-dot live"></span>
+          <span>WebRTC Ready</span>
+        </div>
+        <div class="badge secondary">
+          <span class="badge-dot aws"></span>
+          <span>AWS Sync</span>
+        </div>
       </div>
-    </div>
-  </header>
+    </header>
 
-  <section class="grid">
-    <app-config-panel
-      class="panel"
-      [steps]="voiceSteps()"
-      (stepsChange)="onStepsChange($event)"
-    ></app-config-panel>
+    <section class="grid">
+      <app-config-panel
+        class="panel"
+        [steps]="voiceSteps()"
+        (stepsChange)="onStepsChange($event)"
+      ></app-config-panel>
 
-    <div class="panel">
-      <div class="document-card">
-        <h2>Documento de Referência</h2>
-        <p>Faça upload de um documento (RG/CNH) para comparação facial.</p>
+      <div class="panel">
+        <div class="document-card">
+          <h2>Documento de Referência</h2>
+          <p>Faça upload de um documento (RG/CNH) para comparação facial.</p>
 
-        <div class="document-input">
-          <label class="upload-button">
-            <input type="file" accept="image/*" (change)="onDocumentSelected($event)" hidden />
-            <span>📄 Selecionar documento</span>
-          </label>
+          <div class="document-input">
+            <label class="upload-button">
+              <input type="file" accept="image/*" (change)="onDocumentSelected($event)" hidden />
+              <span>📄 Selecionar documento</span>
+            </label>
 
-          <div class="document-info" *ngIf="documentFile as doc; else noDocument">
-            <div>
-              <strong>{{ doc.name }}</strong>
-              <p>{{ doc.size / 1024 | number:'1.0-0' }} KB</p>
+            <div class="document-info" *ngIf="documentFile as doc; else noDocument">
+              <div>
+                <strong>{{ doc.name }}</strong>
+                <p>{{ doc.size / 1024 | number:'1.0-0' }} KB</p>
+              </div>
+              <button class="btn ghost" (click)="clearDocument()">Remover</button>
             </div>
-            <button class="btn ghost" (click)="clearDocument()">Remover</button>
-          </div>
-          <ng-template #noDocument>
-            <p class="document-placeholder">Nenhum documento selecionado.</p>
-          </ng-template>
-        </div>
-      </div>
-
-      <app-liveness-modal
-        [voiceSteps]="voiceSteps()"
-        [documentFile]="documentFile"
-        (sessionCompleted)="handleSessionCompleted($event)"
-        (sessionFailed)="handleSessionFailed($event)"
-      ></app-liveness-modal>
-    </div>
-  </section>
-
-  <section class="result-section" *ngIf="lastResult() || errorMessage()">
-    <h2>Resultado da Análise</h2>
-
-    <div class="result-grid" *ngIf="lastResult(); else errorBlock">
-      <div class="result-card" [class.approved]="lastResult()?.status === 'Aprovado'" [class.rejected]="lastResult()?.status === 'Rejeitado'">
-        <div class="result-header">
-          <span class="result-icon">
-            {{ lastResult()?.status === 'Aprovado' ? '✅' : lastResult()?.status === 'Rejeitado' ? '❌' : '⚠️' }}
-          </span>
-          <div>
-            <h3>Status: {{ lastResult()?.status }}</h3>
-            <p>Liveness médio {{ lastResult()?.livenessScore }} · Match documento {{ lastResult()?.faceMatchScore ?? 'N/A' }}</p>
+            <ng-template #noDocument>
+              <p class="document-placeholder">Nenhum documento selecionado.</p>
+            </ng-template>
           </div>
         </div>
 
-        <pre *ngIf="resultJson()" class="result-json">{{ resultJson() }}</pre>
+        <app-liveness-modal
+          [voiceSteps]="voiceSteps()"
+          [documentFile]="documentFile"
+          (sessionCompleted)="handleSessionCompleted($event)"
+          (sessionFailed)="handleSessionFailed($event)"
+        ></app-liveness-modal>
       </div>
+    </section>
 
-      <div class="captures-card" *ngIf="lastResult()?.captures?.length">
-        <h3>Capturas Enviadas ao S3</h3>
-        <div class="captures-grid">
-          <figure *ngFor="let capture of lastResult()?.captures">
-            <img [src]="capture.previewUrl" [alt]="capture.position" />
-            <figcaption>
-              <strong>{{ capture.position }}</strong>
-              <span>Confiança {{ capture.confidence | number:'1.0-0' }}%</span>
-            </figcaption>
-          </figure>
+    <section class="result-section" *ngIf="lastResult() || errorMessage()">
+      <h2>Resultado da Análise</h2>
+
+      <div class="result-grid" *ngIf="lastResult(); else errorBlock">
+        <div class="result-card" [class.approved]="lastResult()?.status === 'Aprovado'" [class.rejected]="lastResult()?.status === 'Rejeitado'">
+          <div class="result-header">
+            <span class="result-icon">
+              {{ lastResult()?.status === 'Aprovado' ? '✅' : lastResult()?.status === 'Rejeitado' ? '❌' : '⚠️' }}
+            </span>
+            <div>
+              <h3>Status: {{ lastResult()?.status }}</h3>
+              <p>Liveness médio {{ lastResult()?.livenessScore }} · Match documento {{ lastResult()?.faceMatchScore ?? 'N/A' }}</p>
+            </div>
+          </div>
+
+          <pre *ngIf="resultJson()" class="result-json">{{ resultJson() }}</pre>
         </div>
-      </div>
 
-      <div class="video-card" *ngIf="lastResult()?.video?.url">
-        <h3>Vídeo da Sessão</h3>
-        <video controls [src]="lastResult()?.video?.url" preload="metadata"></video>
-        <div class="video-meta">
-          <span>{{ lastResult()?.video?.mimeType }}</span>
-          <span>{{ (lastResult()?.video?.size ?? 0) / (1024 * 1024) | number:'1.1-1' }} MB</span>
-          <span>Duração {{ (lastResult()?.video?.durationMs ?? 0) / 1000 | number:'1.0-1' }} s</span>
+        <div class="captures-card" *ngIf="lastResult()?.captures?.length">
+          <h3>Capturas Enviadas ao S3</h3>
+          <div class="captures-grid">
+            <figure *ngFor="let capture of lastResult()?.captures">
+              <img [src]="capture.previewUrl" [alt]="capture.position" />
+              <figcaption>
+                <strong>{{ capture.position }}</strong>
+                <span>Confiança {{ capture.confidence | number:'1.0-0' }}%</span>
+              </figcaption>
+            </figure>
+          </div>
         </div>
-      </div>
-    </div>
 
-    <ng-template #errorBlock>
-      <div class="result-card rejected">
-        <div class="result-header">
-          <span class="result-icon">⚠️</span>
-          <div>
-            <h3>Falha ao executar sessão</h3>
-            <p>{{ errorMessage() }}</p>
+        <div class="video-card" *ngIf="lastResult()?.video?.url">
+          <h3>Vídeo da Sessão</h3>
+          <video controls [src]="lastResult()?.video?.url" preload="metadata"></video>
+          <div class="video-meta">
+            <span>{{ lastResult()?.video?.mimeType }}</span>
+            <span>{{ (lastResult()?.video?.size ?? 0) / (1024 * 1024) | number:'1.1-1' }} MB</span>
+            <span>Duração {{ (lastResult()?.video?.durationMs ?? 0) / 1000 | number:'1.0-1' }} s</span>
           </div>
         </div>
       </div>
-    </ng-template>
-  </section>
+
+      <ng-template #errorBlock>
+        <div class="result-card rejected">
+          <div class="result-header">
+            <span class="result-icon">⚠️</span>
+            <div>
+              <h3>Falha ao executar sessão</h3>
+              <p>{{ errorMessage() }}</p>
+            </div>
+          </div>
+        </div>
+      </ng-template>
+    </section>
+  </div>
 </div>
 

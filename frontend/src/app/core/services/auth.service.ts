@@ -60,16 +60,23 @@ export class AuthService {
     return this.http.get<CpfLookupResponse>(`${this.API_URL}/usuario/${sanitized}`);
   }
 
-  registerFace(payload: FaceEnrollmentRequest): Observable<FaceEnrollmentResponse> {
+  registerFace(
+    payload: FaceEnrollmentRequest,
+    options?: { autoLogin?: boolean }
+  ): Observable<FaceEnrollmentResponse> {
     const body: FaceEnrollmentRequest = {
       ...payload,
       cpf: this.sanitizeCpf(payload.cpf)
     };
 
+    const shouldAutoLogin = options?.autoLogin ?? true;
+
     return this.http.post<FaceEnrollmentResponse>(`${this.API_URL}/auth/cadastro-facial`, body)
       .pipe(
         tap((response) => {
-          this.handleAuthResponse(response.tokens);
+          if (shouldAutoLogin) {
+            this.handleAuthResponse(response.tokens);
+          }
         })
       );
   }

@@ -17,6 +17,9 @@ export class UserManagementComponent implements OnInit {
   error = signal<string | null>(null);
   successMessage = signal<string | null>(null);
   selectedTab = signal<'all' | 'pending'>('pending');
+  isDeleteModalOpen = signal(false);
+  userPendingDeletion = signal<UserManagement | null>(null);
+  isDeleting = signal(false);
 
   constructor(private readonly userManagementService: UserManagementService) {}
 
@@ -107,6 +110,43 @@ export class UserManagementComponent implements OnInit {
         this.error.set('Erro ao rejeitar usuário. Tente novamente.');
         this.loading.set(false);
         console.error('Erro ao rejeitar usuário:', err);
+      }
+    });
+  }
+
+  openDeleteModal(user: UserManagement): void {
+    this.userPendingDeletion.set(user);
+    this.isDeleteModalOpen.set(true);
+    this.error.set(null);
+  }
+
+  closeDeleteModal(): void {
+    this.isDeleteModalOpen.set(false);
+    this.userPendingDeletion.set(null);
+    this.isDeleting.set(false);
+  }
+
+  confirmDelete(): void {
+    const user = this.userPendingDeletion();
+    if (!user) {
+      return;
+    }
+
+    this.loading.set(true);
+    this.isDeleting.set(true);
+    this.userManagementService.deleteUser(user.cpf).subscribe({
+      next: (response) => {
+        this.successMessage.set(response.message);
+        setTimeout(() => this.successMessage.set(null), 3000);
+        this.closeDeleteModal();
+        this.loadPendingUsers();
+        this.loadAllUsers();
+      },
+      error: (err) => {
+        this.error.set('Erro ao excluir usuário. Tente novamente.');
+        console.error('Erro ao excluir usuário:', err);
+        this.loading.set(false);
+        this.closeDeleteModal();
       }
     });
   }

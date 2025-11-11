@@ -27,8 +27,19 @@ export class HelpComponent implements OnInit {
   ]);
 
   readonly currentSection = signal<string>('anti-deepfake');
+  readonly sidebarOpen = signal<boolean>(false);
   private readonly scrollOffset = 180;
   private userScrolling = false;
+
+  toggleSidebar(): void {
+    this.sidebarOpen.update((value) => !value);
+  }
+
+  closeSidebar(): void {
+    if (this.sidebarOpen()) {
+      this.sidebarOpen.set(false);
+    }
+  }
 
   ngOnInit(): void {
     setTimeout(() => this.detectSectionInView(), 0);
@@ -60,6 +71,7 @@ export class HelpComponent implements OnInit {
    */
   selectSection(sectionId: string): void {
     this.userScrolling = true;
+    this.closeSidebar();
     
     this.updateActiveSection(sectionId);
     

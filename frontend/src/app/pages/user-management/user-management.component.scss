@@ -9,9 +9,107 @@
   }
 }
 
+// Delete Confirmation Modal
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(2, 6, 23, 0.78);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  animation: fadeInUp 0.25s ease;
+}
+
+.modal-content {
+  width: min(420px, 92%);
+  background: linear-gradient(160deg, rgba(15, 23, 42, 0.95), rgba(30, 41, 59, 0.92));
+  border-radius: 20px;
+  padding: 2rem;
+  box-shadow:
+    0 30px 70px rgba(15, 23, 42, 0.55),
+    0 0 0 1px rgba(148, 163, 184, 0.18);
+  border: 1px solid rgba(99, 102, 241, 0.18);
+  color: #e2e8f0;
+  text-align: center;
+  animation: slideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+  h3 {
+    margin: 0 0 1rem 0;
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: white;
+  }
+
+  p {
+    margin: 0 0 1.5rem 0;
+    color: rgba(226, 232, 240, 0.85);
+    line-height: 1.6;
+  }
+}
+
+.modal-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  flex-wrap: wrap;
+
+  button {
+    min-width: 150px;
+    padding: 0.85rem 1.6rem;
+    border: none;
+    border-radius: 12px;
+    font-weight: 600;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+  }
+
+  .btn-secondary {
+    background: rgba(148, 163, 184, 0.18);
+    color: #cbd5f5;
+    border: 1px solid rgba(148, 163, 184, 0.3);
+
+    &:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 30px rgba(148, 163, 184, 0.25);
+    }
+  }
+
+  .btn-danger {
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    color: #fff;
+    box-shadow: 0 18px 40px rgba(239, 68, 68, 0.55);
+
+    &:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 22px 45px rgba(239, 68, 68, 0.65);
+    }
+  }
+
+  button:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+  }
+}
+
 @keyframes spin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
   }
 }
 
@@ -372,6 +470,17 @@
 
       &:hover {
         background: rgba(59, 130, 246, 0.25);
+        transform: translateY(-2px);
+      }
+    }
+
+    &.btn-delete {
+      background: rgba(148, 163, 184, 0.15);
+      color: #e2e8f0;
+      border: 1px solid rgba(148, 163, 184, 0.35);
+
+      &:hover {
+        background: rgba(148, 163, 184, 0.25);
         transform: translateY(-2px);
       }
     }

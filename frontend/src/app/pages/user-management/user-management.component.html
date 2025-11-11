@@ -105,6 +105,9 @@
                     <button class="btn-reject" (click)="rejectUser(user)" title="Rejeitar">
                       ❌ Rejeitar
                     </button>
+                    <button class="btn-delete" (click)="openDeleteModal(user)" title="Excluir">
+                      🗑 Excluir
+                    </button>
                   </div>
                 </td>
               </tr>
@@ -184,6 +187,9 @@
                         ✅
                       </button>
                     }
+                    <button class="btn-delete" (click)="openDeleteModal(user)" title="Excluir">
+                      🗑
+                    </button>
                   </div>
                 </td>
               </tr>
@@ -192,6 +198,28 @@
         </table>
       </div>
     }
+  }
+
+  @if (isDeleteModalOpen() && userPendingDeletion()) {
+    <div class="modal-backdrop">
+      <div class="modal-content">
+        <h3>Confirmar exclusão</h3>
+        <p>
+          Tem certeza de que deseja remover o usuário
+          <strong>{{ userPendingDeletion()?.name }}</strong>
+          (CPF {{ formatCpf(userPendingDeletion()?.cpf || '') }})?
+          Esta ação é permanente e removerá também o Face ID associado.
+        </p>
+        <div class="modal-actions">
+          <button type="button" class="btn-secondary" (click)="closeDeleteModal()" [disabled]="isDeleting()">
+            Cancelar
+          </button>
+          <button type="button" class="btn-danger" (click)="confirmDelete()" [disabled]="isDeleting()">
+            {{ isDeleting() ? 'Removendo...' : 'Remover Usuário' }}
+          </button>
+        </div>
+      </div>
+    </div>
   }
 </div>
 

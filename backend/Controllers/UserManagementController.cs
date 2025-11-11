@@ -2,6 +2,7 @@ using DayFusion.API.Models;
 using DayFusion.API.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Linq;
 
 namespace DayFusion.API.Controllers;
 
@@ -12,13 +13,16 @@ public class UserManagementController : ControllerBase
 {
     private readonly ILogger<UserManagementController> _logger;
     private readonly IUserProfileService _userProfileService;
+    private readonly IRekognitionService _rekognitionService;
 
     public UserManagementController(
         ILogger<UserManagementController> logger,
-        IUserProfileService userProfileService)
+        IUserProfileService userProfileService,
+        IRekognitionService rekognitionService)
     {
         _logger = logger;
         _userProfileService = userProfileService;
+        _rekognitionService = rekognitionService;
     }
 
     /// <summary>
@@ -163,6 +167,56 @@ public class UserManagementController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// Remove um usuário e sua face do Rekognition (apenas Admin)
+    /// </summary>
+    [HttpDelete("users/{cpf}")]
+    public async Task<IActionResult> DeleteUserAsync(string cpf, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var sanitizedCpf = SanitizeCpf(cpf);
+            if (string.IsNullOrEmpty(sanitizedCpf))
+            {
+                return BadRequest("CPF inválido. Informe 11 dígitos.");
+            }
+
+            var user = await _userProfileService.GetByCpfAsync(sanitizedCpf, cancellationToken)
+                ?? await FindUserFallbackAsync(sanitizedCpf, cancellationToken);
+            if (user is null)
+            {
+                return NotFound(new { message = "Usuário não encontrado." });
+            }
+
+            if (!string.IsNullOrWhiteSpace(user.FaceId))
+            {
+                try
+                {
+                    await _rekognitionService.DeleteFaceAsync(user.FaceId, cancellationToken);
+                    _logger.LogInformation("FaceId {FaceId} removido do Rekognition antes da exclusão do CPF {Cpf}", user.FaceId, sanitizedCpf);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Falha ao remover FaceId {FaceId} do Rekognition para CPF {Cpf}. Prosseguindo com exclusão.", user.FaceId, sanitizedCpf);
+                }
+            }
+
+            var deleted = await _userProfileService.DeleteUserAsync(sanitizedCpf, cancellationToken);
+            if (!deleted)
+            {
+                return StatusCode(500, new { message = "Não foi possível excluir o usuário." });
+            }
+
+            _logger.LogInformation("Usuário {Cpf} excluído pelo administrador.", sanitizedCpf);
+            return Ok(new { message = "Usuário excluído com sucesso." });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Erro ao excluir usuário {Cpf}", cpf);
+            return StatusCode(500, new { message = "Erro ao excluir usuário.", error = ex.Message });
+        }
+    }
+
     private static string SanitizeCpf(string cpf)
     {
         if (string.IsNullOrWhiteSpace(cpf))
@@ -172,6 +226,20 @@ public class UserManagementController : ControllerBase
 
         var digits = new string(cpf.Where(char.IsDigit).ToArray());
         return digits.Length == 11 ? digits : string.Empty;
+    }
+
+    private async Task<UserProfile?> FindUserFallbackAsync(string sanitizedCpf, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var allUsers = await _userProfileService.GetAllUsersAsync(cancellationToken);
+            return allUsers.FirstOrDefault(u => SanitizeCpf(u.Cpf) == sanitizedCpf);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Falha ao executar fallback de consulta para CPF {Cpf}", sanitizedCpf);
+            return null;
+        }
     }
 }
 

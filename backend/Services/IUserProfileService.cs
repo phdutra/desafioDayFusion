@@ -15,5 +15,6 @@ public interface IUserProfileService
     Task<List<UserProfile>> GetAllUsersAsync(CancellationToken cancellationToken = default);
     Task<UserProfile?> UpdateApprovalStatusAsync(string cpf, bool isApproved, CancellationToken cancellationToken = default);
     Task<UserProfile?> UpdateRoleAsync(string cpf, string role, CancellationToken cancellationToken = default);
+    Task<bool> DeleteUserAsync(string cpf, CancellationToken cancellationToken = default);
 }
 

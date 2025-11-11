@@ -1,9 +1,22 @@
 <div class="help-container">
+  <header class="help-mobile-header">
+    <button type="button" class="mobile-menu-toggle" (click)="toggleSidebar()" aria-label="Abrir menu da documentação">
+      <span></span>
+      <span></span>
+      <span></span>
+    </button>
+    <div class="mobile-header-info">
+      <span class="mobile-header-title">Documentação</span>
+      <small>DayFusion Security</small>
+    </div>
+  </header>
+
   <!-- Sidebar de navegação -->
-  <aside class="help-sidebar">
+  <aside class="help-sidebar" [class.open]="sidebarOpen()">
     <div class="help-sidebar-header">
       <h2>📚 Documentação</h2>
       <p>DayFusion Security</p>
+      <button type="button" class="close-sidebar" (click)="closeSidebar()" aria-label="Fechar menu">✕</button>
     </div>
     
     <nav class="help-nav">
@@ -20,7 +33,7 @@
   </aside>
 
   <!-- Conteúdo principal -->
-  <main class="help-content">
+  <main class="help-content" (click)="closeSidebar()">
     <!-- Seção: Anti-Deepfake -->
     <section id="anti-deepfake" class="help-section">
       <div class="section-header">
