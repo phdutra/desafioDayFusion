@@ -48,7 +48,6 @@ export class LivenessModalComponent implements OnDestroy {
   private stream?: MediaStream;
   private videoRecorder: MediaRecorderController | null = null;
   private shouldAbort = false;
-  private skipNextStart = false;
 
   constructor(
     private readonly cognitoService: CognitoService,
@@ -59,12 +58,6 @@ export class LivenessModalComponent implements OnDestroy {
   async startSession(): Promise<void> {
     if (!this.voiceSteps?.length) {
       this.errorMessage = 'Configure ao menos uma instrução de voz antes de iniciar.';
-      return;
-    }
-
-    if (this.skipNextStart) {
-      this.skipNextStart = false;
-      this.shouldAbort = false;
       return;
     }
 
@@ -310,9 +303,7 @@ export class LivenessModalComponent implements OnDestroy {
   }
 
   cancelSession(): void {
-    const wasRunning = this.isRunning;
     this.shouldAbort = true;
-    this.skipNextStart = !wasRunning;
     cancelSpeech();
 
     this.statusMessage = 'Sessão cancelada pelo usuário.';

@@ -1,4 +1,5 @@
 import { Injectable, signal } from '@angular/core';
+import { Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { BehaviorSubject, Observable, tap } from 'rxjs';
 import { environment } from '../../../environments/environment';
@@ -29,7 +30,10 @@ export class AuthService {
   // Flag para indicar se o logout foi voluntário (clique no botão Sair)
   private isVoluntaryLogout = false;
 
-  constructor(private readonly http: HttpClient) {
+  constructor(
+    private readonly http: HttpClient,
+    private readonly router: Router
+  ) {
     // Atrasa a inicialização para evitar dependência circular com o interceptor
     setTimeout(() => this.loadStoredAuth(), 0);
   }
@@ -219,6 +223,7 @@ export class AuthService {
   private executeLocalLogout(): void {
     this.clearAuth();
     this.isAuthenticated.set(false);
+    this.navigateToLogin();
   }
 
   private loadStoredAuth(): void {
@@ -239,5 +244,18 @@ export class AuthService {
 
   private sanitizeCpf(cpf: string): string {
     return cpf.replace(/\D/g, '');
+  }
+
+  private navigateToLogin(): void {
+    const currentUrl = this.router.url.split('?')[0];
+    if (currentUrl === '/login') {
+      return;
+    }
+
+    setTimeout(() => {
+      if (this.router.url.split('?')[0] !== '/login') {
+        void this.router.navigate(['/login']);
+      }
+    }, 0);
   }
 }
