@@ -151,7 +151,7 @@ var httpsRedirectEnabled = builder.Configuration.GetValue<bool?>("App:HttpsRedir
 var app = builder.Build();
 
 // Configure the HTTP request pipeline
-var enableSwagger = app.Environment.IsDevelopment() || swaggerEnabled;
+var enableSwagger = app.Environment.IsDevelopment() || (!app.Environment.IsProduction() && swaggerEnabled);
 if (enableSwagger)
 {
     app.UseSwagger();
