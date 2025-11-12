@@ -1,0 +1,120 @@
+<div class="verifications-page">
+  <div class="page-header">
+    <div>
+      <h1>Verificações</h1>
+      <p class="subtitle">Acompanhe sessões, observações manuais e status consolidados.</p>
+    </div>
+    <button type="button" class="btn-refresh" (click)="refresh()" [disabled]="loading()">
+      <span *ngIf="!loading(); else loadingLabel">⟳ Recarregar</span>
+      <ng-template #loadingLabel>Carregando...</ng-template>
+    </button>
+  </div>
+
+  <section class="metrics-grid" *ngIf="metrics() as m">
+    <article class="metric-card primary">
+      <header>Total de Sessões</header>
+      <strong>{{ m.total }}</strong>
+      <small *ngIf="metricsLoading()">Atualizando métricas...</small>
+    </article>
+    <article class="metric-card success">
+      <header>Aprovadas</header>
+      <strong>{{ m.approved }}</strong>
+      <small>Match {{ formatScore(m.avgMatchScore) }} · Liveness {{ formatScore(m.avgLivenessScore) }}</small>
+    </article>
+    <article class="metric-card warning">
+      <header>Revisão</header>
+      <strong>{{ m.reviewRequired }}</strong>
+      <small>Observações pendentes</small>
+    </article>
+    <article class="metric-card danger">
+      <header>Reprovadas</header>
+      <strong>{{ m.rejected }}</strong>
+      <small>{{ formatScore(m.avgFraudScore) }} fraude média</small>
+    </article>
+  </section>
+
+  <section class="reasons-panel" *ngIf="metrics()?.topRejectionReasons?.length">
+    <h2>Principais motivos de rejeição</h2>
+    <ul>
+      <li *ngFor="let reason of metrics()!.topRejectionReasons">
+        <span class="reason-text">{{ reason.reason }}</span>
+        <span class="reason-count">{{ reason.count }}</span>
+      </li>
+    </ul>
+  </section>
+
+  <section class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>Sessão</th>
+          <th>Status</th>
+          <th>Scores</th>
+          <th>Observação</th>
+          <th>Atualização</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngIf="loading()">
+          <td colspan="6" class="state-row">
+            <span>Carregando verificações...</span>
+          </td>
+        </tr>
+        <tr *ngIf="error()">
+          <td colspan="6" class="state-row error">
+            <span>{{ error() }}</span>
+          </td>
+        </tr>
+        <tr *ngIf="emptyState()">
+          <td colspan="6" class="state-row">
+            <span>Nenhuma verificação encontrada.</span>
+          </td>
+        </tr>
+        <tr *ngFor="let item of items(); trackBy: trackBySessionId">
+          <td>
+            <div class="session-id">{{ item.sessionId }}</div>
+            <div class="session-meta">Usuário {{ item.userId }}</div>
+          </td>
+          <td>
+            <span [class]="statusClass(item.status)">{{ item.status }}</span>
+          </td>
+          <td>
+            <div class="score-line">
+              <span class="label">Liveness:</span>
+              <span>{{ formatScore(item.livenessScore) }}</span>
+            </div>
+            <div class="score-line">
+              <span class="label">Match:</span>
+              <span>{{ formatScore(item.matchScore) }}</span>
+            </div>
+            <div class="score-line">
+              <span class="label">Fraude:</span>
+              <span>{{ formatScore(item.fraudScore) }}</span>
+            </div>
+          </td>
+          <td>
+            <div class="observation">
+              <strong>Auto:</strong>
+              <span>{{ item.autoObservations.length ? item.autoObservations[0] : '—' }}</span>
+            </div>
+            <div class="observation manual" *ngIf="item.manualObservation">
+              <strong>Manual:</strong>
+              <span>{{ item.manualObservation }}</span>
+            </div>
+          </td>
+          <td>
+            <div class="session-meta">{{ formatDate(item.createdAt) }}</div>
+            <div class="session-meta" *ngIf="item.reviewedAt">
+              Revisto {{ formatDate(item.reviewedAt) }}
+            </div>
+          </td>
+          <td class="actions">
+            <a [routerLink]="['/verifications', item.sessionId]" class="link-detail">Detalhes</a>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+</div>
+

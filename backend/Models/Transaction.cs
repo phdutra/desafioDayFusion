@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Collections.Generic;
 using Amazon.DynamoDBv2.DataModel;
 
 namespace DayFusion.API.Models;
@@ -23,6 +24,8 @@ public class Transaction
     
     public float? SimilarityScore { get; set; }
     
+    public float? LivenessScore { get; set; }
+    
     public TransactionStatus Status { get; set; } = TransactionStatus.Pending;
     
     public string? ReviewNotes { get; set; }
@@ -30,6 +33,8 @@ public class Transaction
     public string? ReviewedBy { get; set; }
     
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    
+    public List<string>? AutoObservations { get; set; }
     
     public DateTime? ProcessedAt { get; set; }
     

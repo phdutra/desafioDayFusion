@@ -3,8 +3,10 @@ using Amazon.Rekognition.Model;
 using Amazon.S3;
 using Amazon.S3.Model;
 using DayFusion.API.Models;
+using DayFusion.API.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 
@@ -22,6 +24,7 @@ public class LivenessController : ControllerBase
     private readonly IAmazonS3 _s3Client;
     private readonly IConfiguration _configuration;
     private readonly ILogger<LivenessController> _logger;
+    private readonly IDynamoDBService _dynamoDbService;
     private readonly string _bucketName;
 
     private static readonly string[] VideoExtensions = { ".webm", ".mp4", ".mov", ".avi", ".mkv" };
@@ -30,12 +33,14 @@ public class LivenessController : ControllerBase
         IAmazonRekognition rekognitionClient,
         IAmazonS3 s3Client,
         IConfiguration configuration,
-        ILogger<LivenessController> logger)
+        ILogger<LivenessController> logger,
+        IDynamoDBService dynamoDbService)
     {
         _rekognitionClient = rekognitionClient;
         _s3Client = s3Client;
         _configuration = configuration;
         _logger = logger;
+        _dynamoDbService = dynamoDbService;
         _bucketName = _configuration["AWS:S3Bucket"] ?? _configuration["AWS_S3_BUCKET"]
             ?? throw new ArgumentNullException("AWS:S3Bucket", "Configure 'AWS:S3Bucket' em appsettings ou 'AWS_S3_BUCKET' env var.");
     }
@@ -152,6 +157,8 @@ public class LivenessController : ControllerBase
             _logger.LogInformation("Face Liveness session created. SessionId: {SessionId}, TransactionId: {TransactionId}, ExpiresAt: {ExpiresAt}", 
                 response.SessionId, transactionId, expiresAt);
             
+            await EnsureLivenessTransactionPlaceholderAsync(response.SessionId);
+
             return Ok(new 
             { 
                 sessionId = response.SessionId,
@@ -469,7 +476,7 @@ public class LivenessController : ControllerBase
                 auditImageUrls.Add(url);
             }
 
-            return Ok(new
+            var responsePayload = new
             {
                 sessionId,
                 status,
@@ -486,7 +493,11 @@ public class LivenessController : ControllerBase
                 recommendations,
                 qualityScore,
                 qualityAssessment
-            });
+            };
+
+            await PersistLivenessTransactionAsync(sessionId, referenceKey, confidence, status, decision);
+
+            return Ok(responsePayload);
         }
         catch (Exception ex)
         {
@@ -757,6 +768,164 @@ public class LivenessController : ControllerBase
 
         var parts = name.Split('-', StringSplitOptions.RemoveEmptyEntries);
         return parts.Length > 1 ? parts.Last() : name;
+    }
+
+    private async Task EnsureLivenessTransactionPlaceholderAsync(string sessionId)
+    {
+        if (string.IsNullOrWhiteSpace(sessionId))
+        {
+            return;
+        }
+
+        try
+        {
+            var existing = await _dynamoDbService.GetTransactionAsync(sessionId);
+            if (existing != null)
+            {
+                return;
+            }
+
+            var transaction = new Transaction
+            {
+                Id = sessionId,
+                UserId = GetCurrentUserId(),
+                SelfieUrl = string.Empty,
+                DocumentUrl = string.Empty,
+                Status = TransactionStatus.ManualReview,
+                CreatedAt = DateTime.UtcNow,
+                ProcessedAt = DateTime.UtcNow,
+                AutoObservations = new List<string>
+                {
+                    "Sessão de liveness criada. Aguardando conclusão."
+                }
+            };
+
+            await _dynamoDbService.CreateTransactionAsync(transaction);
+            _logger.LogInformation("Placeholder transaction created for liveness session {SessionId}.", sessionId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to create placeholder transaction for liveness session {SessionId}", sessionId);
+        }
+    }
+
+    private async Task PersistLivenessTransactionAsync(
+        string sessionId,
+        string? referenceKey,
+        float confidence,
+        string status,
+        string decision)
+    {
+        try
+        {
+            Transaction? transaction = null;
+            if (!string.IsNullOrWhiteSpace(sessionId))
+            {
+                transaction = await _dynamoDbService.GetTransactionAsync(sessionId);
+            }
+            var isNew = transaction == null;
+
+            if (transaction == null)
+            {
+                transaction = new Transaction
+                {
+                    Id = sessionId,
+                    UserId = GetCurrentUserId(),
+                    SelfieUrl = referenceKey ?? string.Empty,
+                    DocumentUrl = string.Empty,
+                    CreatedAt = DateTime.UtcNow,
+                    AutoObservations = new List<string>()
+                };
+            }
+
+            if (!string.IsNullOrWhiteSpace(referenceKey))
+            {
+                transaction.SelfieUrl = referenceKey;
+            }
+
+            transaction.DocumentUrl ??= string.Empty;
+            transaction.LivenessScore = confidence * 100f;
+            transaction.ProcessedAt = DateTime.UtcNow;
+
+            transaction.Status = decision switch
+            {
+                "LIVE" => TransactionStatus.Approved,
+                "SPOOF" => TransactionStatus.Rejected,
+                _ when string.Equals(status, "FAILED", StringComparison.OrdinalIgnoreCase) => TransactionStatus.Rejected,
+                _ when string.Equals(status, "EXPIRED", StringComparison.OrdinalIgnoreCase) => TransactionStatus.Error,
+                _ => TransactionStatus.ManualReview
+            };
+
+            var autoObservations = new List<string>();
+
+            if (transaction.SimilarityScore is null && transaction.Status == TransactionStatus.Approved && confidence < 0.95f)
+            {
+                autoObservations.Add("Verificação de presença aprovada. Aguardando face match para completar análise.");
+            }
+
+            if (transaction.Status == TransactionStatus.Rejected)
+            {
+                var reason = $"Liveness detectou possível spoof (confiança {confidence * 100f:F1}%).";
+                transaction.RejectionReason = reason;
+                autoObservations.Add(reason);
+            }
+            else if (transaction.Status == TransactionStatus.Error)
+            {
+                var reason = $"Sessão de liveness finalizada com status {status}.";
+                transaction.RejectionReason = reason;
+                autoObservations.Add(reason);
+            }
+            else
+            {
+                transaction.RejectionReason = null;
+            }
+
+            if (string.IsNullOrWhiteSpace(transaction.UserId))
+            {
+                transaction.UserId = GetCurrentUserId();
+            }
+
+            if (transaction.CreatedAt == default)
+            {
+                transaction.CreatedAt = DateTime.UtcNow;
+            }
+
+            if (autoObservations.Count > 0)
+            {
+                transaction.AutoObservations ??= new List<string>();
+
+                foreach (var observation in autoObservations)
+                {
+                    if (!transaction.AutoObservations.Contains(observation))
+                    {
+                        transaction.AutoObservations.Add(observation);
+                    }
+                }
+            }
+
+            if (isNew)
+            {
+                await _dynamoDbService.CreateTransactionAsync(transaction);
+                _logger.LogInformation("Liveness session {SessionId} persisted as new transaction.", sessionId);
+            }
+            else
+            {
+                await _dynamoDbService.UpdateTransactionAsync(transaction);
+                _logger.LogInformation("Liveness session {SessionId} updated in transactions table.", sessionId);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to persist liveness session {SessionId} into transactions table", sessionId);
+        }
+    }
+
+    private string GetCurrentUserId()
+    {
+        return User?.FindFirst("sub")?.Value
+            ?? User?.FindFirst("cognito:username")?.Value
+            ?? User?.Identity?.Name
+            ?? "anonymous";
     }
 }
 

@@ -109,6 +109,10 @@ export class AppComponent implements OnDestroy {
     void this.router.navigate(['/user-management']);
   }
 
+  goToVerifications(): void {
+    void this.router.navigate(['/verifications']);
+  }
+
   logout(): void {
     // localStorage.clear(); // Mantido comentado para preservar dados locais durante o logout
    // sessionStorage.clear();

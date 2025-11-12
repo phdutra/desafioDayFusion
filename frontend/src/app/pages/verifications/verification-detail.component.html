@@ -1,0 +1,127 @@
+<div class="detail-page" *ngIf="!loading(); else loadingTemplate">
+  <ng-container *ngIf="item() as analysis; else errorTemplate">
+    <header class="detail-header">
+      <div>
+        <a routerLink="/verifications" class="back-link">← Voltar para lista</a>
+        <h1>Sessão {{ analysis.sessionId }}</h1>
+        <p class="meta">
+          Capturado em {{ formatDate(analysis.createdAt) }}
+          <span *ngIf="analysis.reviewedAt"> • Revisado em {{ formatDate(analysis.reviewedAt) }}</span>
+        </p>
+      </div>
+      <span [class]="statusClass(analysis.status)">{{ analysis.status }}</span>
+    </header>
+
+    <section class="overview">
+      <div class="score-card">
+        <span class="label">Match Score</span>
+        <strong>{{ formatScore(analysis.matchScore) }}</strong>
+      </div>
+      <div class="score-card">
+        <span class="label">Liveness</span>
+        <strong>{{ formatScore(analysis.livenessScore) }}</strong>
+      </div>
+      <div class="score-card">
+        <span class="label">Fraude</span>
+        <strong>{{ formatScore(analysis.fraudScore) }}</strong>
+      </div>
+      <div class="score-card reviewer" *ngIf="analysis.reviewedBy">
+        <span class="label">Revisor</span>
+        <strong>{{ analysis.reviewedBy }}</strong>
+      </div>
+      <div class="score-card">
+        <span class="label">Usuário</span>
+        <strong>{{ analysis.userId }}</strong>
+      </div>
+    </section>
+
+    <section class="observations">
+      <div class="auto-observations">
+        <h2>Observações Automáticas</h2>
+        <ul *ngIf="analysis.autoObservations.length; else noAuto">
+          <li *ngFor="let obs of analysis.autoObservations">{{ obs }}</li>
+        </ul>
+        <ng-template #noAuto>
+          <p class="empty">Nenhum alerta automático registrado.</p>
+        </ng-template>
+      </div>
+
+      <div class="manual-observation">
+        <h2>Observação Manual</h2>
+        <textarea
+          [(ngModel)]="observationText"
+          placeholder="Ex.: Imagem escura; solicitar nova captura"
+          rows="6"
+          [disabled]="saving() || statusUpdating()"
+        ></textarea>
+        <div class="actions">
+          <button type="button" class="btn primary" (click)="saveObservation()" [disabled]="saving() || !hasObservationChanges()">
+            <span *ngIf="!saving(); else savingLabel">Salvar Observação</span>
+          </button>
+          <div class="status-actions">
+            <button type="button" class="btn approve" (click)="updateStatus('APPROVED')" [disabled]="statusUpdating()">
+              Aprovar
+            </button>
+            <button type="button" class="btn review" (click)="updateStatus('REVIEW_REQUIRED')" [disabled]="statusUpdating()">
+              Revisar
+            </button>
+            <button type="button" class="btn reject" (click)="updateStatus('REJECTED')" [disabled]="statusUpdating()">
+              Reprovar
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="media-grid">
+      <article class="media-card">
+        <header>
+          <h2>Selfie</h2>
+          <button type="button" class="btn-link" (click)="openMedia(analysis.selfieSignedUrl)" [disabled]="!analysis.selfieSignedUrl">
+            Abrir em nova guia
+          </button>
+        </header>
+        <div class="media-preview" *ngIf="analysis.selfieSignedUrl; else noSelfie">
+          <img [src]="analysis.selfieSignedUrl!" alt="Selfie da sessão" />
+        </div>
+      </article>
+
+      <article class="media-card">
+        <header>
+          <h2>Documento</h2>
+          <button type="button" class="btn-link" (click)="openMedia(analysis.documentSignedUrl)" [disabled]="!analysis.documentSignedUrl">
+            Abrir em nova guia
+          </button>
+        </header>
+        <div class="media-preview" *ngIf="analysis.documentSignedUrl; else noDocument">
+          <img [src]="analysis.documentSignedUrl!" alt="Documento da sessão" />
+        </div>
+      </article>
+    </section>
+  </ng-container>
+</div>
+
+<ng-template #loadingTemplate>
+  <div class="state state-loading">
+    Carregando detalhes da sessão...
+  </div>
+</ng-template>
+
+<ng-template #errorTemplate>
+  <div class="state state-error">
+    {{ error() ?? 'Não foi possível localizar esta sessão.' }}
+  </div>
+</ng-template>
+
+<ng-template #savingLabel>
+  Salvando...
+</ng-template>
+
+<ng-template #noSelfie>
+  <div class="state state-muted">Sem imagem disponível.</div>
+</ng-template>
+
+<ng-template #noDocument>
+  <div class="state state-muted">Sem documento disponível.</div>
+</ng-template>
+

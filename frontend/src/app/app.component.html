@@ -63,6 +63,12 @@
             <span class="nav-text">Histórico</span>
           </a>
         </li>
+        <li class="nav-item" *ngIf="isAdmin()">
+          <a routerLink="/verifications" routerLinkActive="active" class="nav-link">
+            <span class="nav-icon">🛡️</span>
+            <span class="nav-text">Observações</span>
+          </a>
+        </li>
         <li class="nav-item">
           <a routerLink="/settings" routerLinkActive="active" class="nav-link">
             <span class="nav-icon">⚙️</span>
@@ -122,6 +128,11 @@
                 <button type="button" class="dropdown-action admin-action" (click)="goToUserManagement()" *ngIf="isAdmin()">
                   <span class="dropdown-icon">👥</span>
                   <span>Gerenciar Usuários</span>
+                  <span class="admin-badge-inline">ADMIN</span>
+                </button>
+                <button type="button" class="dropdown-action admin-action" (click)="goToVerifications()" *ngIf="isAdmin()">
+                  <span class="dropdown-icon">🛡️</span>
+                  <span>Observações</span>
                   <span class="admin-badge-inline">ADMIN</span>
                 </button>
                 <div class="user-dropdown-divider" *ngIf="isAdmin()"></div>

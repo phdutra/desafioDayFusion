@@ -55,6 +55,16 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/user-management/user-management.component').then(m => m.UserManagementComponent)
   },
   {
+    path: 'verifications',
+    canActivate: [adminGuard],
+    loadComponent: () => import('./pages/verifications/verifications-list.component').then(m => m.VerificationsListComponent)
+  },
+  {
+    path: 'verifications/:sessionId',
+    canActivate: [adminGuard],
+    loadComponent: () => import('./pages/verifications/verification-detail.component').then(m => m.VerificationDetailComponent)
+  },
+  {
     path: '**',
     redirectTo: '/login'
   }

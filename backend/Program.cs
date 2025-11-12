@@ -138,7 +138,41 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("AdminOnly", policy =>
+    {
+        policy.RequireAssertion(context =>
+        {
+            if (context.User?.Identity?.IsAuthenticated != true)
+            {
+                return false;
+            }
+
+            if (context.User.IsInRole("Admin") || context.User.IsInRole("admin"))
+            {
+                return true;
+            }
+
+            var claimTypes = new[] { "cognito:groups", "groups", "role", "roles", "custom:role" };
+
+            foreach (var type in claimTypes)
+            {
+                var claims = context.User.FindAll(type);
+                foreach (var claim in claims)
+                {
+                    var values = claim.Value.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+                    if (values.Any(value => string.Equals(value, "admin", StringComparison.OrdinalIgnoreCase)))
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        });
+    });
+});
 
 var swaggerEnabled = builder.Configuration.GetValue<bool?>("Swagger:Enabled")
     ?? builder.Configuration.GetValue<bool?>("Swagger__Enabled")
