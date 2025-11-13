@@ -142,13 +142,24 @@ export class LivenessModalComponent implements OnDestroy {
 
           const blob = await captureFrame(videoElement);
           const bytes = await blobToUint8Array(blob);
-          console.info('[LivenessModal] Foto capturada.', {
+          const sizeKB = (blob.size / 1024).toFixed(2);
+          
+          console.info('[LivenessModal] ✅ Foto comprimida e capturada:', {
             position: step.posicao,
-            blobSize: blob.size,
-            mimeType: blob.type
+            size: `${sizeKB} KB`,
+            mimeType: blob.type,
+            resolution: '640×480',
+            quality: '80%'
           });
+          
           const confidence = await this.rekognitionService.detectFaceConfidence(bytes);
           const { key, url } = await this.s3Service.uploadLivenessAsset(sessionId, step.posicao, blob);
+          
+          console.info('[LivenessModal] ✅ Foto enviada ao S3:', {
+            position: step.posicao,
+            s3Key: key,
+            size: `${sizeKB} KB`
+          });
 
           captures.push({
             position: step.posicao,
@@ -180,10 +191,23 @@ export class LivenessModalComponent implements OnDestroy {
       if (this.videoRecorder) {
         console.info('[LivenessModal] Finalizando gravação de vídeo.');
         recordedVideo = await this.videoRecorder.stopRecording();
-        console.info('[LivenessModal] Vídeo capturado.', {
+        const sizeMB = (recordedVideo.blob.size / 1024 / 1024).toFixed(2);
+        const sizeKB = (recordedVideo.blob.size / 1024).toFixed(2);
+        const durationSeconds = (recordedVideo.durationMs / 1000).toFixed(2);
+        const bitrate = recordedVideo.durationMs > 0
+          ? ((recordedVideo.blob.size * 8) / (recordedVideo.durationMs / 1000) / 1000).toFixed(0)
+          : '0';
+        
+        console.info('[LivenessModal] ✅ Vídeo comprimido e capturado:', {
           mimeType: recordedVideo.mimeType,
-          size: recordedVideo.blob.size,
-          durationMs: recordedVideo.durationMs
+          size: `${sizeMB} MB (${sizeKB} KB)`,
+          duration: `${durationSeconds}s`,
+          bitrate: `${bitrate} kbps`,
+          codec: recordedVideo.mimeType.includes('h264') || recordedVideo.mimeType.includes('avc1')
+            ? 'H.264 (MP4) - Compatível com Rekognition'
+            : recordedVideo.mimeType.includes('vp9')
+            ? 'VP9 (WebM) - Fallback'
+            : 'WebM'
         });
         this.videoRecorder = null;
         this.updateProgress(90);
@@ -218,7 +242,15 @@ export class LivenessModalComponent implements OnDestroy {
 
       if (recordedVideo && recordedVideo.blob.size > 0) {
         try {
+          const uploadStartTime = performance.now();
+          this.statusMessage = 'Enviando vídeo comprimido ao S3...';
           const uploadResult = await this.s3Service.uploadLivenessVideo(sessionId, recordedVideo.blob, recordedVideo.mimeType);
+          const uploadDurationSeconds = (performance.now() - uploadStartTime) / 1000;
+          const uploadDurationFormatted = uploadDurationSeconds.toFixed(2);
+          const uploadSpeed = uploadDurationSeconds > 0
+            ? ((recordedVideo.blob.size / 1024 / 1024) / uploadDurationSeconds).toFixed(2)
+            : '0';
+          
           videoSummary = {
             s3Key: uploadResult.key,
             url: uploadResult.url ?? URL.createObjectURL(recordedVideo.blob),
@@ -226,9 +258,16 @@ export class LivenessModalComponent implements OnDestroy {
             size: uploadResult.size,
             durationMs: recordedVideo.durationMs
           };
-          console.info('[LivenessModal] Vídeo enviado ao S3.', videoSummary);
+          
+          console.info('[LivenessModal] ✅ Vídeo enviado ao S3 com sucesso:', {
+            s3Key: uploadResult.key,
+            size: `${(uploadResult.size / 1024 / 1024).toFixed(2)} MB`,
+            uploadDuration: `${uploadDurationFormatted}s`,
+            uploadSpeed: `${uploadSpeed} MB/s`,
+            mimeType: uploadResult.mimeType
+          });
         } catch (videoError) {
-          console.error('[LivenessModal] Falha ao enviar vídeo ao S3.', videoError);
+          console.error('[LivenessModal] ❌ Falha ao enviar vídeo ao S3.', videoError);
         }
       }
 

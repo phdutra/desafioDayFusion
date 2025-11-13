@@ -100,10 +100,16 @@ builder.Services.AddSingleton<IAmazonS3>(sp =>
         ForcePathStyle = false,
         RegionEndpoint = opts.Region
     };
-    // Note: FallbackCredentialsFactory is deprecated but still functional
-    // In production, use proper AWS credential management
-    var creds = opts.Credentials ?? Amazon.Runtime.FallbackCredentialsFactory.GetCredentials();
-    return new AmazonS3Client(creds, config);
+    
+    // Use credentials from AWSOptions if provided, otherwise let SDK use default credential chain
+    // The SDK will automatically use: environment variables, shared credentials file, IAM role, etc.
+    if (opts.Credentials != null)
+    {
+        return new AmazonS3Client(opts.Credentials, config);
+    }
+    
+    // SDK will automatically use the default credential chain (no explicit factory needed)
+    return new AmazonS3Client(config);
 });
 builder.Services.AddAWSService<IAmazonRekognition>();
 builder.Services.AddAWSService<IAmazonDynamoDB>();
