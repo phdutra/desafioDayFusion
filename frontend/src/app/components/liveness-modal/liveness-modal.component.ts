@@ -44,6 +44,7 @@ export class LivenessModalComponent implements OnDestroy {
   progress = 0;
   statusMessage = '';
   errorMessage: string | null = null;
+  currentDirection: 'up' | 'down' | 'left' | 'right' | 'center' | null = null;
 
   private stream?: MediaStream;
   private videoRecorder: MediaRecorderController | null = null;
@@ -119,7 +120,8 @@ export class LivenessModalComponent implements OnDestroy {
           if (this.shouldAbort) {
             return;
           }
-          this.statusMessage = `🎤 ${step.texto}...`;
+          this.statusMessage = step.texto;
+          this.updateDirection(step.posicao);
           console.info('[LivenessModal] Instrução anunciada.', { index, step });
         },
         (step, index) => {
@@ -129,7 +131,13 @@ export class LivenessModalComponent implements OnDestroy {
           const ratio = (index + 1) / this.voiceSteps.length;
           const percent = baseProgress + ratio * stepsRange;
           this.updateProgress(percent);
-          this.statusMessage = `📸 Captura ${index + 1}/${this.voiceSteps.length} concluída`;
+          this.statusMessage = `Captura ${index + 1}/${this.voiceSteps.length} concluída`;
+          // Mantém a direção por um tempo antes de resetar
+          setTimeout(() => {
+            if (index === this.voiceSteps.length - 1) {
+              this.currentDirection = null;
+            }
+          }, 500);
           console.info('[LivenessModal] Captura concluída.', { position: step.posicao, index });
         },
         async (step) => {
@@ -374,6 +382,23 @@ export class LivenessModalComponent implements OnDestroy {
     this.progress = 0;
     this.statusMessage = '';
     this.errorMessage = null;
+    this.currentDirection = null;
+  }
+
+  private updateDirection(posicao: string): void {
+    const posLower = posicao.toLowerCase().trim();
+    if (posLower.includes('esquerda') || posLower.includes('left')) {
+      this.currentDirection = 'left';
+    } else if (posLower.includes('direita') || posLower.includes('right')) {
+      this.currentDirection = 'right';
+    } else if (posLower.includes('cima') || posLower.includes('cabeça') || posLower.includes('up') || posLower.includes('top')) {
+      this.currentDirection = 'up';
+    } else if (posLower.includes('baixo') || posLower.includes('down') || posLower.includes('bottom')) {
+      this.currentDirection = 'down';
+    } else {
+      // frente, center, etc
+      this.currentDirection = 'center';
+    }
   }
 
   private updateProgress(target: number): void {

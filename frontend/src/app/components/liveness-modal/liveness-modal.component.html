@@ -10,6 +10,11 @@
     </div>
   </header>
 
+  <!-- Legenda acima do vídeo -->
+  <div class="instruction-label" *ngIf="statusMessage || errorMessage">
+    <p [class.error]="errorMessage">{{ errorMessage ?? statusMessage }}</p>
+  </div>
+
 <section class="video-section">
   <div class="video-circle">
     <div class="progress-ring">
@@ -19,6 +24,30 @@
         [style.transform]="segment.rotation"
         [class.active]="segment.active">
       </span>
+    </div>
+
+    <!-- Setas de direção -->
+    <div class="direction-arrows" *ngIf="isRunning && currentDirection && currentDirection !== 'center'">
+      <div class="arrow arrow-up" [class.active]="currentDirection === 'up'">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 4L12 20M12 4L6 10M12 4L18 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <div class="arrow arrow-down" [class.active]="currentDirection === 'down'">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 20L12 4M12 20L6 14M12 20L18 14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <div class="arrow arrow-left" [class.active]="currentDirection === 'left'">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M4 12L20 12M4 12L10 6M4 12L10 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <div class="arrow arrow-right" [class.active]="currentDirection === 'right'">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M20 12L4 12M20 12L14 6M20 12L14 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
     </div>
 
     <div class="video-mask">
@@ -34,20 +63,10 @@
   </div>
 
   <div class="video-overlay" *ngIf="!isRunning && progress === 0">
-    <span class="overlay-icon">🔐</span>
     <p>Pronto para iniciar a verificação 3D.</p>
     <p class="overlay-hint">Clique em "Iniciar Verificação" e siga as instruções.</p>
   </div>
 </section>
-
-  <section class="status-section" *ngIf="statusMessage || errorMessage">
-    <div class="status-message" [class.error]="errorMessage">
-      <span class="status-icon">{{ errorMessage ? '⚠️' : '✅' }}</span>
-      <div>
-        <p>{{ errorMessage ?? statusMessage }}</p>
-      </div>
-    </div>
-  </section>
 
   <div class="progress-wrapper" *ngIf="progress > 0">
     <div class="progress-bar">
@@ -59,11 +78,7 @@
   <footer class="actions">
     <button class="btn primary" (click)="startSession()" [disabled]="isRunning">
       <span>▶</span>
-      Iniciar Verificação
-    </button>
-    <button class="btn secondary" (click)="cancelSession()" *ngIf="isRunning">
-      <span>⏹</span>
-      Cancelar
+      <span>{{ isRunning ? 'Processando...' : 'Iniciar Verificação' }}</span>
     </button>
   </footer>
 </div>
