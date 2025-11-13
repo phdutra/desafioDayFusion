@@ -45,6 +45,9 @@ export class LivenessModalComponent implements OnDestroy {
   statusMessage = '';
   errorMessage: string | null = null;
   currentDirection: 'up' | 'down' | 'left' | 'right' | 'center' | null = null;
+  resultStatus: 'loading' | 'approved' | 'rejected' | null = null;
+  resultScore: number | null = null;
+  resultObservation: string | null = null;
 
   private stream?: MediaStream;
   private videoRecorder: MediaRecorderController | null = null;
@@ -314,10 +317,46 @@ export class LivenessModalComponent implements OnDestroy {
       this.statusMessage = 'Finalizando...';
       this.updateProgress(100);
       
-      // Aguardar animação de finalização antes de emitir conclusão
+      // Preparar resultado e observação
+      const isApproved = summary.status === 'Aprovado';
+      this.resultScore = summary.livenessScore;
+      
+      // Construir observação baseada no resultado
+      let observation = '';
+      if (isApproved) {
+        observation = `Liveness: ${summary.livenessScore}%`;
+        if (summary.faceMatchScore !== undefined) {
+          observation += ` | Face Match: ${summary.faceMatchScore}%`;
+        }
+      } else {
+        if (!isLive) {
+          observation = `Liveness abaixo do mínimo (${summary.livenessScore}% < 70%)`;
+        } else if (documentRejected && faceMatchScore !== undefined) {
+          observation = `Face match não confere (${faceMatchScore}%)`;
+          if (faceMatchReason) {
+            observation += `: ${faceMatchReason}`;
+          }
+        } else {
+          observation = `Verificação falhou. Liveness: ${summary.livenessScore}%`;
+        }
+      }
+
+      this.resultObservation = observation;
+      
+      // Mostrar animação de loading (verde)
+      this.resultStatus = 'loading';
+      
+      // Aguardar 0.5s no loading verde
       await new Promise(resolve => setTimeout(resolve, 500));
       
-      this.statusMessage = 'Sessão concluída com sucesso.';
+      // Animação de resultado (azul se aprovado, vermelho se rejeitado)
+      this.resultStatus = isApproved ? 'approved' : 'rejected';
+      
+      // Aguardar 1 segundo da animação de resultado antes de emitir
+      await new Promise(resolve => setTimeout(resolve, 9000));
+      
+      // Após animação, o resultado já está sendo exibido no template
+      this.statusMessage = '';
       this.sessionCompleted.emit(summary);
     } catch (error: any) {
       const message = error?.message ?? 'Falha inesperada durante a sessão.';
@@ -383,6 +422,9 @@ export class LivenessModalComponent implements OnDestroy {
     this.statusMessage = '';
     this.errorMessage = null;
     this.currentDirection = null;
+    this.resultStatus = null;
+    this.resultScore = null;
+    this.resultObservation = null;
   }
 
   private updateDirection(posicao: string): void {
