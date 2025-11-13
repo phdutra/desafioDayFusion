@@ -21,6 +21,7 @@ export class HelpComponent implements OnInit {
     { id: 'fluxo', title: 'Fluxo de Autenticação', icon: '🔄', active: false },
     { id: 'face-liveness', title: 'Face Liveness 3D', icon: '🧠', active: false },
     { id: 'match', title: 'Comparação Facial', icon: '🎯', active: false },
+    { id: 'compressao', title: 'Compressão Automática', icon: '📦', active: false },
     { id: 'como-usar', title: 'Como Usar Anti-Deepfake', icon: '🎬', active: false },
     { id: 'api', title: 'Arquitetura & APIs', icon: '⚙️', active: false },
     { id: 'seguranca', title: 'Políticas de Segurança', icon: '🔒', active: false }

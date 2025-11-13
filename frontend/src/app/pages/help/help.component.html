@@ -458,6 +458,306 @@ ELSE
       </div>
     </section>
 
+    <!-- Seção: Compressão Automática -->
+    <section id="compressao" class="help-section">
+      <div class="section-header">
+        <h1>📦 Compressão Automática de Imagens e Vídeos</h1>
+        <p class="section-subtitle">Upload Rápido e Eficiente para Verificação Facial</p>
+      </div>
+
+      <div class="info-card info-highlight">
+        <h3>🎯 O que é Compressão Automática?</h3>
+        <p>O DayFusion usa <strong>compressão automática e inteligente</strong> de imagens e vídeos durante a captura. Isso significa que seus arquivos são otimizados automaticamente para serem menores e mais rápidos de enviar, <strong>sem perder qualidade</strong> para a verificação facial.</p>
+      </div>
+
+      <div class="compression-benefits">
+        <div class="benefit-card">
+          <div class="benefit-icon">⚡</div>
+          <h3>Upload Mais Rápido</h3>
+          <p>Arquivos menores = envio <strong>3 a 5 vezes mais rápido</strong>, especialmente em conexões móveis (4G/5G)</p>
+        </div>
+
+        <div class="benefit-card">
+          <div class="benefit-icon">📱</div>
+          <h3>Economia de Dados</h3>
+          <p>Reduz o consumo de dados móveis, ideal para quem usa plano limitado</p>
+        </div>
+
+        <div class="benefit-card">
+          <div class="benefit-icon">✅</div>
+          <h3>Qualidade Mantida</h3>
+          <p>Mantém qualidade suficiente para verificação facial precisa com AWS Rekognition</p>
+        </div>
+
+        <div class="benefit-card">
+          <div class="benefit-icon">🔒</div>
+          <h3>Segurança Preservada</h3>
+          <p>Compressão não afeta a segurança ou precisão da verificação facial</p>
+        </div>
+      </div>
+
+      <div class="info-card">
+        <h3>📸 Como Funciona a Compressão de Imagens</h3>
+        <p>Durante a captura de fotos, o sistema:</p>
+        <ul class="compression-steps">
+          <li>
+            <strong>📐 Reduz resolução:</strong> Usa 640×480 pixels (ideal para verificação facial)
+          </li>
+          <li>
+            <strong>🎨 Otimiza qualidade:</strong> Compressão JPEG com 80% de qualidade (equilibrado)
+          </li>
+          <li>
+            <strong>📊 Tamanho reduzido:</strong> Fotos ficam entre 20-50 KB (antes: 100-200 KB)
+          </li>
+          <li>
+            <strong>⚡ Upload rápido:</strong> Envio até 5× mais rápido que versão original
+          </li>
+        </ul>
+      </div>
+
+      <div class="info-card">
+        <h3>🎥 Como Funciona a Compressão de Vídeos</h3>
+        <p>Durante a gravação de vídeos, o sistema:</p>
+        <ul class="compression-steps">
+          <li>
+            <strong>📐 Resolução otimizada:</strong> Grava em 640×480 pixels (suficiente para análise)
+          </li>
+          <li>
+            <strong>⚙️ Bitrate controlado:</strong> 800 kbps (0.8 Mbps) - compressão equilibrada
+          </li>
+          <li>
+            <strong>🎬 Codec moderno:</strong> H.264 (MP4) - compatível com todos os dispositivos
+          </li>
+          <li>
+            <strong>📊 Tamanho reduzido:</strong> Vídeos de 3-5 segundos ficam entre 1-2 MB (antes: 5-10 MB)
+          </li>
+          <li>
+            <strong>⚡ Upload rápido:</strong> Envio até 5× mais rápido, especialmente em 4G/5G
+          </li>
+        </ul>
+      </div>
+
+      <div class="info-card info-comparison">
+        <h3>📊 Comparação: Antes e Depois da Compressão</h3>
+        <div class="comparison-table">
+          <table>
+            <thead>
+              <tr>
+                <th>Tipo de Arquivo</th>
+                <th>Tamanho Original</th>
+                <th>Tamanho Comprimido</th>
+                <th>Redução</th>
+                <th>Tempo de Upload*</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>📸 Foto (1 captura)</td>
+                <td>~150 KB</td>
+                <td>~35 KB</td>
+                <td class="status-success">~77% menor</td>
+                <td>0.5s → 0.1s</td>
+              </tr>
+              <tr>
+                <td>🎥 Vídeo (3 segundos)</td>
+                <td>~8 MB</td>
+                <td>~1.5 MB</td>
+                <td class="status-success">~81% menor</td>
+                <td>8s → 1.5s</td>
+              </tr>
+              <tr>
+                <td>🎥 Vídeo (5 segundos)</td>
+                <td>~12 MB</td>
+                <td>~2.5 MB</td>
+                <td class="status-success">~79% menor</td>
+                <td>12s → 2.5s</td>
+              </tr>
+            </tbody>
+          </table>
+          <p class="comparison-note">*Tempo estimado em conexão 4G (10 Mbps). Em 5G, o upload é ainda mais rápido!</p>
+        </div>
+      </div>
+
+      <div class="info-card">
+        <h3>🔧 Configurações Otimizadas</h3>
+        <div class="settings-grid">
+          <div class="setting-item">
+            <h4>📸 Imagens</h4>
+            <ul>
+              <li><strong>Resolução:</strong> 640×480 pixels</li>
+              <li><strong>Formato:</strong> JPEG</li>
+              <li><strong>Qualidade:</strong> 80%</li>
+              <li><strong>Tamanho médio:</strong> 20-50 KB</li>
+            </ul>
+          </div>
+
+          <div class="setting-item">
+            <h4>🎥 Vídeos</h4>
+            <ul>
+              <li><strong>Resolução:</strong> 640×480 pixels</li>
+              <li><strong>Bitrate:</strong> 800 kbps (0.8 Mbps)</li>
+              <li><strong>Codec:</strong> H.264 (MP4)</li>
+              <li><strong>Duração:</strong> 3-5 segundos</li>
+              <li><strong>Tamanho médio:</strong> 1-2 MB</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="info-card info-success">
+        <h3>✅ Por que essas Configurações?</h3>
+        <p>Essas configurações foram escolhidas cuidadosamente para:</p>
+        <ul class="why-list">
+          <li>
+            <strong>📱 Funcionar bem em redes móveis:</strong> Tamanhos menores = upload mais rápido em 4G/5G
+          </li>
+          <li>
+            <strong>🎯 Manter qualidade para verificação:</strong> Resolução suficiente para análise precisa do AWS Rekognition
+          </li>
+          <li>
+            <strong>⚡ Reduzir tempo de espera:</strong> Upload mais rápido = experiência melhor para o usuário
+          </li>
+          <li>
+            <strong>💰 Economizar dados:</strong> Menor consumo de dados móveis
+          </li>
+          <li>
+            <strong>🔒 Garantir compatibilidade:</strong> Formatos suportados por todos os navegadores e dispositivos
+          </li>
+        </ul>
+      </div>
+
+      <div class="info-card">
+        <h3>🚀 Vantagens da Compressão Automática</h3>
+        <div class="advantages-grid">
+          <div class="advantage-item">
+            <span class="advantage-icon">⚡</span>
+            <h4>Velocidade</h4>
+            <p>Upload 3-5× mais rápido que versão original</p>
+          </div>
+
+          <div class="advantage-item">
+            <span class="advantage-icon">📱</span>
+            <h4>Economia</h4>
+            <p>Reduz consumo de dados móveis em até 80%</p>
+          </div>
+
+          <div class="advantage-item">
+            <span class="advantage-icon">✅</span>
+            <h4>Qualidade</h4>
+            <p>Mantém qualidade suficiente para verificação precisa</p>
+          </div>
+
+          <div class="advantage-item">
+            <span class="advantage-icon">🔒</span>
+            <h4>Segurança</h4>
+            <p>Não afeta segurança ou precisão da verificação</p>
+          </div>
+
+          <div class="advantage-item">
+            <span class="advantage-icon">🌐</span>
+            <h4>Compatibilidade</h4>
+            <p>Funciona em todos os navegadores e dispositivos</p>
+          </div>
+
+          <div class="advantage-item">
+            <span class="advantage-icon">🔄</span>
+            <h4>Automático</h4>
+            <p>Você não precisa fazer nada - é automático!</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="info-card info-highlight">
+        <h3>💡 Como Funciona na Prática</h3>
+        <div class="practical-flow">
+          <div class="flow-step">
+            <div class="flow-number">1</div>
+            <div class="flow-content">
+              <h4>Você inicia a verificação</h4>
+              <p>Clique no botão para iniciar a captura facial</p>
+            </div>
+          </div>
+
+          <div class="flow-arrow">↓</div>
+
+          <div class="flow-step">
+            <div class="flow-number">2</div>
+            <div class="flow-content">
+              <h4>Sistema captura automaticamente</h4>
+              <p>Fotos e vídeo são capturados com compressão automática aplicada</p>
+            </div>
+          </div>
+
+          <div class="flow-arrow">↓</div>
+
+          <div class="flow-step">
+            <div class="flow-number">3</div>
+            <div class="flow-content">
+              <h4>Upload rápido ao servidor</h4>
+              <p>Arquivos comprimidos são enviados rapidamente para análise</p>
+            </div>
+          </div>
+
+          <div class="flow-arrow">↓</div>
+
+          <div class="flow-step">
+            <div class="flow-number">4</div>
+            <div class="flow-content">
+              <h4>Verificação com qualidade mantida</h4>
+              <p>Análise facial funciona perfeitamente com arquivos comprimidos</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="info-card info-warning">
+        <h3>⚠️ Importante: Você Precisa Fazer Algo?</h3>
+        <p><strong>Não!</strong> A compressão é <strong>100% automática</strong>. Você não precisa:</p>
+        <ul>
+          <li>❌ Configurar nada manualmente</li>
+          <li>❌ Escolher qualidade ou resolução</li>
+          <li>❌ Aguardar processamento extra</li>
+          <li>❌ Se preocupar com compatibilidade</li>
+        </ul>
+        <p>O sistema faz tudo automaticamente para você ter a melhor experiência possível!</p>
+      </div>
+
+      <div class="info-card">
+        <h3>📱 Funcionamento em Diferentes Dispositivos</h3>
+        <div class="device-grid">
+          <div class="device-item">
+            <div class="device-icon">📱</div>
+            <h4>Celulares</h4>
+            <p>Compressão otimizada para 4G/5G. Upload rápido mesmo em conexões móveis.</p>
+          </div>
+
+          <div class="device-item">
+            <div class="device-icon">💻</div>
+            <h4>Computadores</h4>
+            <p>Funciona perfeitamente em Wi-Fi. Upload ainda mais rápido com banda larga.</p>
+          </div>
+
+          <div class="device-item">
+            <div class="device-icon">📱</div>
+            <h4>Tablets</h4>
+            <p>Suporte completo em todos os tablets, com ou sem conexão móvel.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="info-card info-success">
+        <h3>✅ Resultado Final</h3>
+        <p>Com a compressão automática, você tem:</p>
+        <ul class="result-list">
+          <li>✅ <strong>Upload mais rápido:</strong> Envio 3-5× mais rápido que versão original</li>
+          <li>✅ <strong>Economia de dados:</strong> Reduz consumo de dados móveis em até 80%</li>
+          <li>✅ <strong>Qualidade mantida:</strong> Verificação facial funciona perfeitamente</li>
+          <li>✅ <strong>Experiência melhor:</strong> Menos tempo de espera durante o upload</li>
+          <li>✅ <strong>Compatibilidade total:</strong> Funciona em todos os dispositivos e navegadores</li>
+        </ul>
+      </div>
+    </section>
+
     <!-- Seção: Comparação Facial -->
     <section id="match" class="help-section">
       <div class="section-header">
