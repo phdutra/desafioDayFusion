@@ -4,6 +4,10 @@ export interface Transaction {
   selfieUrl: string;
   documentUrl: string;
   similarityScore?: number;
+  livenessScore?: number;
+  documentScore?: number;  // 0-100 (análise de autenticidade do documento)
+  identityScore?: number;   // 0.0-1.0 (score final combinado)
+  observacao?: string;     // Observação automática gerada
   status: TransactionStatus;
   reviewNotes?: string;
   reviewedBy?: string;
@@ -87,6 +91,8 @@ export interface LivenessSessionResponse {
 export interface GetLivenessResultRequest {
   sessionId: string;
   transactionId?: string;
+  documentKey?: string;  // Chave S3 do documento (opcional, para análise completa)
+  selfieKey?: string;    // Chave S3 da selfie de referência (opcional)
 }
 
 export interface LivenessResultResponse {
@@ -102,6 +108,12 @@ export interface LivenessResultResponse {
   lowScoreReasons?: string[]; // Razões para score baixo
   recommendations?: string[]; // Recomendações para melhorar
   qualityScore?: number; // Score de qualidade da imagem (0-100)
+  
+  // Campos adicionais para análise completa
+  observacao?: string; // Observação da análise
+  documentScore?: number; // Score do documento (0-100)
+  identityScore?: number; // Score de identidade completo (0-100)
+  matchScore?: number; // Score de match de faces (0-100)
   qualityAssessment?: string; // Avaliação da qualidade (EXCELLENT, GOOD, FAIR, POOR)
 }
 
@@ -137,4 +149,23 @@ export interface VerifyWithAntiDeepfakeResponse {
     confidence: number;
   };
   antiDeepfake?: AntiDeepfakeResult;
+}
+
+// Document Validation Models
+export interface IdentityRequest {
+  bucket: string;
+  fileName: string;
+  livenessScore?: number;
+  matchScore?: number;
+  transactionId?: string;
+}
+
+export interface IdentityResponse {
+  transactionId: string;
+  livenessScore?: number;
+  matchScore?: number;
+  documentScore: number;
+  identityScore: number;
+  observacao: string;
+  status: TransactionStatus;
 }

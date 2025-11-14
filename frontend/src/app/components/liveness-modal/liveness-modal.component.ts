@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { CognitoService } from '../../core/aws/cognito.service';
 import { RekognitionService } from '../../core/aws/rekognition.service';
 import { S3Service } from '../../core/aws/s3.service';
+import { FaceRecognitionService } from '../../core/services/face-recognition.service';
 import { LivenessSummary } from '../../core/models/liveness-result.model';
 import { VoiceStep } from '../../core/models/voice-step.model';
 import {
@@ -47,16 +48,20 @@ export class LivenessModalComponent implements OnDestroy {
   currentDirection: 'up' | 'down' | 'left' | 'right' | 'center' | null = null;
   resultStatus: 'loading' | 'approved' | 'rejected' | null = null;
   resultScore: number | null = null;
+  resultDocumentScore: number | null = null;
   resultObservation: string | null = null;
 
   private stream?: MediaStream;
   private videoRecorder: MediaRecorderController | null = null;
   private shouldAbort = false;
 
+  @Input() transactionId?: string;
+
   constructor(
     private readonly cognitoService: CognitoService,
     private readonly rekognitionService: RekognitionService,
-    private readonly s3Service: S3Service
+    private readonly s3Service: S3Service,
+    private readonly faceService: FaceRecognitionService
   ) {}
 
   async startSession(): Promise<void> {
@@ -231,7 +236,7 @@ export class LivenessModalComponent implements OnDestroy {
       this.statusMessage = 'Analisando resultados...';
       this.updateProgress(92);
 
-      const livenessScore = captures.length
+      let livenessScore = captures.length
         ? captures.reduce((acc, item) => acc + item.confidence, 0) / captures.length
         : 0;
       
@@ -282,9 +287,9 @@ export class LivenessModalComponent implements OnDestroy {
         }
       }
 
-    const isLive = livenessScore >= 70;
+    let isLive = livenessScore >= 70;
     const hasStrongMatch = faceMatchScore === undefined || faceMatchScore >= 80;
-    const documentRejected = this.documentFile !== null && faceMatchScore === 0;
+    let documentRejected = this.documentFile !== null && faceMatchScore === 0;
 
       const metadata: Record<string, string> = {};
       if (this.documentFile?.name) {
@@ -297,6 +302,63 @@ export class LivenessModalComponent implements OnDestroy {
       metadata['faceMatchReason'] = faceMatchReason;
     }
 
+      // Se documento foi enviado, chamar backend para análise completa
+      let backendAnalysis: any = null;
+      if (documentUpload?.key && referenceFaceBytes) {
+        try {
+          this.statusMessage = 'Analisando documento no servidor...';
+          
+          // Obter chave S3 da selfie de referência (frente)
+          const frontCapture = captures.find(c => c.position.toLowerCase() === 'frente');
+          const selfieKey = frontCapture?.s3Key;
+          
+          if (selfieKey && documentUpload.key) {
+            console.info('[LivenessModal] 📊 Chamando backend para análise completa:', {
+              sessionId,
+              selfieKey,
+              documentKey: documentUpload.key
+            });
+            
+            const livenessResultRequest = {
+              sessionId,
+              transactionId: this.transactionId,
+              documentKey: documentUpload.key,
+              selfieKey: selfieKey
+            };
+            
+            // Chamar endpoint do backend para análise completa
+            backendAnalysis = await this.faceService.getLivenessResult(livenessResultRequest).toPromise();
+            
+            console.info('[LivenessModal] ✅ Resposta do backend recebida:', backendAnalysis);
+            
+            // Se backend retornou análise, usar esses dados
+            if (backendAnalysis) {
+              // Atualizar scores com dados do backend
+              if (backendAnalysis.confidence !== undefined) {
+                livenessScore = backendAnalysis.confidence * 100;
+              }
+              
+              // Backend já fez match + análise de documento
+              // Se backend rejeitou, atualizar status
+              if (backendAnalysis.message && backendAnalysis.message.includes('rejeitado')) {
+                isLive = false;
+                documentRejected = true;
+                console.warn('[LivenessModal] 🚨 Backend rejeitou documento:', backendAnalysis.message);
+              }
+              
+              console.info('[LivenessModal] 📊 Análise completa do backend:', {
+                liveness: livenessScore,
+                message: backendAnalysis.message,
+                status: backendAnalysis.status
+              });
+            }
+          }
+        } catch (backendError) {
+          console.error('[LivenessModal] ❌ Erro ao chamar backend para análise:', backendError);
+          // Continua com análise local se backend falhar
+        }
+      }
+
       const summary: LivenessSummary = {
         sessionId,
         createdAt: new Date().toISOString(),
@@ -308,7 +370,8 @@ export class LivenessModalComponent implements OnDestroy {
         video: videoSummary,
         documentKey: documentUpload?.key ?? undefined,
         documentName: this.documentFile?.name ?? undefined,
-        metadata: Object.keys(metadata).length > 0 ? metadata : undefined
+        metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
+        backendAnalysis: backendAnalysis ?? undefined
       };
 
       console.info('[LivenessModal] Sessão concluída.', summary);
@@ -319,11 +382,32 @@ export class LivenessModalComponent implements OnDestroy {
       
       // Preparar resultado e observação
       const isApproved = summary.status === 'Aprovado';
-      this.resultScore = summary.livenessScore;
+      
+      // Usar IdentityScore se disponível, senão usar livenessScore
+      if (backendAnalysis?.identityScore !== undefined && backendAnalysis.identityScore !== null) {
+        this.resultScore = Math.round(backendAnalysis.identityScore);
+      } else {
+        this.resultScore = summary.livenessScore;
+      }
+      
+      // Score do documento
+      if (backendAnalysis?.documentScore !== undefined && backendAnalysis.documentScore !== null) {
+        this.resultDocumentScore = Math.round(backendAnalysis.documentScore);
+      } else {
+        this.resultDocumentScore = null;
+      }
       
       // Construir observação baseada no resultado
       let observation = '';
-      if (isApproved) {
+      
+      // Se backend retornou análise, usar observação do backend (prioridade) ou mensagem
+      if (backendAnalysis?.observacao) {
+        observation = backendAnalysis.observacao;
+        console.info('[LivenessModal] 📋 Usando observação do backend:', observation);
+      } else if (backendAnalysis?.message) {
+        observation = backendAnalysis.message;
+        console.info('[LivenessModal] 📋 Usando mensagem do backend:', observation);
+      } else if (isApproved) {
         observation = `Liveness: ${summary.livenessScore}%`;
         if (summary.faceMatchScore !== undefined) {
           observation += ` | Face Match: ${summary.faceMatchScore}%`;
@@ -424,6 +508,7 @@ export class LivenessModalComponent implements OnDestroy {
     this.currentDirection = null;
     this.resultStatus = null;
     this.resultScore = null;
+    this.resultDocumentScore = null;
     this.resultObservation = null;
   }
 

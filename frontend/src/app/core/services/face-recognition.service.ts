@@ -123,10 +123,10 @@ export class FaceRecognitionService {
     return this.http.post<LivenessSessionResponse>(`${this.API_URL}/liveness/start`, request);
   }
 
-  // Conforme README: GET /api/liveness/results?sessionId=xxx
+  // POST /api/face-recognition/liveness/result (com body para análise completa)
   getLivenessResult(request: GetLivenessResultRequest): Observable<LivenessResultResponse> {
-    // Usar GET conforme README ao invés de POST
-    return this.http.get<LivenessResultResponse>(`${this.API_URL}/liveness/results?sessionId=${request.sessionId}`);
+    // Usar POST para permitir enviar documentKey e selfieKey no body
+    return this.http.post<LivenessResultResponse>(`${this.API_URL}/face-recognition/liveness/result`, request);
   }
 
   // Anti-Deepfake Layer

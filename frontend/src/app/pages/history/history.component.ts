@@ -230,6 +230,111 @@ export class HistoryComponent {
   }
 
 
+  getDocumentScore(entry: LivenessHistoryEntry): number | null {
+    // Prioridade: backendAnalysis.documentScore > metadata.documentScore > inferência por status > null
+    // Verificar backendAnalysis primeiro
+    if (entry.summary.backendAnalysis?.documentScore !== undefined && entry.summary.backendAnalysis?.documentScore !== null) {
+      const score = Number(entry.summary.backendAnalysis.documentScore);
+      if (!isNaN(score)) {
+        return score;
+      }
+    }
+    
+    // Verificar se documentScore está em outros campos do backendAnalysis
+    // (pode estar como string ou em formato diferente)
+    if (entry.summary.backendAnalysis) {
+      const ba = entry.summary.backendAnalysis;
+      // Tentar diferentes formatos
+      if (ba.documentScore !== undefined && ba.documentScore !== null) {
+        const score = Number(ba.documentScore);
+        if (!isNaN(score)) {
+          return score;
+        }
+      }
+    }
+    
+    // Verificar metadata do summary
+    if (entry.summary.metadata?.['documentScore']) {
+      const score = Number(entry.summary.metadata['documentScore']);
+      if (!isNaN(score)) {
+        return score;
+      }
+    }
+    
+    // Verificar metadata da entry
+    if (entry.metadata?.['documentScore']) {
+      const score = Number(entry.metadata['documentScore']);
+      if (!isNaN(score)) {
+        return score;
+      }
+    }
+    
+    // Se status é "Aprovado" e há documentKey, inferir que documento foi validado com sucesso (score 100)
+    if (entry.summary.status === 'Aprovado' && entry.summary.documentKey) {
+      // Documento aprovado significa validação bem-sucedida, então score 100
+      return 100;
+    }
+    
+    return null;
+  }
+
+  getObservacao(entry: LivenessHistoryEntry): string | null {
+    let observacao: string | null = null;
+    
+    // Prioridade: backendAnalysis.observacao > backendAnalysis.message > metadata.observacao
+    if (entry.summary.backendAnalysis?.observacao) {
+      observacao = entry.summary.backendAnalysis.observacao;
+    } else if (entry.summary.backendAnalysis?.message) {
+      // Se message começa com "Documento rejeitado:", usar diretamente
+      // Caso contrário, pode ser apenas uma mensagem genérica
+      if (entry.summary.backendAnalysis.message.includes('Documento rejeitado') || 
+          entry.summary.backendAnalysis.message.includes('não é RG ou CNH')) {
+        observacao = entry.summary.backendAnalysis.message;
+      } else {
+        observacao = entry.summary.backendAnalysis.message;
+      }
+    } else if (entry.summary.metadata?.['observacao']) {
+      observacao = entry.summary.metadata['observacao'];
+    } else if (entry.metadata?.['observacao']) {
+      observacao = entry.metadata['observacao'];
+    }
+    
+    if (!observacao) {
+      return null;
+    }
+    
+    // Buscar flags em diferentes fontes
+    let flags: string[] = [];
+    
+    // Tentar obter flags do backendAnalysis
+    if (entry.summary.backendAnalysis?.flags && Array.isArray(entry.summary.backendAnalysis.flags)) {
+      flags = entry.summary.backendAnalysis.flags;
+    } else if (entry.summary.backendAnalysis?.autoObservations && Array.isArray(entry.summary.backendAnalysis.autoObservations)) {
+      flags = entry.summary.backendAnalysis.autoObservations;
+    } else if (entry.summary.metadata?.['flags']) {
+      const flagsStr = entry.summary.metadata['flags'];
+      if (typeof flagsStr === 'string') {
+        flags = flagsStr.split(',').map(f => f.trim());
+      }
+    } else if (entry.metadata?.['flags']) {
+      const flagsStr = entry.metadata['flags'];
+      if (typeof flagsStr === 'string') {
+        flags = flagsStr.split(',').map(f => f.trim());
+      }
+    }
+    
+    // Se houver flags, adicionar à observação
+    if (flags.length > 0) {
+      const flagsStr = flags.join(', ');
+      // Verificar se a observação já não contém os flags
+      if (!observacao.includes('Flags:') && !observacao.includes(flagsStr)) {
+        observacao += ` | Flags: ${flagsStr}`;
+      }
+    }
+    
+    return observacao;
+  }
+
   private async ensureMediaUrls(entryId: string, force: boolean): Promise<void> {
     const entry = this.historyEntries().find(item => item.id === entryId);
     if (!entry) {

@@ -21,6 +21,7 @@ export class HelpComponent implements OnInit {
     { id: 'fluxo', title: 'Fluxo de Autenticação', icon: '🔄', active: false },
     { id: 'face-liveness', title: 'Face Liveness 3D', icon: '🧠', active: false },
     { id: 'match', title: 'Comparação Facial', icon: '🎯', active: false },
+    { id: 'validacao-documento', title: 'Validação de Documento', icon: '📄', active: false },
     { id: 'compressao', title: 'Compressão Automática', icon: '📦', active: false },
     { id: 'como-usar', title: 'Como Usar Anti-Deepfake', icon: '🎬', active: false },
     { id: 'api', title: 'Arquitetura & APIs', icon: '⚙️', active: false },
@@ -31,6 +32,7 @@ export class HelpComponent implements OnInit {
   readonly sidebarOpen = signal<boolean>(false);
   private readonly scrollOffset = 180;
   private userScrolling = false;
+  private scrollTimeout: number | null = null;
 
   toggleSidebar(): void {
     this.sidebarOpen.update((value) => !value);
@@ -43,21 +45,34 @@ export class HelpComponent implements OnInit {
   }
 
   ngOnInit(): void {
-    setTimeout(() => this.detectSectionInView(), 0);
+    setTimeout(() => this.detectSectionInView(), 100);
   }
 
-  @HostListener('window:scroll')
+  @HostListener('window:scroll', ['$event'])
   onWindowScroll(): void {
     if (this.userScrolling) {
       return;
     }
-    this.detectSectionInView();
+
+    // Throttle para melhor performance
+    if (this.scrollTimeout !== null) {
+      window.cancelAnimationFrame(this.scrollTimeout);
+    }
+
+    this.scrollTimeout = window.requestAnimationFrame(() => {
+      this.detectSectionInView();
+      this.scrollTimeout = null;
+    });
   }
 
   /**
    * Atualiza a seção ativa no menu
    */
   private updateActiveSection(sectionId: string): void {
+    if (sectionId === this.currentSection()) {
+      return; // Já está ativa, não precisa atualizar
+    }
+
     this.sections.update(sections =>
       sections.map(section => ({
         ...section,
@@ -79,14 +94,18 @@ export class HelpComponent implements OnInit {
     // Scroll suave até a seção
     const element = document.getElementById(sectionId);
     if (element) {
-      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      const offsetPosition = element.getBoundingClientRect().top + window.pageYOffset - this.scrollOffset;
+      window.scrollTo({
+        top: offsetPosition,
+        behavior: 'smooth'
+      });
     }
 
-    // Libera detecção automática após 1 segundo
+    // Libera detecção automática após scroll terminar
     setTimeout(() => {
       this.userScrolling = false;
       this.detectSectionInView();
-    }, 1000);
+    }, 1500);
   }
 
   /**
@@ -98,8 +117,11 @@ export class HelpComponent implements OnInit {
       return;
     }
 
-    let activeId = sections[0].id;
+    let activeId: string | null = null;
+    let bestDistance = Infinity;
 
+    // Procura a seção que está mais próxima do topo de referência (offset)
+    // rect.top já está em coordenadas do viewport
     for (const section of sections) {
       const element = document.getElementById(section.id);
       if (!element) {
@@ -108,9 +130,42 @@ export class HelpComponent implements OnInit {
 
       const rect = element.getBoundingClientRect();
 
-      if (rect.top <= this.scrollOffset) {
-        activeId = section.id;
+      // Verifica se a seção está no range do offset (topo da área de conteúdo)
+      // Considera se a seção passou pelo topo ou está próxima dele
+      const isPastTop = rect.top <= this.scrollOffset;
+      const isBeforeTop = rect.top > this.scrollOffset && rect.top < this.scrollOffset + 200;
+      
+      if (isPastTop || isBeforeTop) {
+        // Calcula a distância do topo da seção até o ponto de referência
+        const distance = Math.abs(rect.top - this.scrollOffset);
+        
+        if (distance < bestDistance) {
+          activeId = section.id;
+          bestDistance = distance;
+        }
       }
+    }
+
+    // Se não encontrou nenhuma no range, procura a última que passou o offset
+    if (!activeId) {
+      for (let i = sections.length - 1; i >= 0; i--) {
+        const element = document.getElementById(sections[i].id);
+        if (element) {
+          const rect = element.getBoundingClientRect();
+          
+          // Seção já passou pelo topo de referência
+          if (rect.top <= this.scrollOffset) {
+            activeId = sections[i].id;
+            break;
+          }
+        }
+      }
+    }
+
+    // Fallback para primeira seção se ainda não encontrou ou se está no topo da página
+    const scrollPosition = window.pageYOffset || document.documentElement.scrollTop;
+    if (!activeId || scrollPosition < 100) {
+      activeId = sections[0].id;
     }
 
     if (activeId && activeId !== this.currentSection()) {

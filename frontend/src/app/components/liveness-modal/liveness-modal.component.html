@@ -80,6 +80,10 @@
         <span class="score-label">Score:</span>
         <span class="score-value">{{ resultScore }}%</span>
       </div>
+      <div class="result-document-score" *ngIf="resultDocumentScore !== null && resultDocumentScore !== undefined">
+        <span class="score-label">Score Documento:</span>
+        <span class="score-value">{{ resultDocumentScore }}%</span>
+      </div>
       <div class="result-observation" *ngIf="resultObservation">
         <span class="observation-label">Observação:</span>
         <span class="observation-text">{{ resultObservation }}</span>

@@ -54,6 +54,7 @@
       <app-liveness-modal
         [voiceSteps]="voiceSteps"
         [documentFile]="documentFile"
+        [transactionId]="transactionId ?? undefined"
         (sessionCompleted)="onLivenessSessionCompleted($event)"
         (sessionFailed)="onLivenessSessionFailed($event)">
       </app-liveness-modal>

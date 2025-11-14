@@ -815,6 +815,320 @@ ELSE
       </div>
     </section>
 
+    <!-- Seção: Validação de Documento -->
+    <section id="validacao-documento" class="help-section">
+      <div class="section-header">
+        <h1>📄 Validação de Documento</h1>
+        <p class="section-subtitle">Análise de Autenticidade Visual de RG e CNH</p>
+      </div>
+
+      <div class="info-card info-highlight">
+        <h3>🎯 Objetivo</h3>
+        <p>O DayFusion analisa a <strong>autenticidade visual do documento</strong> (RG/CNH) e gera um <strong>DocumentScore</strong> que complementa o fluxo de validação de identidade (Liveness + Face Match).</p>
+        <p>Isso permite identificar possíveis <strong>fraudes</strong> ou <strong>casos que requerem revisão manual</strong>, mesmo sem integração com SERPRO ou Denatran.</p>
+      </div>
+
+      <div class="layers-grid">
+        <div class="layer-card layer-primary">
+          <div class="layer-number">1</div>
+          <h3>Análise Facial no Documento</h3>
+          <p class="layer-description">Verifica a <strong>qualidade e autenticidade da foto</strong> no documento</p>
+          <ul class="layer-features">
+            <li>✅ Detecta presença de rosto</li>
+            <li>✅ Avalia brilho equilibrado (40-80)</li>
+            <li>✅ Verifica nitidez adequada (> 40)</li>
+            <li>✅ Identifica distorções graves</li>
+            <li>✅ Score máximo: 40 pontos</li>
+          </ul>
+        </div>
+
+        <div class="layer-card layer-secondary">
+          <div class="layer-number">2</div>
+          <h3>Análise de Texto (OCR)</h3>
+          <p class="layer-description">Reconhece e <strong>valida informações textuais</strong> do documento</p>
+          <ul class="layer-features">
+            <li>✅ Detecta texto legível</li>
+            <li>✅ Identifica padrões de RG/CNH</li>
+            <li>✅ Verifica campos obrigatórios</li>
+            <li>✅ Valida estrutura do documento</li>
+            <li>✅ Score máximo: 30 pontos</li>
+          </ul>
+        </div>
+
+        <div class="layer-card">
+          <div class="layer-number">3</div>
+          <h3>Qualidade da Imagem</h3>
+          <p class="layer-description">Avalia <strong>nitidez, contraste e resolução</strong> da foto capturada</p>
+          <ul class="layer-features">
+            <li>✅ Verifica foco e clareza</li>
+            <li>✅ Avalia resolução adequada</li>
+            <li>✅ Detecta reflexos e sombras</li>
+            <li>✅ Identifica fotos de tela</li>
+            <li>✅ Score máximo: 20 pontos</li>
+          </ul>
+        </div>
+
+        <div class="layer-card">
+          <div class="layer-number">4</div>
+          <h3>Verificações Anti-Fraude</h3>
+          <p class="layer-description">Detecta <strong>tentativas de fraude</strong> e documentos falsos</p>
+          <ul class="layer-features">
+            <li>✅ Identifica imagens de tela</li>
+            <li>✅ Detecta documentos não oficiais</li>
+            <li>✅ Verifica estrutura RG/CNH</li>
+            <li>✅ Flag para revisão manual</li>
+            <li>✅ Score máximo: 10 pontos</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="info-card">
+        <h3>📊 Sistema de Pontuação (DocumentScore)</h3>
+        <p>O sistema calcula um score de <strong>0 a 100 pontos</strong> baseado em múltiplas análises:</p>
+        <div class="comparison-table">
+          <table>
+            <thead>
+              <tr>
+                <th>Análise</th>
+                <th>Pontos Máximos</th>
+                <th>Critérios</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Análise Facial</strong></td>
+                <td>40 pontos</td>
+                <td>Rosto detectado, brilho 40-80, nitidez > 40, confiança > 90%</td>
+              </tr>
+              <tr>
+                <td><strong>Análise de Texto (OCR)</strong></td>
+                <td>30 pontos</td>
+                <td>Texto legível, padrão RG/CNH, campos obrigatórios presentes</td>
+              </tr>
+              <tr>
+                <td><strong>Qualidade da Imagem</strong></td>
+                <td>20 pontos</td>
+                <td>Foco adequado, resolução suficiente, sem reflexos graves</td>
+              </tr>
+              <tr>
+                <td><strong>Verificações Anti-Fraude</strong></td>
+                <td>10 pontos</td>
+                <td>Documento oficial, não é foto de tela, estrutura válida</td>
+              </tr>
+              <tr class="row-success">
+                <td><strong>TOTAL</strong></td>
+                <td><strong>100 pontos</strong></td>
+                <td><strong>Score final: 0-100</strong></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="info-card info-code">
+        <h3>⚖️ Política de Decisão com Thresholds</h3>
+        <p>O sistema gera uma <strong>observação automática</strong> baseada no DocumentScore:</p>
+        <div class="threshold-grid">
+          <div class="threshold-item threshold-success">
+            <div class="threshold-score">≥ 85</div>
+            <h4>✅ Documento Autêntico</h4>
+            <p>Documento visualmente autêntico. Qualidade e autenticidade confirmadas.</p>
+            <strong>Ação:</strong> Aprovação automática (combinado com Liveness e Match)
+          </div>
+
+          <div class="threshold-item threshold-warning">
+            <div class="threshold-score">70 - 84</div>
+            <h4>⚠️ Revisão Manual</h4>
+            <p>Documento válido, mas requer atenção. Alguns critérios não totalmente atendidos.</p>
+            <strong>Ação:</strong> Enviar para revisão manual obrigatória
+          </div>
+
+          <div class="threshold-item threshold-danger">
+            <div class="threshold-score">&lt; 70</div>
+            <h4>🚨 Documento Suspeito</h4>
+            <p>Alta probabilidade de fraude ou documento inválido. Múltiplos indicadores anômalos.</p>
+            <strong>Ação:</strong> Rejeitar e sinalizar para análise de fraude
+          </div>
+        </div>
+      </div>
+
+      <div class="info-card">
+        <h3>🔗 Integração com Score Final de Identidade</h3>
+        <p>O <strong>DocumentScore</strong> é combinado com outros scores para gerar um <strong>IdentityScore</strong> final:</p>
+        <div class="match-flow">
+          <div class="match-source">
+            <h3>Liveness Score</h3>
+            <p>0.0 - 1.0<br/>(40% do peso)</p>
+            <div class="match-placeholder">
+              <span class="match-icon">🧠</span>
+              <span class="match-label">Liveness: 0.96</span>
+            </div>
+          </div>
+
+          <div class="match-comparison">
+            <div class="match-arrow">+</div>
+            <span class="match-vs">+</span>
+            <div class="match-arrow">+</div>
+            <div class="match-algo">
+              <h4>Validação Combinada</h4>
+              <ul>
+                <li>40% Liveness</li>
+                <li>40% Face Match</li>
+                <li>20% Documento</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="match-target">
+            <h3>Match Score</h3>
+            <p>0 - 100%<br/>(40% do peso)</p>
+            <div class="match-placeholder">
+              <span class="match-icon">🎯</span>
+              <span class="match-label">Match: 93%</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="info-card info-success" style="margin-top: 2rem;">
+          <h3>📊 Exemplo de Cálculo</h3>
+          <div class="example-calculation">
+            <p><strong>Liveness:</strong> 0.96 × 0.4 = 0.384</p>
+            <p><strong>Face Match:</strong> 0.93 × 0.4 = 0.372</p>
+            <p><strong>Documento:</strong> 0.78 × 0.2 = 0.156</p>
+            <hr style="margin: 1rem 0; border-color: rgba(255,255,255,0.2);">
+            <p><strong>IdentityScore Final:</strong> <strong style="font-size: 1.2em;">0.912 (91.2%)</strong></p>
+          </div>
+          <p style="margin-top: 1rem;"><strong>Resultado:</strong> ✅ <strong>Aprovação automática</strong> (score ≥ 0.85)</p>
+        </div>
+      </div>
+
+      <div class="info-card info-comparison">
+        <h3>📈 Exemplo de Resposta da API</h3>
+        <pre class="code-block"><code>{{ '{' }}
+  "LivenessScore": 0.96,
+  "MatchScore": 91.5,
+  "DocumentScore": 78.0,
+  "IdentityScore": 0.82,
+  "Observacao": "⚠️ Revisar documento manualmente | Documento válido, mas revisar manualmente ⚠️"
+{{ '}' }}</code></pre>
+      </div>
+
+      <div class="info-card">
+        <h3>🛠️ Tecnologias Utilizadas</h3>
+        <div class="feature-grid">
+          <div class="feature-card">
+            <div class="feature-icon">🤖</div>
+            <h3>AWS Rekognition</h3>
+            <p><strong>DetectFaces:</strong> Análise facial no documento</p>
+            <p><strong>DetectText:</strong> OCR para reconhecimento de texto</p>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-icon">☁️</div>
+            <h3>AWS S3</h3>
+            <p>Armazenamento seguro do documento para análise</p>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-icon">🔍</div>
+            <h3>DocumentAnalyzerService</h3>
+            <p>Serviço .NET que orquestra todas as análises</p>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-icon">⚖️</div>
+            <h3>ValidationService</h3>
+            <p>Calcula scores combinados e gera observações</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="info-card info-warning">
+        <h3>⚠️ Limitações Atuais (POC)</h3>
+        <p>Na fase atual de <strong>POC (Proof of Concept)</strong>:</p>
+        <ul>
+          <li>✅ <strong>Análise visual:</strong> Funcional com AWS Rekognition</li>
+          <li>✅ <strong>Validação manual:</strong> Documento e observação disponíveis para revisão</li>
+          <li>❌ <strong>Validação cadastral:</strong> Ainda não integrado com SERPRO/Denatran</li>
+          <li>❌ <strong>IA customizada:</strong> Modelos especializados em documentos falsos (futuro)</li>
+        </ul>
+        <div class="future-model" style="margin-top: 1.5rem;">
+          <h4>🚀 Próximas Fases</h4>
+          <p><strong>Fase 2:</strong> Modelo de IA customizado (ex: FakeDocNet no TensorFlow) para detecção avançada de documentos falsos.</p>
+          <p><strong>Fase 3:</strong> Integração com SERPRO/Denatran para validação cadastral real.</p>
+        </div>
+      </div>
+
+      <div class="info-card info-success">
+        <h3>✅ Benefícios da Validação de Documentos</h3>
+        <div class="benefits-grid">
+          <div class="benefit-item">
+            <span class="benefit-icon">🛡️</span>
+            <h4>Segurança Reforçada</h4>
+            <p>Detecta documentos falsos ou imagens de tela antes da aprovação</p>
+          </div>
+          <div class="benefit-item">
+            <span class="benefit-icon">⚡</span>
+            <h4>Automação Inteligente</h4>
+            <p>Gera observações automáticas para casos que precisam revisão</p>
+          </div>
+          <div class="benefit-item">
+            <span class="benefit-icon">🔗</span>
+            <h4>Integração Completa</h4>
+            <p>Complementa Liveness e Face Match no fluxo de validação</p>
+          </div>
+          <div class="benefit-item">
+            <span class="benefit-icon">☁️</span>
+            <h4>AWS Puro</h4>
+            <p>Fluxo totalmente baseado em AWS, sem dependências externas</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="info-card">
+        <h3>💡 Fluxo de Validação Completo</h3>
+        <div class="flow-diagram">
+          <div class="flow-step">
+            <div class="flow-step-number">1</div>
+            <div class="flow-step-content">
+              <h3>📷 Captura</h3>
+              <p>Selfie (Liveness) + Documento (RG/CNH)</p>
+            </div>
+          </div>
+
+          <div class="flow-arrow">↓</div>
+
+          <div class="flow-step">
+            <div class="flow-step-number">2</div>
+            <div class="flow-step-content">
+              <h3>🧠 Análises Paralelas</h3>
+              <p>Liveness 3D + Face Match + Document Score</p>
+            </div>
+          </div>
+
+          <div class="flow-arrow">↓</div>
+
+          <div class="flow-step">
+            <div class="flow-step-number">3</div>
+            <div class="flow-step-content">
+              <h3>⚖️ Cálculo Final</h3>
+              <p>IdentityScore = 40% Liveness + 40% Match + 20% Documento</p>
+            </div>
+          </div>
+
+          <div class="flow-arrow">↓</div>
+
+          <div class="flow-step">
+            <div class="flow-step-number">4</div>
+            <div class="flow-step-content">
+              <h3>✅ Decisão Automática</h3>
+              <p>≥ 0.85: Aprovado | 0.70-0.84: Revisão | &lt; 0.70: Rejeitado</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- Seção: Como Usar Anti-Deepfake -->
     <section id="como-usar" class="help-section">
       <div class="section-header">

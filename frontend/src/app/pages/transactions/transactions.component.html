@@ -71,7 +71,20 @@
             </span>
           </div>
 
-          <div class="score-display" *ngIf="tx.similarityScore !== null && tx.similarityScore !== undefined">
+          <!-- Score Principal: IdentityScore ou SimilarityScore -->
+          <div class="score-display" *ngIf="tx.identityScore !== null && tx.identityScore !== undefined">
+            <div class="score-value">{{ (tx.identityScore * 100) | number:'1.1-1' }}%</div>
+            <div class="score-label">Score Final (Identity)</div>
+            <div class="score-bar">
+              <div class="score-bar-fill" 
+                   [style.width.%]="tx.identityScore * 100" 
+                   [class.score-high]="tx.identityScore >= 0.85"
+                   [class.score-medium]="tx.identityScore >= 0.70 && tx.identityScore < 0.85"
+                   [class.score-low]="tx.identityScore < 0.70">
+              </div>
+            </div>
+          </div>
+          <div class="score-display" *ngIf="(tx.identityScore === null || tx.identityScore === undefined) && tx.similarityScore !== null && tx.similarityScore !== undefined">
             <div class="score-value">{{ tx.similarityScore | number:'1.1-1' }}%</div>
             <div class="score-label">Similaridade</div>
             <div class="score-bar">
@@ -83,14 +96,43 @@
               </div>
             </div>
           </div>
-          <div class="score-display no-score" *ngIf="tx.similarityScore === null || tx.similarityScore === undefined">
+          <div class="score-display no-score" *ngIf="(tx.identityScore === null || tx.identityScore === undefined) && (tx.similarityScore === null || tx.similarityScore === undefined)">
             <div class="score-value">N/A</div>
             <div class="score-label">Score não disponível</div>
           </div>
         </div>
 
+        <!-- Scores Detalhados -->
+        <div class="scores-detail" *ngIf="tx.identityScore !== null || tx.documentScore !== null || tx.livenessScore !== null">
+          <div class="scores-grid">
+            <div class="score-item" *ngIf="tx.livenessScore !== null && tx.livenessScore !== undefined">
+              <div class="score-item-label">Liveness</div>
+              <div class="score-item-value">{{ tx.livenessScore | number:'1.1-1' }}%</div>
+            </div>
+            <div class="score-item" *ngIf="tx.similarityScore !== null && tx.similarityScore !== undefined">
+              <div class="score-item-label">Match</div>
+              <div class="score-item-value">{{ tx.similarityScore | number:'1.1-1' }}%</div>
+            </div>
+            <div class="score-item" *ngIf="tx.documentScore !== null && tx.documentScore !== undefined">
+              <div class="score-item-label">Documento</div>
+              <div class="score-item-value">{{ tx.documentScore | number:'1.1-1' }}%</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Observação Automática -->
+        <div class="transaction-observacao" *ngIf="tx.observacao">
+          <div class="observacao-label">📋 Análise Automática:</div>
+          <div class="observacao-text" 
+               [class.observacao-high]="tx.identityScore !== null && tx.identityScore >= 0.85"
+               [class.observacao-medium]="tx.identityScore !== null && tx.identityScore >= 0.70 && tx.identityScore < 0.85"
+               [class.observacao-low]="tx.identityScore !== null && tx.identityScore < 0.70">
+            {{ tx.observacao }}
+          </div>
+        </div>
+
         <div class="transaction-notes" *ngIf="tx.reviewNotes || tx.rejectionReason">
-          <div class="notes-label">Observações:</div>
+          <div class="notes-label">Observações Manuais:</div>
           <div class="notes-text">{{ tx.reviewNotes || tx.rejectionReason }}</div>
         </div>
 

@@ -122,6 +122,8 @@ builder.Services.AddScoped<IRekognitionService, RekognitionService>();
 builder.Services.AddScoped<IDynamoDBService, DynamoDBService>();
 builder.Services.AddScoped<IUserProfileService, UserProfileService>();
 builder.Services.AddScoped<IAntiDeepfakeService, AntiDeepfakeService>();
+builder.Services.AddScoped<IDocumentAnalyzerService, DocumentAnalyzerService>();
+builder.Services.AddScoped<IValidationService, ValidationService>();
 
 // Configure JWT Authentication (placeholder - in production, use AWS Cognito)
 var jwtSecret = builder.Configuration["JWT:Secret"] ?? builder.Configuration["JWT_SECRET"] ?? "your-secret-key-here";

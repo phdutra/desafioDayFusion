@@ -25,5 +25,6 @@ export interface LivenessSummary {
   documentKey?: string;
   documentName?: string;
   metadata?: Record<string, string>;
+  backendAnalysis?: any; // Resposta do backend com análise completa
 }
 

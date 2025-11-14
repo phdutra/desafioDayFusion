@@ -26,6 +26,12 @@ public class Transaction
     
     public float? LivenessScore { get; set; }
     
+    public float? DocumentScore { get; set; }  // 0-100 (análise de autenticidade do documento)
+    
+    public double? IdentityScore { get; set; }  // 0.0-1.0 (score final combinado)
+    
+    public string? Observacao { get; set; }  // Observação automática gerada
+    
     public TransactionStatus Status { get; set; } = TransactionStatus.Pending;
     
     public string? ReviewNotes { get; set; }
@@ -161,6 +167,10 @@ public class GetLivenessResultRequest
     public string SessionId { get; set; } = string.Empty;
     
     public string? TransactionId { get; set; }
+    
+    public string? DocumentKey { get; set; }  // Chave S3 do documento (opcional, para análise completa)
+    
+    public string? SelfieKey { get; set; }  // Chave S3 da selfie de referência (opcional)
 }
 
 public class LivenessResultResponse
@@ -179,6 +189,12 @@ public class LivenessResultResponse
     public List<string> Recommendations { get; set; } = new(); // Recomendações para melhorar
     public float? QualityScore { get; set; } // Score de qualidade da imagem (0-100)
     public string? QualityAssessment { get; set; } // Avaliação da qualidade (EXCELLENT, GOOD, FAIR, POOR)
+    
+    // Campos adicionais para análise completa
+    public string? Observacao { get; set; } // Observação da análise
+    public float? DocumentScore { get; set; } // Score do documento (0-100)
+    public double? IdentityScore { get; set; } // Score de identidade completo (0-100)
+    public float? MatchScore { get; set; } // Score de match de faces (0-100)
 }
 
 public class LivenessCompareRequest
@@ -188,4 +204,38 @@ public class LivenessCompareRequest
     
     [Required]
     public string DocumentKey { get; set; } = string.Empty;
+}
+
+// Document Validation Models
+public class DocumentAnalysisResult
+{
+    public double DocumentScore { get; set; }  // 0-100
+    public string Observacao { get; set; } = string.Empty;
+    public List<string> Flags { get; set; } = new();
+}
+
+public class IdentityRequest
+{
+    [Required]
+    public string Bucket { get; set; } = string.Empty;
+    
+    [Required]
+    public string FileName { get; set; } = string.Empty;
+    
+    public double? LivenessScore { get; set; }
+    
+    public double? MatchScore { get; set; }
+    
+    public string? TransactionId { get; set; }
+}
+
+public class IdentityResponse
+{
+    public string TransactionId { get; set; } = string.Empty;
+    public double? LivenessScore { get; set; }
+    public double? MatchScore { get; set; }
+    public double DocumentScore { get; set; }
+    public double IdentityScore { get; set; }
+    public string Observacao { get; set; } = string.Empty;
+    public TransactionStatus Status { get; set; }
 }

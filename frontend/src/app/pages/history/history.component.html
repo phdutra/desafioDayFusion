@@ -34,6 +34,17 @@
         <div class="item-body">
           <p>Liveness: {{ entry.summary.livenessScore | number: '1.0-2' }}</p>
           <p>FaceMatch: {{ entry.summary.faceMatchScore ?? 'N/A' }}</p>
+          <p [class.document-invalid-text]="entry.summary.status !== 'Aprovado' || !entry.summary.documentKey"
+             [class.document-approved-text]="entry.summary.status === 'Aprovado' && entry.summary.documentKey">
+            Documento: 
+            <ng-container *ngIf="entry.summary.status === 'Aprovado' && entry.summary.documentKey">
+              Válido
+            </ng-container>
+            <ng-container *ngIf="entry.summary.status !== 'Aprovado' || !entry.summary.documentKey">
+              Inválido
+            </ng-container>
+            <span *ngIf="entry.summary.status !== 'Aprovado' || !entry.summary.documentKey" class="invalid-indicator">⚠️</span>
+          </p>
           <p>Capturas: {{ entry.summary.captures.length }}</p>
         </div>
       </article>
@@ -49,6 +60,19 @@
           <span>Status: <strong>{{ entry.summary.status }}</strong></span>
           <span>Liveness: <strong>{{ entry.summary.livenessScore | number: '1.0-2' }}</strong></span>
           <span>FaceMatch: <strong>{{ entry.summary.faceMatchScore ?? 'N/A' }}</strong></span>
+          <span [class.document-invalid]="entry.summary.status !== 'Aprovado' || !entry.summary.documentKey"
+                [class.document-valid]="entry.summary.status === 'Aprovado' && entry.summary.documentKey">
+            Documento: <strong>
+              <ng-container *ngIf="entry.summary.status === 'Aprovado' && entry.summary.documentKey">
+                <span *ngIf="entry.summary.status === 'Aprovado' && entry.summary.documentKey" class="valid-badge">Válido</span>
+                
+              </ng-container>
+              <ng-container *ngIf="entry.summary.status !== 'Aprovado' || !entry.summary.documentKey">
+                <span *ngIf="entry.summary.status !== 'Aprovado' || !entry.summary.documentKey" class="invalid-badge">Inválido</span>
+              </ng-container>
+            </strong>
+            
+          </span>
         </div>
       </div>
 
@@ -62,6 +86,16 @@
 
       <div *ngIf="loadingMedia()" class="alert info">
         Atualizando URLs assinadas...
+      </div>
+
+      <!-- Análise da Sessão / Motivo da Rejeição -->
+      <div class="analysis-section" *ngIf="getObservacao(entry)">
+        <h3>📋 Análise da Sessão</h3>
+        <div class="analysis-content" 
+             [class.analysis-rejected]="entry.summary.status === 'Rejeitado'"
+             [class.analysis-approved]="entry.summary.status === 'Aprovado'">
+          <p>{{ getObservacao(entry) }}</p>
+        </div>
       </div>
 
       <div class="captures-section" *ngIf="entry.summary.captures.length; else noCaptures">

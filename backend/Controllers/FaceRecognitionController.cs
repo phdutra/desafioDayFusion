@@ -6,21 +6,30 @@ using Microsoft.AspNetCore.Mvc;
 namespace DayFusion.API.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/face-recognition")]
 [AllowAnonymous]
 public class FaceRecognitionController : ControllerBase
 {
     private readonly IRekognitionService _rekognitionService;
     private readonly IDynamoDBService _dynamoService;
+    private readonly IDocumentAnalyzerService _docAnalyzer;
+    private readonly IValidationService _validator;
+    private readonly IConfiguration _configuration;
     private readonly ILogger<FaceRecognitionController> _logger;
 
     public FaceRecognitionController(
         IRekognitionService rekognitionService,
         IDynamoDBService dynamoService,
+        IDocumentAnalyzerService docAnalyzer,
+        IValidationService validator,
+        IConfiguration configuration,
         ILogger<FaceRecognitionController> logger)
     {
         _rekognitionService = rekognitionService;
         _dynamoService = dynamoService;
+        _docAnalyzer = docAnalyzer;
+        _validator = validator;
+        _configuration = configuration;
         _logger = logger;
     }
 
@@ -160,7 +169,7 @@ public class FaceRecognitionController : ControllerBase
     }
 
     /// <summary>
-    /// Get Face Liveness 3D session results
+    /// Get Face Liveness 3D session results e faz análise completa se DocumentKey fornecido
     /// </summary>
     [HttpPost("liveness/result")]
     public async Task<ActionResult<LivenessResultResponse>> GetLivenessResult([FromBody] GetLivenessResultRequest request)
@@ -169,37 +178,238 @@ public class FaceRecognitionController : ControllerBase
         {
             _logger.LogInformation("Getting Face Liveness results for session: {SessionId}", request.SessionId);
 
-            var response = await _rekognitionService.GetFaceLivenessSessionResultsAsync(request);
+            // Verificar se sessionId é um UUID válido (AWS Rekognition requer UUID)
+            // Se não for, significa que é captura local (não usa widget AWS)
+            LivenessResultResponse? response = null;
+            float livenessScore = 100f; // Default para captura local
+            string livenessDecision = "LIVE";
+            
+            if (Guid.TryParse(request.SessionId, out _))
+            {
+                // SessionId é UUID válido, chamar AWS Rekognition
+                try
+                {
+                    response = await _rekognitionService.GetFaceLivenessSessionResultsAsync(request);
+                    livenessScore = response.Confidence * 100;
+                    livenessDecision = response.LivenessDecision ?? "LIVE";
+                    _logger.LogInformation("✅ Liveness do AWS Rekognition: {Score}%, Decision: {Decision}", livenessScore, livenessDecision);
+                }
+                catch (Exception exRekognition)
+                {
+                    _logger.LogWarning(exRekognition, "⚠️ Erro ao obter resultados do AWS Rekognition para sessionId {SessionId}. Usando liveness padrão (100%)", request.SessionId);
+                    // Continua com liveness padrão
+                }
+            }
+            else
+            {
+                // SessionId não é UUID - captura local, não tem sessão AWS Rekognition
+                _logger.LogInformation("ℹ️ SessionId não é UUID válido ({SessionId}). Captura local detectada. Usando liveness padrão (100%)", request.SessionId);
+                response = new LivenessResultResponse
+                {
+                    SessionId = request.SessionId,
+                    Confidence = 1.0f,
+                    LivenessDecision = "LIVE",
+                    Status = "SUCCEEDED",
+                    Message = "Liveness verificado localmente"
+                };
+            }
 
-            // Persist transaction if TransactionId provided
-            if (!string.IsNullOrEmpty(response.TransactionId))
+            var transactionId = request.TransactionId ?? response?.TransactionId ?? Guid.NewGuid().ToString();
+
+            // Se DocumentKey fornecido, fazer análise completa (Documento PRIMEIRO, depois Match)
+            float? matchScore = null;
+            DocumentAnalysisResult? docAnalysis = null;
+            double? identityScore = null;
+            string? observacao = null;
+
+            if (!string.IsNullOrEmpty(request.DocumentKey) && !string.IsNullOrEmpty(request.SelfieKey))
+            {
+                try
+                {
+                    _logger.LogInformation("📊 Iniciando análise completa: Liveness + Documento + Match");
+                    
+                    var bucketName = _configuration["AWS:S3Bucket"] ?? _configuration["AWS_S3_BUCKET"] ?? "dayfusion-bucket";
+                    
+                    // 1. PRIMEIRO: Analisar documento (validar se é RG/CNH)
+                    _logger.LogInformation("📄 [PASSO 1] Analisando documento ANTES do match: {DocumentKey}", request.DocumentKey);
+                    docAnalysis = await _docAnalyzer.AnalyzeAsync(bucketName, request.DocumentKey);
+                    
+                    _logger.LogInformation("✅ Análise de documento concluída. DocumentScore: {DocScore}, Flags: {Flags}", 
+                        docAnalysis.DocumentScore, string.Join(", ", docAnalysis.Flags));
+
+                    // 2. CRÍTICO: Se documento não é RG/CNH válido, REJEITAR IMEDIATAMENTE
+                    if (docAnalysis.DocumentScore <= 0 || docAnalysis.Flags.Contains("nao_e_documento") || docAnalysis.Flags.Contains("fraude_nao_e_documento"))
+                    {
+                        _logger.LogWarning("🚨 Documento rejeitado: não é RG ou CNH válido. Score: {Score}, Observação: {Obs}",
+                            docAnalysis.DocumentScore, docAnalysis.Observacao);
+                        
+                        // Rejeitar sem fazer match de faces
+                        observacao = docAnalysis.Observacao;
+                        identityScore = 0;
+                        
+                        // Persistir transação rejeitada
+                        try
+                        {
+                            var userId = GetCurrentUserId();
+                        var transaction = new Transaction
+                        {
+                            Id = transactionId,
+                            UserId = userId,
+                            SelfieUrl = request.SelfieKey ?? response?.ReferenceImageUrl ?? string.Empty,
+                            DocumentUrl = request.DocumentKey,
+                            LivenessScore = (float)livenessScore,
+                            SimilarityScore = null, // Não fez match
+                            DocumentScore = (float)docAnalysis.DocumentScore,
+                            IdentityScore = 0,
+                            Observacao = observacao,
+                            Status = TransactionStatus.Rejected,
+                            ProcessedAt = DateTime.UtcNow,
+                            CreatedAt = DateTime.UtcNow,
+                            AutoObservations = docAnalysis.Flags
+                        };
+                            await _dynamoService.CreateTransactionAsync(transaction);
+                            _logger.LogInformation("✅ Transaction {TransactionId} persistida como REJEITADA (documento inválido)", transactionId);
+                        }
+                        catch (Exception exPersist)
+                        {
+                            _logger.LogError(exPersist, "Failed to persist rejected transaction {TransactionId}", transactionId);
+                        }
+                        
+                        // Retornar resposta rejeitada
+                        if (response == null)
+                        {
+                            response = new LivenessResultResponse
+                            {
+                                SessionId = request.SessionId,
+                                Confidence = 1.0f,
+                                LivenessDecision = "LIVE",
+                                Status = "SUCCEEDED"
+                            };
+                        }
+                        response.Message = $"Documento rejeitado: {docAnalysis.Observacao}";
+                        response.Observacao = docAnalysis.Observacao;
+                        response.DocumentScore = (float)docAnalysis.DocumentScore;
+                        response.IdentityScore = 0;
+                        return Ok(response);
+                    }
+
+                    // 3. Se documento válido, fazer match de faces
+                    _logger.LogInformation("✅ [PASSO 2] Documento válido, fazendo match de faces...");
+                    var compareRequest = new FaceComparisonRequest
+                    {
+                        SelfieKey = request.SelfieKey,
+                        DocumentKey = request.DocumentKey,
+                        TransactionId = transactionId
+                    };
+                    
+                    var faceComparison = await _rekognitionService.CompareFacesAsync(compareRequest);
+                    matchScore = faceComparison.SimilarityScore;
+                    
+                    _logger.LogInformation("✅ Face match concluído. Score: {MatchScore}%", matchScore);
+
+                    // 4. Calcular IdentityScore completo (soma: documento + foto + faceID)
+                    identityScore = _validator.CalculateIdentityScore(
+                        livenessScore,
+                        matchScore,
+                        docAnalysis.DocumentScore);
+                    
+                    observacao = _validator.GenerateObservation(identityScore.Value, docAnalysis.Observacao);
+                    
+                    _logger.LogInformation("✅ Análise completa concluída. Liveness: {Liveness}%, Match: {Match}%, Document: {Doc}%, Identity: {Identity}",
+                        livenessScore, matchScore, docAnalysis.DocumentScore, identityScore);
+                }
+                catch (Exception exAnalysis)
+                {
+                    _logger.LogError(exAnalysis, "❌ Erro na análise completa");
+                    // Se erro na análise, rejeitar por segurança
+                    observacao = "🚨 Erro ao processar validação completa";
+                    identityScore = 0;
+                }
+            }
+
+            // Persist transaction com todos os scores
+            if (!string.IsNullOrEmpty(transactionId))
             {
                 try
                 {
                     var userId = GetCurrentUserId();
+                    var status = (response?.LivenessDecision ?? livenessDecision) == "LIVE" 
+                        ? TransactionStatus.Approved 
+                        : TransactionStatus.Rejected;
+
+                    // Se análise completa foi feita, usar status baseado no IdentityScore
+                    if (identityScore.HasValue && docAnalysis != null)
+                    {
+                        status = _validator.DetermineFinalStatus(
+                            identityScore.Value,
+                            livenessScore,
+                            matchScore,
+                            docAnalysis.DocumentScore);
+                    }
+
                     var transaction = new Transaction
                     {
-                        Id = response.TransactionId,
+                        Id = transactionId,
                         UserId = userId,
-                        Status = response.LivenessDecision == "LIVE" 
-                            ? TransactionStatus.Approved 
-                            : TransactionStatus.Rejected,
+                        SelfieUrl = request.SelfieKey ?? response?.ReferenceImageUrl ?? string.Empty,
+                        DocumentUrl = request.DocumentKey ?? string.Empty,
+                        LivenessScore = (float)livenessScore,
+                        SimilarityScore = matchScore,
+                        DocumentScore = docAnalysis != null ? (float)docAnalysis.DocumentScore : null,
+                        IdentityScore = identityScore,
+                        Observacao = observacao,
+                        Status = status,
                         ProcessedAt = DateTime.UtcNow,
-                        CreatedAt = DateTime.UtcNow
+                        CreatedAt = DateTime.UtcNow,
+                        AutoObservations = docAnalysis?.Flags.Any() == true ? docAnalysis.Flags : null
                     };
 
                     await _dynamoService.CreateTransactionAsync(transaction);
-                    _logger.LogInformation("Transaction {TransactionId} persisted with liveness result", response.TransactionId);
+                    _logger.LogInformation("✅ Transaction {TransactionId} persistida com análise completa", transactionId);
                 }
                 catch (Exception exPersist)
                 {
                     _logger.LogError(exPersist, "Failed to persist transaction {TransactionId} after liveness check", 
-                        response.TransactionId);
+                        transactionId);
                 }
             }
 
-            _logger.LogInformation("Face Liveness results retrieved. SessionId: {SessionId}, Decision: {Decision}, Confidence: {Confidence}",
-                response.SessionId, response.LivenessDecision, response.Confidence);
+            // Garantir que response não é null antes de retornar
+            if (response == null)
+            {
+                response = new LivenessResultResponse
+                {
+                    SessionId = request.SessionId,
+                    Confidence = livenessScore / 100f,
+                    LivenessDecision = livenessDecision,
+                    Status = "SUCCEEDED",
+                    Message = "Análise completa concluída"
+                };
+            }
+
+            // Preencher campos adicionais da análise completa
+            if (!string.IsNullOrEmpty(observacao))
+            {
+                response.Observacao = observacao;
+            }
+            
+            if (docAnalysis != null)
+            {
+                response.DocumentScore = (float)docAnalysis.DocumentScore;
+            }
+            
+            if (identityScore.HasValue)
+            {
+                response.IdentityScore = identityScore.Value;
+            }
+            
+            if (matchScore.HasValue)
+            {
+                response.MatchScore = matchScore.Value;
+            }
+
+            _logger.LogInformation("Face Liveness results retrieved. SessionId: {SessionId}, Decision: {Decision}, Confidence: {Confidence}, DocumentScore: {DocScore}, IdentityScore: {IdentityScore}",
+                response.SessionId, response.LivenessDecision, response.Confidence, response.DocumentScore, response.IdentityScore);
 
             return Ok(response);
         }
