@@ -91,8 +91,6 @@ export class AuthService {
       cpf: this.sanitizeCpf(payload.cpf)
     };
 
-    console.log('[AuthService] Login facial - Payload:', body);
-
     return this.http.post<FaceLoginResponse>(`${this.API_URL}/auth/validar-face`, body, {
       headers: {
         'Cache-Control': 'no-cache, no-store, must-revalidate',
@@ -102,13 +100,6 @@ export class AuthService {
     })
       .pipe(
         tap((response) => {
-          console.log('[AuthService] ==================== RESPOSTA DA API ====================');
-          console.log('[AuthService] Resposta COMPLETA (stringify):', JSON.stringify(response, null, 2));
-          console.log('[AuthService] response:', response);
-          console.log('[AuthService] response.user:', response.user);
-          console.log('[AuthService] response.user?.name:', response.user?.name);
-          console.log('[AuthService] Object.keys(response):', Object.keys(response));
-          console.log('[AuthService] ====================================================');
           if (response.success) {
             this.handleAuthResponse(response.tokens);
           }
@@ -189,16 +180,12 @@ export class AuthService {
   }
 
   private fetchCurrentUser(): void {
-    console.log('[AuthService] Buscando dados do usuário atual...');
     this.getCurrentUser().subscribe({
       next: (user) => {
-        console.log('[AuthService] Usuário recebido do backend:', user);
         this.currentUserSubject.next(user);
       },
       error: (error) => {
-        console.error('[AuthService] Falha ao obter usuário atual:', error);
         if (error?.status === 401) {
-          console.warn('[AuthService] Token inválido, limpando autenticação');
           this.clearAuth();
           this.isAuthenticated.set(false);
         }
@@ -228,16 +215,13 @@ export class AuthService {
 
   private loadStoredAuth(): void {
     const token = this.getToken();
-    console.log('[AuthService] Verificando token armazenado:', token ? 'Token encontrado' : 'Nenhum token');
     
     if (!token) {
-      console.log('[AuthService] Nenhum token encontrado, usuário não autenticado');
       this.isAuthenticated.set(false);
       this.currentUserSubject.next(null);
       return;
     }
 
-    console.log('[AuthService] Token encontrado, buscando dados do usuário');
     this.isAuthenticated.set(true);
     this.fetchCurrentUser();
   }

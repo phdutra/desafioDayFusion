@@ -57,7 +57,6 @@ export class AppComponent implements OnDestroy {
     private readonly authService: AuthService,
     private readonly storageService: FaceRecognitionService
   ) {
-    console.log('[AppComponent] Inicializando componente principal');
     this.updateShellVisibility(router.url);
     this.router.events
       .pipe(filter((event): event is NavigationEnd => event instanceof NavigationEnd))
@@ -67,31 +66,25 @@ export class AppComponent implements OnDestroy {
     this.authService.currentUser$
       .pipe(takeUntil(this.destroy$))
       .subscribe((user) => {
-        console.log('[AppComponent] Usuário recebido:', user);
-        console.log('[AppComponent] currentUser signal atualizado:', this.currentUser());
         this.currentUser.set(user);
 
         if (!user) {
-          console.log('[AppComponent] Nenhum usuário logado');
           this.avatarUrl.set(null);
           return;
         }
 
         const faceImageKey = user?.faceImageKey || user?.FaceImageKey;
         if (faceImageKey) {
-          console.log('[AppComponent] Carregando avatar do S3:', faceImageKey);
           this.loadAvatar(faceImageKey);
           return;
         }
 
         const faceImageUrl = user?.faceImageUrl || user?.FaceImageUrl;
         if (faceImageUrl && faceImageUrl.startsWith('http')) {
-          console.log('[AppComponent] Usando URL direta do avatar:', faceImageUrl);
           this.avatarUrl.set(faceImageUrl);
           return;
         }
 
-        console.log('[AppComponent] Nenhuma imagem de avatar disponível');
         this.avatarUrl.set(null);
       });
   }
@@ -125,7 +118,6 @@ export class AppComponent implements OnDestroy {
           window.location.href = '/login';
         },
         error: (error) => {
-          console.error('[AppComponent] Falha ao realizar logout.', error);
           // Mesmo com erro, redireciona para o login
           window.location.href = '/login';
         }
@@ -154,7 +146,6 @@ export class AppComponent implements OnDestroy {
       .subscribe({
         next: (response) => this.avatarUrl.set(response.url),
         error: (error) => {
-          console.warn('[AppComponent] Falha ao gerar URL temporária para avatar.', error);
           this.avatarUrl.set(null);
         }
       });

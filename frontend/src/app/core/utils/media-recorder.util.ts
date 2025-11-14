@@ -78,14 +78,12 @@ function getSupportedMimeType(preferredTypes: string[]): string {
 
   for (const mimeType of preferredTypes) {
     if (MediaRecorder.isTypeSupported(mimeType)) {
-      console.log(`✅ [MediaRecorder] Codec suportado: ${mimeType}`);
       return mimeType;
     }
   }
 
   // Fallback para o tipo padrão
   const fallback = 'video/webm';
-  console.warn(`⚠️ [MediaRecorder] Nenhum codec preferido suportado, usando fallback: ${fallback}`);
   return fallback;
 }
 
@@ -110,13 +108,7 @@ export function startVideoRecording(
     videoBitsPerSecond: config.bitrate
   };
 
-  // Log das configurações de compressão
-  console.log('🎥 [MediaRecorder] Iniciando gravação com compressão:', {
-    mimeType: selectedMimeType,
-    bitrate: `${(config.bitrate / 1000).toFixed(0)} kbps`,
-    resolution: `${config.width}×${config.height}`,
-    audio: config.audio
-  });
+  // Configurações de compressão aplicadas
 
   const recorder = new MediaRecorder(stream, recorderOptions);
   const chunks: BlobPart[] = [];
@@ -126,22 +118,12 @@ export function startVideoRecording(
     recorder.addEventListener('dataavailable', (event) => {
       if (event.data && event.data.size > 0) {
         chunks.push(event.data);
-        console.log(`📦 [MediaRecorder] Chunk recebido: ${(event.data.size / 1024).toFixed(2)} KB`);
       }
     });
 
     recorder.addEventListener('stop', () => {
       const durationMs = performance.now() - startTime;
       const blob = new Blob(chunks, { type: selectedMimeType });
-      const sizeMB = (blob.size / 1024 / 1024).toFixed(2);
-      const sizeKB = (blob.size / 1024).toFixed(2);
-
-      console.log('✅ [MediaRecorder] Gravação concluída:', {
-        mimeType: selectedMimeType,
-        size: `${sizeMB} MB (${sizeKB} KB)`,
-        duration: `${(durationMs / 1000).toFixed(2)}s`,
-        bitrate: `${((blob.size * 8) / (durationMs / 1000) / 1000).toFixed(0)} kbps`
-      });
 
       resolve({
         blob,
@@ -152,7 +134,6 @@ export function startVideoRecording(
 
     recorder.addEventListener('error', (event) => {
       const error = event.error ?? new Error('Falha durante gravação de vídeo.');
-      console.error('❌ [MediaRecorder] Erro na gravação:', error);
       reject(error);
     });
   });

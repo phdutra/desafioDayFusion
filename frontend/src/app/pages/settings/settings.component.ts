@@ -44,7 +44,6 @@ export class SettingsComponent {
   onStepsChange(steps: VoiceStep[]): void {
     // Atualizar as instruções no serviço compartilhado (persiste no localStorage)
     this.voiceStepsConfig.setSteps(steps);
-    console.log('🎤 Instruções de voz atualizadas no Dashboard:', steps);
   }
 
   onDocumentSelected(event: Event): void {

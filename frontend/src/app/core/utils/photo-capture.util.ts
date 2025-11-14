@@ -30,12 +30,7 @@ export async function captureFrame(video: HTMLVideoElement, options?: CaptureOpt
   const imageType = options?.imageType ?? 'image/jpeg';
   const quality = options?.quality ?? DEFAULT_IMAGE_OPTIONS.quality;
 
-  // Log das configurações de compressão
-  console.log('📸 [PhotoCapture] Capturando frame com compressão:', {
-    resolution: `${width}×${height}`,
-    quality: `${(quality * 100).toFixed(0)}%`,
-    type: imageType
-  });
+  // Configurações de compressão aplicadas
 
   const canvas = document.createElement('canvas');
   canvas.width = width;
@@ -55,14 +50,6 @@ export async function captureFrame(video: HTMLVideoElement, options?: CaptureOpt
         reject(new Error('Falha ao capturar imagem.'));
         return;
       }
-
-      const sizeKB = (blob.size / 1024).toFixed(2);
-      console.log('✅ [PhotoCapture] Frame capturado e comprimido:', {
-        size: `${sizeKB} KB`,
-        resolution: `${width}×${height}`,
-        quality: `${(quality * 100).toFixed(0)}%`,
-        type: blob.type
-      });
 
       resolve(blob);
     }, imageType, quality);

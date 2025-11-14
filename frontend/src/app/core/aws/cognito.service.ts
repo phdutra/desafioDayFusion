@@ -52,7 +52,6 @@ export class CognitoService {
       window.localStorage.removeItem(identityKey);
       window.localStorage.removeItem(providersKey);
     } catch (error) {
-      console.warn('[CognitoService] Não foi possível limpar cache localStorage.', error);
     }
 
     if (!('indexedDB' in window)) {

@@ -115,7 +115,6 @@ export class AuthVideoModalComponent implements OnDestroy {
 
         const blob = await captureFrame(videoElement);
         if (!blob) {
-          console.warn(`[AuthVideoModal] Frame ${i} não capturado.`);
           continue;
         }
 
@@ -126,7 +125,6 @@ export class AuthVideoModalComponent implements OnDestroy {
 
         const confidence = await this.rekognitionService.detectFaceConfidence(frameBytes);
         if (confidence === 0) {
-          console.warn(`[AuthVideoModal] Nenhum rosto detectado na posição ${step.posicao}.`);
           continue;
         }
 
@@ -165,7 +163,6 @@ export class AuthVideoModalComponent implements OnDestroy {
             };
             console.info('[AuthVideoModal] Vídeo enviado para S3:', uploadResult.key);
           } catch (videoError) {
-            console.error('[AuthVideoModal] Falha ao enviar vídeo ao S3.', videoError);
           }
         }
       }
@@ -194,7 +191,6 @@ export class AuthVideoModalComponent implements OnDestroy {
 
       this.sessionCompleted.emit(summary);
     } catch (error) {
-      console.error('[AuthVideoModal] Erro na sessão:', error);
       const message = error instanceof Error ? error.message : 'Erro desconhecido na sessão.';
       this.errorMessage = message;
       this.sessionFailed.emit(message);
@@ -234,7 +230,6 @@ export class AuthVideoModalComponent implements OnDestroy {
 
   private cleanup(): void {
     if (this.videoRecorder) {
-      this.videoRecorder.stopRecording().catch(console.error);
       this.videoRecorder = null;
     }
 

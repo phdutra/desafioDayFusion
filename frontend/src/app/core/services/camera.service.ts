@@ -20,7 +20,6 @@ export class CameraService {
       });
       return this.stream;
     } catch (error) {
-      console.error('Error accessing camera:', error);
       throw new Error('Unable to access camera. Please check permissions.');
     }
   }
@@ -57,7 +56,6 @@ export class CameraService {
    */
   startVideoRecording(): void {
     if (!this.stream) {
-      console.error('Stream não disponível para gravação');
       return;
     }
 
@@ -78,9 +76,7 @@ export class CameraService {
       };
 
       this.mediaRecorder.start();
-      console.log('📹 Gravação de vídeo iniciada');
     } catch (error) {
-      console.error('Erro ao iniciar gravação:', error);
     }
   }
 
@@ -96,7 +92,6 @@ export class CameraService {
 
       this.mediaRecorder.onstop = () => {
         const blob = new Blob(this.recordedChunks, { type: 'video/webm' });
-        console.log('✅ Vídeo gravado:', blob.size, 'bytes');
         this.recordedChunks = [];
         resolve(blob);
       };

@@ -24,7 +24,6 @@ export class VoiceStepsConfigService {
   readonly steps = signal<VoiceStep[]>(this.loadSteps())
 
   constructor() {
-    console.log('✅ VoiceStepsConfigService inicializado com', this.steps().length, 'instruções')
   }
 
   /**
@@ -46,16 +45,13 @@ export class VoiceStepsConfigService {
           )
           
           if (isValid) {
-            console.log('📋 Instruções de voz carregadas do localStorage:', parsed.length, 'steps')
             return parsed
           }
         }
       }
     } catch (error) {
-      console.warn('⚠️ Erro ao carregar instruções do localStorage:', error)
     }
     
-    console.log('📋 Usando instruções de voz padrão')
     return [...this.defaultSteps]
   }
 
@@ -65,9 +61,7 @@ export class VoiceStepsConfigService {
   private saveSteps(steps: VoiceStep[]): void {
     try {
       localStorage.setItem(this.STORAGE_KEY, JSON.stringify(steps))
-      console.log('💾 Instruções de voz salvas:', steps.length, 'steps')
     } catch (error) {
-      console.error('❌ Erro ao salvar instruções no localStorage:', error)
     }
   }
 
@@ -83,13 +77,11 @@ export class VoiceStepsConfigService {
    */
   setSteps(steps: VoiceStep[]): void {
     if (!steps || steps.length === 0) {
-      console.warn('⚠️ Tentativa de definir instruções vazias, ignorando')
       return
     }
 
     this.steps.set([...steps])
     this.saveSteps(steps)
-    console.log('✅ Instruções de voz atualizadas:', steps.length, 'steps')
   }
 
   /**
@@ -108,7 +100,6 @@ export class VoiceStepsConfigService {
     if (updated.length > 0) {
       this.setSteps(updated)
     } else {
-      console.warn('⚠️ Não é possível remover a última instrução')
     }
   }
 
@@ -125,7 +116,6 @@ export class VoiceStepsConfigService {
    */
   resetToDefault(): void {
     this.setSteps([...this.defaultSteps])
-    console.log('🔄 Instruções resetadas para padrão')
   }
 
   /**

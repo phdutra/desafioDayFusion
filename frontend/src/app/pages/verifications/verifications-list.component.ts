@@ -75,7 +75,6 @@ export class VerificationsListComponent implements OnInit {
           this.loading.set(false);
         },
         error: (err) => {
-          console.error('[VerificationsList] Falha ao carregar lista de verificações', err);
           this.error.set('Não foi possível carregar as verificações. Tente novamente.');
           this.items.set([]);
           this.loading.set(false);
@@ -95,7 +94,6 @@ export class VerificationsListComponent implements OnInit {
           this.metricsLoading.set(false);
         },
         error: (err) => {
-          console.warn('[VerificationsList] Falha ao carregar métricas', err);
           this.metrics.set(null);
           this.metricsLoading.set(false);
         }

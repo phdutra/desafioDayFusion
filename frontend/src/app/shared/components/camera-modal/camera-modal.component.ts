@@ -83,7 +83,6 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['isOpen']) {
-      console.log('🔄 camera-modal: ngOnChanges detectou mudança em isOpen:', {
         previousValue: changes['isOpen'].previousValue,
         currentValue: changes['isOpen'].currentValue,
         isOpen: this.isOpen
@@ -98,7 +97,6 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
           }
         }, 100)
       } else {
-        console.log('🚪 camera-modal: Fechando modal (isOpen = false), limpando recursos...')
         this.sessionActive = false
         this.cameraInitializing = false
         this.cleanup()
@@ -115,7 +113,6 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
   async initializeCamera(): Promise<void> {
     // IMPORTANTE: Verificar múltiplas vezes se modal está aberto para evitar erro após fechar
     if (!this.isOpen) {
-      console.log('⚠️ initializeCamera chamado mas modal está fechado - abortando')
       return
     }
     
@@ -130,7 +127,6 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
 
       // Verificar novamente antes de obter stream
       if (!this.isOpen) {
-        console.log('⚠️ Modal fechou antes de obter stream - abortando')
         this.cameraInitializing = false
         return
       }
@@ -139,7 +135,6 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
       
       // Verificar novamente após obter stream (modal pode ter fechado durante await)
       if (!this.isOpen) {
-        console.log('⚠️ Modal fechou durante obtenção do stream - limpando recursos')
         this.cameraService.stopStream()
         if (this.stream) {
           this.stream.getTracks().forEach(track => track.stop())
@@ -162,7 +157,6 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
 
       // Verificar novamente se modal ainda está aberto
       if (!this.isOpen) {
-        console.log('⚠️ Modal fechou durante espera do elemento de vídeo - limpando recursos')
         this.cameraService.stopStream()
         if (this.stream) {
           this.stream.getTracks().forEach(track => track.stop())
@@ -174,7 +168,6 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
 
       const video = targetVideo?.nativeElement
       if (!video) {
-        console.error('❌ Elemento de vídeo não encontrado no DOM', { 
           mode: this.mode, 
           videoElement: !!this.videoElement?.nativeElement,
           videoElement3d: !!this.videoElement3d?.nativeElement,
@@ -213,7 +206,6 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
       
       // Verificar novamente antes de reproduzir vídeo
       if (!this.isOpen) {
-        console.log('⚠️ Modal fechou antes de reproduzir vídeo - limpando recursos')
         this.cameraService.stopStream()
         if (this.stream) {
           this.stream.getTracks().forEach(track => track.stop())
@@ -227,7 +219,6 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
       
       // Verificar novamente após play
       if (!this.isOpen) {
-        console.log('⚠️ Modal fechou durante reprodução do vídeo - limpando recursos')
         video.pause()
         this.cameraService.stopStream()
         if (this.stream) {
@@ -246,7 +237,6 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
       
       // Verificar novamente antes de iniciar detecção/validação
       if (!this.isOpen) {
-        console.log('⚠️ Modal fechou antes de iniciar detecção - limpando recursos')
         this.cameraService.stopStream()
         if (this.stream) {
           this.stream.getTracks().forEach(track => track.stop())
@@ -269,7 +259,6 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
           this.speakInstruction('Olá! Vou guiá-lo durante a verificação. Primeiro, posicione seu rosto no centro da tela.')
           this.startPositionValidation()
         } else {
-          console.error('❌ Vídeo 3D não encontrado após inicialização ou modal fechou')
           this.error = 'Não foi possível inicializar a câmera para verificação 3D'
           this.cameraInitializing = false
         }
@@ -279,11 +268,9 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
     } catch (error: any) {
       // Se erro ocorrer mas modal já fechou, não mostrar erro
       if (!this.isOpen) {
-        console.log('⚠️ Erro ao acessar câmera mas modal já está fechado - ignorando erro')
         return
       }
       
-      console.error('❌ Erro ao acessar a câmera:', error)
       this.error = error.message || 'Erro ao acessar a câmera. Verifique as permissões.'
       this.cameraInitializing = false
       
@@ -356,7 +343,6 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
       this.capture.emit(dataUrl)
       setTimeout(() => this.closeModal(), 300)
     } catch (error) {
-      console.error('Erro ao capturar foto:', error)
       this.error = 'Erro ao capturar foto. Tente novamente.'
       this.detectionStatus = 'ready'
       this.startFaceDetection()
@@ -482,15 +468,12 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
               this.validationMessage = 'A detecção está demorando. Verifique se há luz suficiente e tente reposicionar'
             }
             
-            console.warn(`⚠️ Validação #${validationAttempts} falhou. Tentativas consecutivas: ${consecutiveFailures}`)
           }
         } else {
           this.faceDetected = false
           this.validationMessage = 'Erro ao fazer upload da imagem'
-          console.error('Upload falhou - sem key retornada')
         }
       } catch (error: any) {
-        console.error('Erro na validação de posição:', error)
         this.faceDetected = false
         consecutiveFailures++
         
@@ -557,8 +540,6 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
       // NÃO definir currentPhase como 'recording' ainda - aguardar widget iniciar
       this.currentLivenessStep = 'center'
       
-      console.log('📋 Widget real será usado - aguardando usuário clicar no botão "Iniciar Verificação" dentro do widget')
-      console.log('💡 NÃO iniciar voz ou sequência até o widget criar sessão (após clique do usuário)')
       
       // Emitir evento para renderizar o widget
       // O widget será renderizado mas não iniciará até o usuário clicar no botão interno
@@ -615,7 +596,6 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
    * Este método é chamado pelo componente pai quando o widget dispara evento de início
    */
   startLivenessSequenceAfterWidgetButton(): void {
-    console.log('🎤 Iniciando sequência de voz após usuário clicar no botão do widget')
     
     // Parar qualquer voz anterior
     this.stopSpeaking()
@@ -642,8 +622,6 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
   // SOLUÇÃO ALTERNATIVA: Polling ativo + botões manuais
   // Não depende de timers, callbacks ou voz - usa polling contínuo para verificar tempo
   startLivenessSteps(): void {
-    console.log('🎬🎬🎬 startLivenessSteps CHAMADO (SOLUÇÃO POLLING)! 🎬🎬🎬')
-    console.log('📊 Estado no início:', {
       sessionActive: this.sessionActive,
       isOpen: this.isOpen,
       useRealWidget: this.useRealWidget,
@@ -653,17 +631,14 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
     
     // Verificar se já está em execução (evitar duplicação)
     if (this.currentLivenessStep !== 'center' && this.currentLivenessStep !== 'completed') {
-      console.warn('⚠️ startLivenessSteps já em execução (step atual:', this.currentLivenessStep, ') - ignorando chamada duplicada')
       return
     }
     
     if (!this.sessionActive || !this.isOpen) {
-      console.warn('⚠️ startLivenessSteps cancelado - sessão não ativa ou modal fechado')
       return
     }
     
     const isRealWidget = this.useRealWidget
-    console.log('📋 Iniciando sequência de instruções com POLLING ATIVO (widget real:', isRealWidget, ')')
 
     // Definir sequência de etapas
     this.livenessStepsSequence = [
@@ -708,7 +683,6 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
       clearInterval(this.initialMessagePollingInterval)
     }
 
-    console.log('🔄 Iniciando polling para detectar fim da primeira mensagem de voz...')
     let checkCount = 0
     
     this.initialMessagePollingInterval = this.ngZone.runOutsideAngular(() => {
@@ -718,13 +692,11 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
           
           // Verificar se já passou tempo suficiente (primeira mensagem leva ~5-6s)
           if (checkCount > 12) { // 6 segundos (500ms * 12)
-            console.log('⏰ [INITIAL POLLING] Tempo máximo atingido - chamando startLivenessSteps')
             if (this.initialMessagePollingInterval) {
               clearInterval(this.initialMessagePollingInterval)
               this.initialMessagePollingInterval = undefined
             }
             if (this.sessionActive && this.isOpen && this.useRealWidget && this.currentLivenessStep === 'center') {
-              console.log('🚀 [INITIAL POLLING] Chamando startLivenessSteps')
               this.startLivenessSteps()
             }
             return
@@ -733,7 +705,6 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
           // Verificar se a voz terminou (SpeechSynthesis não está falando)
           const speechSynthesis = window.speechSynthesis
           if (speechSynthesis && !speechSynthesis.speaking && !speechSynthesis.pending) {
-            console.log(`✅ [INITIAL POLLING] Voz terminou detectada (check #${checkCount}) - chamando startLivenessSteps`)
             
             if (this.initialMessagePollingInterval) {
               clearInterval(this.initialMessagePollingInterval)
@@ -743,13 +714,11 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
             // Aguardar um pouco mais para garantir que a mensagem realmente terminou
             setTimeout(() => {
               if (this.sessionActive && this.isOpen && this.useRealWidget && this.currentLivenessStep === 'center') {
-                console.log('🚀 [INITIAL POLLING] Chamando startLivenessSteps após confirmação')
                 this.startLivenessSteps()
               }
             }, 500)
           } else if (checkCount % 4 === 0) {
             // Log a cada 2 segundos para debug
-            console.log(`🔍 [INITIAL POLLING] Check #${checkCount} - voz ainda falando:`, {
               speaking: speechSynthesis?.speaking,
               pending: speechSynthesis?.pending,
               currentStep: this.currentLivenessStep
@@ -759,7 +728,6 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
       }, 500) // Verificar a cada 500ms
     }) as any
 
-    console.log(`✅ Polling da mensagem inicial iniciado (interval ID: ${this.initialMessagePollingInterval})`)
   }
 
   // Polling ativo que verifica periodicamente se precisa avançar
@@ -769,7 +737,6 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
       clearInterval(this.stepPollingInterval)
     }
 
-    console.log('🔄 Iniciando polling ativo para verificar avanço de etapas...')
     
     this.stepPollingInterval = this.ngZone.runOutsideAngular(() => {
       return window.setInterval(() => {
@@ -779,14 +746,12 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
       }, 500) // Verifica a cada 500ms
     }) as any
 
-    console.log(`✅ Polling iniciado (interval ID: ${this.stepPollingInterval})`)
   }
 
   // Verifica se o tempo passou e avança automaticamente
   private checkAndAdvanceStep(): void {
     // Log periódico a cada 10 verificações (5 segundos) para debug
     if (!this.lastPollingLog || Date.now() - this.lastPollingLog > 5000) {
-      console.log('🔍 [POLLING] Verificando avanço de etapa...', {
         sessionActive: this.sessionActive,
         isOpen: this.isOpen,
         currentStepIndex: this.currentStepIndex,
@@ -803,7 +768,6 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
 
     if (this.currentStepIndex >= this.livenessStepsSequence.length) {
       // Sequência concluída, parar polling
-      console.log('✅ Sequência concluída - parando polling')
       if (this.stepPollingInterval) {
         clearInterval(this.stepPollingInterval)
         this.stepPollingInterval = undefined
@@ -812,7 +776,6 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
     }
 
     if (!this.currentStepStartTime) {
-      console.warn('⚠️ [POLLING] currentStepStartTime não definido ainda')
       return
     }
 
@@ -820,7 +783,6 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
     const elapsed = Date.now() - this.currentStepStartTime
 
     if (elapsed >= currentStep.displayTime) {
-      console.log(`⏰ [POLLING] Tempo passou! (${elapsed}ms >= ${currentStep.displayTime}ms) - AVANÇANDO AUTOMATICAMENTE`)
       
       // Avançar para próxima etapa (ou finalizar se for a última)
       this.advanceToNextStepViaPolling()
@@ -831,8 +793,6 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
 
   // Avança para a próxima etapa
   private advanceToNextStepViaPolling(): void {
-    console.log('🔄 advanceToNextStepViaPolling chamado')
-    console.log('📊 Estado antes de avançar:', {
       currentStepIndex: this.currentStepIndex,
       sequenceLength: this.livenessStepsSequence.length,
       sessionActive: this.sessionActive,
@@ -842,7 +802,6 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
     this.currentStepIndex++
 
     if (this.currentStepIndex >= this.livenessStepsSequence.length) {
-      console.log('✅ Sequência de etapas concluída via polling')
       if (this.stepPollingInterval) {
         clearInterval(this.stepPollingInterval)
         this.stepPollingInterval = undefined
@@ -854,8 +813,6 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
         if (this.useRealWidget) {
           // Widget real está sendo usado - NÃO finalizar automaticamente
           // O widget AWS vai disparar o evento liveness-complete quando terminar
-          console.log('✅ Etapas concluídas, mas widget real está ativo - aguardando widget finalizar...')
-          console.log('📋 Widget AWS vai processar o vídeo e disparar evento quando terminar')
           
           // TIMEOUT DE SEGURANÇA: Se o widget não disparar evento em 5 segundos, forçar finalização
           // Isso previne que o modal fique travado indefinidamente
@@ -864,7 +821,6 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
           // Simulação - pode finalizar automaticamente após tempo suficiente
           setTimeout(() => {
             if (this.sessionActive && this.isOpen && !this.useRealWidget) {
-              console.log('🎯 Todas as etapas concluídas (simulação), finalizando processo...')
               this.processResultsAndFinalize()
             }
           }, 4000) // 4 segundos após completar (tempo para última mensagem de voz + margem)
@@ -875,7 +831,6 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
     }
 
     if (!this.sessionActive || !this.isOpen) {
-      console.warn('⚠️ Sequência cancelada - sessão não ativa', {
         sessionActive: this.sessionActive,
         isOpen: this.isOpen
       })
@@ -883,23 +838,17 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
     }
 
     const currentStep = this.livenessStepsSequence[this.currentStepIndex]
-    console.log(`📢 [POLLING] AVANÇANDO para etapa ${this.currentStepIndex + 1}/${this.livenessStepsSequence.length}: ${currentStep.step}`)
-    console.log(`📝 Instrução: ${currentStep.text}`)
-    console.log(`⏱️ Tempo de exibição: ${currentStep.displayTime}ms (${currentStep.displayTime/1000}s)`)
 
     // Atualizar UI IMEDIATAMENTE
     this.ngZone.run(() => {
       if (this.currentPhase !== 'recording') {
         this.currentPhase = 'recording'
-        console.log('🎬 Phase atualizada para: recording')
       }
       
       this.currentLivenessStep = currentStep.step
       this.currentStepStartTime = Date.now() // Registrar timestamp para polling
       this.cdr.detectChanges()
       
-      console.log(`🎨 UI atualizada para step: ${currentStep.step}, timestamp: ${this.currentStepStartTime}`)
-      console.log(`📊 Estado após atualização:`, {
         currentLivenessStep: this.currentLivenessStep,
         currentPhase: this.currentPhase,
         currentStepStartTime: this.currentStepStartTime,
@@ -913,9 +862,7 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
     this.ngZone.run(() => {
       try {
         this.voiceService.speak(currentStep.voiceText, 'pt-BR', false, this.livenessStepsSequence.length - this.currentStepIndex)
-        console.log('✅ Mensagem de voz adicionada à fila (opcional):', currentStep.voiceText.substring(0, 40) + '...')
       } catch (error) {
-        console.warn('⚠️ Erro ao adicionar mensagem de voz (continuando mesmo assim):', error)
       }
     })
     
@@ -929,7 +876,6 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
       return
     }
 
-    console.log('👆 Avanço MANUAL solicitado pelo usuário')
     this.advanceToNextStepViaPolling()
   }
 
@@ -943,7 +889,6 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
     onStart?: () => void,
     onEnd?: () => void
   ): void {
-    console.log('🎤 speakWithCallback chamado:', text.substring(0, 50) + '...')
     
     // Falar a mensagem usando NgZone para garantir execução mesmo durante WebRTC
     this.ngZone.runOutsideAngular(() => {
@@ -965,7 +910,6 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
         this.ngZone.run(() => {
           if (onStart) onStart()
         })
-        console.log('✅ onStart chamado imediatamente')
       } else {
         // Verificar periodicamente até começar
         const startCheckInterval = setInterval(() => {
@@ -977,7 +921,6 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
             this.ngZone.run(() => {
               if (onStart) onStart()
             })
-            console.log('✅ onStart chamado após polling')
           }
         }, 100)
         
@@ -991,7 +934,6 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
             this.ngZone.run(() => {
               if (onStart) onStart()
             })
-            console.log('✅ onStart chamado após timeout')
           }
         }, 5000)
       }
@@ -1010,7 +952,6 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
         
         // Log periódico para debug (a cada 1 segundo)
         if (checkCount % 20 === 0) {
-          console.log('🔍 Polling check #' + checkCount + ':', {
             isSpeaking,
             wasSpeaking,
             started,
@@ -1027,7 +968,6 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
             this.ngZone.run(() => {
               onStart()
             })
-            console.log('✅ onStart chamado durante polling')
           }
         }
         
@@ -1035,39 +975,28 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
         if (wasSpeaking && !isSpeaking && !ended) {
           clearInterval(checkInterval)
           ended = true
-          console.log('✅ Voz terminou detectada via polling (check #' + checkCount + '), aguardando confirmação antes de chamar onEnd')
           
           // Aguardar um pouco mais para garantir que realmente terminou
           // Usar NgZone.run para garantir que callback seja executado mesmo durante WebRTC
           setTimeout(() => {
             const stillSpeaking = this.voiceService.isSpeaking()
-            console.log('🔍 Verificação final - isSpeaking:', stillSpeaking)
             
             if (!stillSpeaking) {
-              console.log('✅ Confirmação: voz realmente terminou, chamando onEnd')
               this.ngZone.run(() => {
                 if (onEnd) {
-                  console.log('🎯 Executando onEnd callback via NgZone.run')
                   try {
                     onEnd()
-                    console.log('✅ onEnd callback executado com sucesso')
                   } catch (error) {
-                    console.error('❌ Erro ao executar onEnd callback:', error)
                   }
                 } else {
-                  console.warn('⚠️ onEnd callback não fornecido')
                 }
               })
             } else {
-              console.log('⚠️ Voz ainda detectada como falando, mas continuando mesmo assim')
               this.ngZone.run(() => {
                 if (onEnd) {
-                  console.log('🎯 Executando onEnd callback via NgZone.run (forçado)')
                   try {
                     onEnd()
-                    console.log('✅ onEnd callback executado com sucesso (forçado)')
                   } catch (error) {
-                    console.error('❌ Erro ao executar onEnd callback (forçado):', error)
                   }
                 }
               })
@@ -1084,14 +1013,11 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
         clearInterval(checkInterval)
         if (!ended) {
           ended = true
-          console.log('⏰ Timeout atingido após polling, chamando onEnd (forçado)')
           this.ngZone.run(() => {
             if (onEnd) {
               try {
                 onEnd()
-                console.log('✅ onEnd executado via timeout')
               } catch (error) {
-                console.error('❌ Erro ao executar onEnd via timeout:', error)
               }
             }
           })
@@ -1144,7 +1070,6 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
             if (videoTracks.length > 0) {
               hasLiveTracks = true
               if (checkCount % 10 === 0) {
-                console.log(`✅ [Widget Check #${checkCount}] WebRTC detectado:`, {
                   videoTracks: videoTracks.length,
                   trackState: videoTracks[0].readyState,
                   trackSettings: videoTracks[0].getSettings()
@@ -1158,7 +1083,6 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
       // Log diagnóstico periódico
       if (checkCount % 10 === 0 && !recordingStarted) {
         const htmlWidget = widget as HTMLElement
-        console.log(`🔍 [Widget Check #${checkCount}] Estado do widget:`, {
           hasActiveVideo,
           hasWebRTCStream,
           hasLiveTracks,
@@ -1171,41 +1095,32 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
       if (hasActiveVideo && hasWebRTCStream && hasLiveTracks && !recordingStarted) {
         recordingStarted = true
         
-        console.log('🎥 WebRTC detectado como ativo, iniciando instruções de voz')
         
         // Aguardar 2 segundos para garantir que widget está realmente gravando
         setTimeout(() => {
           if (this.sessionActive && this.isOpen && this.useRealWidget) {
             // Mensagem inicial usando serviço com callback
             const messageText = 'Gravação iniciada. Olhe para a câmera e mantenha-se preparado. Vou pedir três movimentos.'
-            console.log('🎤 Iniciando primeira mensagem de voz:', messageText.substring(0, 50) + '...')
             
             // SOLUÇÃO SIMPLIFICADA: Chamar startLivenessSteps após tempo fixo, SEM depender de voz
             // A voz é apenas informativa, mas não bloqueia o avanço
             // IMPORTANTE: Usar NgZone.run para garantir que voz funcione mesmo durante WebRTC
-            console.log('🎤 Adicionando primeira mensagem à fila (opcional):', messageText.substring(0, 50) + '...')
             this.ngZone.run(() => {
               try {
                 this.voiceService.speak(messageText, 'pt-BR', true, 10)
-                console.log('✅ Mensagem de voz adicionada à fila com prioridade alta')
               } catch (error) {
-                console.warn('⚠️ Erro ao adicionar voz (continuando mesmo assim):', error)
               }
             })
             
             // CHAMADA DIRETA: Não depender de voz, polling ou callbacks
             // Após 5 segundos, iniciar sequência de etapas automaticamente
-            console.log('⏱️ Iniciando sequência de etapas em 5 segundos (SEM depender de voz)...')
             
             const directTimeout = this.ngZone.runOutsideAngular(() => {
               return window.setTimeout(() => {
-                console.log('⏰ [DIRETO] Timeout 5s atingido - chamando startLivenessSteps DIRETAMENTE')
                 this.ngZone.run(() => {
                   if (this.sessionActive && this.isOpen && this.useRealWidget) {
-                    console.log('🚀 [DIRETO] Chamando startLivenessSteps - AVANÇO GARANTIDO')
                     this.startLivenessSteps()
                   } else {
-                    console.warn('⚠️ [DIRETO] startLivenessSteps não chamado - sessão inativa:', {
                       sessionActive: this.sessionActive,
                       isOpen: this.isOpen,
                       useRealWidget: this.useRealWidget
@@ -1218,13 +1133,10 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
             // Backup adicional após 7 segundos (caso o primeiro falhe)
             const backupTimeout = this.ngZone.runOutsideAngular(() => {
               return window.setTimeout(() => {
-                console.log('⏰ [BACKUP DIRETO] Timeout 7s atingido - verificando se precisa chamar')
                 this.ngZone.run(() => {
                   if (this.sessionActive && this.isOpen && this.useRealWidget && this.currentLivenessStep === 'center') {
-                    console.log('🚀 [BACKUP DIRETO] Chamando startLivenessSteps (step ainda é center)')
                     this.startLivenessSteps()
                   } else {
-                    console.log('✅ [BACKUP DIRETO] startLivenessSteps já foi chamado ou não necessário')
                   }
                 })
               }, 7000)
@@ -1232,8 +1144,6 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
             
             // Guardar timers para limpeza
             this.stepTimers.push(directTimeout, backupTimeout)
-            console.log(`✅ 2 timers diretos criados (5s, 7s): ${directTimeout}, ${backupTimeout}`)
-            console.log('📋 Sequência de etapas será iniciada automaticamente, independente da voz')
           }
         }, 2000)
         return
@@ -1245,11 +1155,9 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
       } else if (!recordingStarted && checkCount >= maxChecks) {
         // Timeout: iniciar mesmo assim (vídeo pode estar ativo mas não detectamos)
         if (this.sessionActive && this.isOpen && this.useRealWidget) {
-          console.log('⏰ Timeout na detecção de WebRTC, iniciando instruções mesmo assim')
           const messageText = 'Gravação iniciada. Olhe para a câmera e mantenha-se preparado. Vou pedir três movimentos.'
           
           // Abordagem com timeout fixo e múltiplas estratégias
-          console.log('🎤 Adicionando primeira mensagem à fila (timeout):', messageText.substring(0, 50) + '...')
           this.voiceService.speak(messageText, 'pt-BR', true, 10)
           
           // Múltiplos timeouts de backup
@@ -1257,7 +1165,6 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
             return window.setTimeout(() => {
               this.ngZone.run(() => {
                 if (this.sessionActive && this.isOpen && this.useRealWidget) {
-                  console.log('🚀 [Timeout - Backup 1] Chamando startLivenessSteps')
                   this.startLivenessSteps()
                 }
               })
@@ -1268,7 +1175,6 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
             return window.setTimeout(() => {
               this.ngZone.run(() => {
                 if (this.sessionActive && this.isOpen && this.useRealWidget && this.currentLivenessStep === 'center') {
-                  console.log('🚀 [Timeout - Backup 2] Chamando startLivenessSteps')
                   this.startLivenessSteps()
                 }
               })
@@ -1324,8 +1230,6 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
     // Se o widget real está sendo usado, NÃO finalizar automaticamente
     // O widget AWS precisa processar o vídeo e disparar o evento liveness-complete
     if (this.useRealWidget) {
-      console.log('⚠️ processResultsAndFinalize chamado, mas widget real está ativo - aguardando widget terminar...')
-      console.log('📋 O widget AWS vai processar o vídeo e disparar evento liveness-complete quando terminar')
       // Não fazer nada - apenas aguardar o widget terminar
       return
     }
@@ -1365,12 +1269,10 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
    * Este método acessa o Shadow DOM e dispara o clique no botão interno
    */
   clickWidgetStartButton(): void {
-    console.log('🎯 Tentando clicar no botão interno do widget AWS...')
     
     try {
       const widget = document.querySelector('face-liveness-widget') as any
       if (!widget) {
-        console.error('❌ Widget não encontrado')
         this.error = 'Widget AWS não encontrado. Tente recarregar a página.'
         return
       }
@@ -1378,7 +1280,6 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
       // Tentar acessar Shadow DOM
       const shadowRoot = widget.shadowRoot
       if (!shadowRoot) {
-        console.error('❌ Shadow DOM não encontrado no widget')
         this.error = 'Não foi possível acessar o widget. Tente recarregar.'
         return
       }
@@ -1413,7 +1314,6 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
       }) as HTMLButtonElement | undefined
 
       if (startButton) {
-        console.log('✅ Botão encontrado no Shadow DOM, clicando...', {
           text: startButton.textContent || startButton.innerText,
           disabled: startButton.disabled,
           className: startButton.className
@@ -1421,7 +1321,6 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
 
         // Verificar se está desabilitado
         if (startButton.disabled || startButton.hasAttribute('disabled')) {
-          console.warn('⚠️ Botão está desabilitado, aguardando...')
           // Aguardar um pouco e tentar novamente
           setTimeout(() => {
             this.clickWidgetStartButton()
@@ -1440,7 +1339,6 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
         })
         startButton.dispatchEvent(clickEvent)
 
-        console.log('✅ Clique disparado no botão interno do widget')
         
         // Chamar método que inicia a sequência após widget iniciar
         setTimeout(() => {
@@ -1450,8 +1348,6 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
         }, 500)
 
       } else {
-        console.error('❌ Botão "Iniciar Verificação" não encontrado no Shadow DOM')
-        console.log('📋 Botões encontrados:', Array.from(buttons).map((btn: any) => ({
           text: btn.textContent || btn.innerText,
           className: btn.className,
           disabled: btn.disabled
@@ -1459,7 +1355,6 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
         this.error = 'Botão não encontrado no widget. Tente recarregar.'
       }
     } catch (error: any) {
-      console.error('❌ Erro ao clicar no botão do widget:', error)
       this.error = `Erro ao iniciar verificação: ${error?.message || 'Erro desconhecido'}`
     }
   }
@@ -1494,7 +1389,6 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
         buttons = widget.shadowRoot.querySelectorAll('button')
       }
     } catch (e) {
-      console.warn('⚠️ Erro ao buscar botões do widget:', e)
     }
     
     // Procurar botão "Iniciar Verificação"
@@ -1523,7 +1417,6 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
         videoElements = widget.shadowRoot.querySelectorAll('video')
       }
     } catch (e) {
-      console.warn('⚠️ Erro ao buscar vídeos do widget:', e)
     }
     
     details.videoElements = videoElements.length
@@ -1545,15 +1438,9 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
     
     // Verificar estado inicial do widget
     const initialCheck = this.checkWidgetButton()
-    console.log('🔍 Verificação inicial do widget:', initialCheck)
     
     if (!initialCheck.found) {
-      console.warn('⚠️ Widget encontrado mas botão "Iniciar Verificação" NÃO encontrado ainda')
-      console.warn('📋 Detalhes:', initialCheck.details)
-      console.warn('💡 Widget pode estar carregando - aguardando botão aparecer...')
     } else {
-      console.log('✅ Botão "Iniciar Verificação" encontrado no widget')
-      console.log('📋 Detalhes do botão:', {
         text: initialCheck.details.buttonText,
         visible: initialCheck.details.buttonVisible,
         disabled: initialCheck.details.buttonDisabled
@@ -1568,11 +1455,8 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
       
       if (check.found && checkCount % 5 === 0) {
         // Log a cada 10 segundos (5 * 2s)
-        console.log(`🔍 [Verificação #${checkCount}] Botão "Iniciar Verificação" encontrado:`, check.details)
       } else if (!check.found && checkCount % 5 === 0) {
         // Log a cada 10 segundos se botão não encontrado
-        console.warn(`⚠️ [Verificação #${checkCount}] Botão "Iniciar Verificação" AINDA NÃO encontrado`)
-        console.warn('📋 Estado do widget:', check.details)
       }
     }, 2000) // Verificar a cada 2 segundos
     
@@ -1587,9 +1471,6 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
       originalClearTimeout()
     }
     
-    console.log('⏰ Iniciando timeout de segurança (5s) para widget AWS...')
-    console.log('⚠️ Se o widget não disparar evento liveness-complete em 5 segundos, finalização será forçada')
-    console.log('💡 Verificações periódicas do botão serão feitas a cada 2 segundos')
     
     this.widgetCompletionTimeout = window.setTimeout(() => {
       // Limpar verificação periódica
@@ -1600,39 +1481,19 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
       
       // Verificação final antes do timeout
       const finalCheck = this.checkWidgetButton()
-      console.error('⏰ TIMEOUT DE SEGURANÇA: Widget AWS não disparou evento após 5 segundos')
-      console.error('🔍 Verificação FINAL do widget antes do timeout:', finalCheck)
       
       if (!finalCheck.found) {
-        console.error('❌ Botão "Iniciar Verificação" NÃO foi encontrado no widget')
-        console.error('📋 Estado final do widget:', finalCheck.details)
-        console.error('💡 Possíveis causas:')
-        console.error('   1. Widget não foi renderizado corretamente')
-        console.error('   2. Widget não criou sessão (sessionId não disponível)')
-        console.error('   3. Widget está oculto ou em Shadow DOM inacessível')
-        console.error('   4. Widget customizado não está funcionando corretamente')
       } else {
-        console.warn('⚠️ Botão encontrado mas widget não disparou evento liveness-complete')
-        console.warn('📋 Detalhes:', finalCheck.details)
-        console.warn('💡 Usuário pode não ter clicado no botão ou widget teve erro interno')
       }
       
       if (this.sessionActive && this.isOpen && this.useRealWidget && this.currentLivenessStep === 'completed') {
-        console.error('🔄 Forçando finalização automática mesmo sem evento do widget')
-        console.error('📋 Isso pode acontecer se:')
-        console.error('   1. Widget não iniciou transmissão corretamente')
-        console.error('   2. Widget teve erro interno não reportado')
-        console.error('   3. Problema de conexão com AWS Rekognition')
-        console.error('   4. Usuário não clicou no botão "Iniciar Verificação" dentro do widget')
         
         // IMPORTANTE: Parar a câmera antes de finalizar
-        console.log('🛑 Parando câmera após timeout de segurança...')
         this.cameraService.stopStream()
         
         if (this.stream) {
           this.stream.getTracks().forEach(track => {
             track.stop()
-            console.log('✅ Track parado:', track.kind)
           })
           this.stream = undefined
         }
@@ -1651,7 +1512,6 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
           widgetState: finalCheck.details
         })
         
-        console.log('✅ Câmera parada e recursos limpos após timeout')
       }
     }, 5000) // 5 segundos conforme solicitação do usuário
   }
@@ -1659,7 +1519,6 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
   // Limpa timeout de segurança
   private clearWidgetCompletionTimeout(): void {
     if (this.widgetCompletionTimeout) {
-      console.log('✅ Limpando timeout de segurança do widget')
       clearTimeout(this.widgetCompletionTimeout)
       this.widgetCompletionTimeout = undefined
     }
@@ -1702,7 +1561,6 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
   private livenessStepsSequence: Array<{step: 'right' | 'left' | 'blink_smile' | 'completed', text: string, displayTime: number, voiceText: string}> = []
 
   private cleanup(): void {
-    console.log('🧹 Limpando recursos do modal de câmera...')
     
     // IMPORTANTE: Parar câmera PRIMEIRO para evitar tentar acessar DOM após modal fechar
     try {
@@ -1711,12 +1569,10 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
       if (this.stream) {
         this.stream.getTracks().forEach(track => {
           track.stop()
-          console.log('✅ Track parado:', track.kind)
         })
         this.stream = undefined
       }
     } catch (e) {
-      console.warn('⚠️ Erro ao parar stream durante cleanup:', e)
     }
     
     // Limpar timeout de segurança do widget
@@ -1771,7 +1627,6 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
     this.error = null
     this.livenessStepCallbacks.clear()
     
-    console.log('✅ Recursos do modal de câmera limpos')
   }
 
   // Método para obter texto da etapa atual
@@ -1879,7 +1734,6 @@ export class CameraModalComponent implements OnInit, OnDestroy, AfterViewInit, O
     const svg = `<svg class="progress-segments-svg" viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg">${lines}</svg>`
     
     if (!svg || svg.length < 100) {
-      console.error('❌ SVG não gerado corretamente!', { svgLength: svg?.length, segmentsCount: segments.length })
     }
     
     return svg

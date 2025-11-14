@@ -70,7 +70,6 @@ export class Capture2dComponent implements OnInit, OnDestroy {
       this.selfieViewUrl = view?.url || null
       this.statusMessage = 'Selfie uploaded successfully.'
     } catch (err) {
-      console.error(err)
       alert('Error uploading selfie. Please try again.')
     } finally {
       this.loading = false
@@ -139,7 +138,6 @@ export class Capture2dComponent implements OnInit, OnDestroy {
         this.transactionId = compare.transactionId
       }
     } catch (err) {
-      console.error(err)
       alert('There was an error during validation. Please try again.')
     } finally {
       this.loading = false

@@ -80,18 +80,13 @@ export class LoginComponent {
   }
 
   handleSessionCompleted(summary: LivenessSummary): void {
-    console.log('[LoginComponent] Sessão de captura concluída:', summary);
-    
     const capture = this.selectBestCapture(summary);
 
     if (!capture) {
-      console.warn('[LoginComponent] Nenhuma captura válida encontrada');
       this.closeModal();
       this.triggerFallback('Não foi possível capturar seu rosto. Tente novamente ou confirme pelo CPF.');
       return;
     }
-
-    console.log('[LoginComponent] Melhor captura selecionada:', capture);
     
     // Mantém o modal aberto e inicia autenticação com barra de progresso
     this.authProgress.set(0);
@@ -161,8 +156,6 @@ export class LoginComponent {
     this.isAuthenticating.set(true);
     this.authProgress.set(10);
 
-    console.log('[LoginComponent] Iniciando autenticação facial com imageKey:', capture.s3Key);
-
     // Simula progresso durante autenticação
     const progressInterval = setInterval(() => {
       const current = this.authProgress();
@@ -181,12 +174,6 @@ export class LoginComponent {
       }))
       .subscribe({
         next: (response) => {
-          console.log('[LoginComponent] ========== RESPOSTA DO LOGIN FACIAL ==========');
-          console.log('[LoginComponent] response:', response);
-          console.log('[LoginComponent] response.user:', response.user);
-          console.log('[LoginComponent] typeof response.user:', typeof response.user);
-          console.log('[LoginComponent] JSON.stringify(response.user):', JSON.stringify(response.user));
-          
           if (response.success) {
             // Completa a barra de progresso
             this.authProgress.set(100);
@@ -197,34 +184,24 @@ export class LoginComponent {
             // Busca o nome do usuário autenticado
             let userName = response.user?.name || (response.user as any)?.name;
             
-            console.log('[LoginComponent] response.user completo:', JSON.stringify(response.user));
-            console.log('[LoginComponent] Nome extraído de response.user:', userName);
-            
             // Se não veio no response.user, aguarda o currentUser carregar
             if (!userName) {
-              console.log('[LoginComponent] Nome não veio no response.user, buscando do AuthService...');
-              
               // Aguarda um momento para o AuthService buscar o currentUser
               setTimeout(() => {
                 this.authService.getCurrentUser().subscribe({
                   next: (user) => {
                     userName = user.name || user.Name || 'Usuário';
-                    console.log('[LoginComponent] Nome carregado do getCurrentUser:', userName);
                     
                     const welcomeMessage = `Bem-vindo, ${userName}`;
                     this.waitModalMessage.set(welcomeMessage);
                     this.speakWelcomeMessage(welcomeMessage);
                   },
-                  error: (err) => {
-                    console.error('[LoginComponent] Erro ao buscar nome:', err);
-                  }
+                  error: () => {}
                 });
               }, 500);
               
               userName = 'Usuário'; // Temporário
             }
-            
-            console.log('[LoginComponent] ========================================');
             
             const welcomeMessage = `Bem-vindo, ${userName}`;
             
@@ -257,7 +234,6 @@ export class LoginComponent {
           this.triggerFallback(response.message || 'Não reconhecemos seu rosto. Confirme seu CPF abaixo.');
         },
         error: (error) => {
-          console.error('[LoginComponent] Erro no login facial:', error);
           const rawMessage = error?.error?.message ?? error?.message;
           const message = typeof rawMessage === 'string' ? rawMessage : null;
 
@@ -286,9 +262,8 @@ export class LoginComponent {
       utterance.volume = 1.0;
       
       speechSynthesis.speak(utterance);
-      console.log('[LoginComponent] Mensagem de boas-vindas falada:', message);
     } catch (error) {
-      console.warn('[LoginComponent] Erro ao falar mensagem de boas-vindas:', error);
+      // Erro ao falar mensagem - silencioso
     }
   }
 

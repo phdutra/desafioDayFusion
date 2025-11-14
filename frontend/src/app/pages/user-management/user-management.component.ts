@@ -52,7 +52,6 @@ export class UserManagementComponent implements OnInit {
       error: (err) => {
         this.error.set('Erro ao carregar usuários. Tente novamente.');
         this.loading.set(false);
-        console.error('Erro ao carregar usuários:', err);
       }
     });
   }
@@ -69,7 +68,6 @@ export class UserManagementComponent implements OnInit {
       error: (err) => {
         this.error.set('Erro ao carregar usuários pendentes. Tente novamente.');
         this.loading.set(false);
-        console.error('Erro ao carregar usuários pendentes:', err);
       }
     });
   }
@@ -89,7 +87,6 @@ export class UserManagementComponent implements OnInit {
       error: (err) => {
         this.error.set('Erro ao aprovar usuário. Tente novamente.');
         this.loading.set(false);
-        console.error('Erro ao aprovar usuário:', err);
       }
     });
   }
@@ -109,7 +106,6 @@ export class UserManagementComponent implements OnInit {
       error: (err) => {
         this.error.set('Erro ao rejeitar usuário. Tente novamente.');
         this.loading.set(false);
-        console.error('Erro ao rejeitar usuário:', err);
       }
     });
   }
@@ -144,7 +140,6 @@ export class UserManagementComponent implements OnInit {
       },
       error: (err) => {
         this.error.set('Erro ao excluir usuário. Tente novamente.');
-        console.error('Erro ao excluir usuário:', err);
         this.loading.set(false);
         this.closeDeleteModal();
       }
@@ -171,7 +166,6 @@ export class UserManagementComponent implements OnInit {
       error: (err) => {
         this.error.set('Erro ao atualizar role. Tente novamente.');
         this.loading.set(false);
-        console.error('Erro ao atualizar role:', err);
       }
     });
   }

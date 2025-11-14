@@ -58,9 +58,7 @@ export class LivenessHistoryService {
     const stored = this.loadFromStorage();
     this.historySignal.set(stored);
     this.history = computed(() => this.historySignal());
-    void this.fetchRemoteHistory().catch((error) =>
-      console.warn('[LivenessHistoryService] Falha ao carregar histórico remoto.', error)
-    );
+    void this.fetchRemoteHistory().catch(() => {});
   }
 
   addEntry(summary: LivenessSummary): LivenessHistoryEntry {
@@ -99,7 +97,6 @@ export class LivenessHistoryService {
   private async fetchRemoteHistory(limit = 20, expiryMinutes = 60): Promise<void> {
     const baseUrl = environment.apiUrl?.replace(/\/$/, '') ?? '';
     if (!baseUrl) {
-      console.warn('[LivenessHistoryService] apiUrl não configurada. Histórico remoto não será carregado.');
       return;
     }
 
@@ -109,7 +106,6 @@ export class LivenessHistoryService {
       //const remoteEntries = items.map((item) => this.mapRemoteItem(item));
       //this.historySignal.update((current) => this.mergeEntries(current, remoteEntries));
     } catch (error) {
-      console.error('[LivenessHistoryService] Erro ao buscar histórico remoto.', error);
       throw error;
     }
   }
@@ -268,7 +264,6 @@ export class LivenessHistoryService {
         .map((entry) => this.sanitizeEntry(entry))
         .filter((entry): entry is LivenessHistoryEntry => Boolean(entry));
     } catch (error) {
-      console.warn('[LivenessHistoryService] Falha ao carregar histórico.', error);
       return [];
     }
   }
@@ -281,7 +276,6 @@ export class LivenessHistoryService {
     try {
       window.localStorage.setItem(this.storageKey, JSON.stringify(history));
     } catch (error) {
-      console.warn('[LivenessHistoryService] Falha ao salvar histórico.', error);
     }
   }
 

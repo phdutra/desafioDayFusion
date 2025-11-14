@@ -25,13 +25,10 @@ export class TransactionsComponent implements OnInit {
   async load(): Promise<void> {
     this.loading = true
     try {
-      console.log('Carregando transações do DynamoDB...')
       const response = await this.faceService.getTransactions().toPromise()
       this.transactions = response || []
-      console.log(`Transações carregadas: ${this.transactions.length}`)
       
       if (this.transactions.length === 0) {
-        console.warn('Nenhuma transação encontrada no DynamoDB')
       }
       
       // Preload presigned URLs para thumbnails
@@ -47,13 +44,11 @@ export class TransactionsComponent implements OnInit {
             entries.doc = p2?.url
           }
         } catch (err) {
-          console.warn(`Erro ao carregar URLs para transação ${tx.id}:`, err)
         }
         this.thumbs[tx.id] = entries
       })
       await Promise.allSettled(promises)
     } catch (err) {
-      console.error('Erro ao carregar transações do DynamoDB:', err)
       this.transactions = []
       alert('Erro ao carregar histórico. Verifique o console para mais detalhes.')
     } finally {

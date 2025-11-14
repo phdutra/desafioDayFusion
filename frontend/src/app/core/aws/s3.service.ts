@@ -52,7 +52,6 @@ export class S3Service {
                 hasGetReader: typeof streamResult?.getReader === 'function'
               });
             } catch (streamError) {
-              console.warn('[S3Service][Middleware] Falha ao executar body.stream().', streamError);
             }
           }
         } else {
@@ -71,9 +70,7 @@ export class S3Service {
   async uploadLivenessAsset(sessionId: string, position: string, blob: Blob): Promise<UploadResult> {
     const extension = this.resolveExtension(blob.type, 'jpg');
     const key = `liveness/${sessionId}/${Date.now()}-${position}.${extension}`;
-    console.log('[S3Service] Upload liveness asset:', { sessionId, position, key, blobSize: blob.size });
     const result = await this.uploadBlobToS3(key, blob);
-    console.log('[S3Service] Upload completo:', result);
     return result;
   }
 
@@ -100,7 +97,6 @@ export class S3Service {
       console.info('[S3Service] URL assinada gerada.', { key });
       return url;
     } catch (error) {
-      console.error('[S3Service] Falha ao gerar URL assinada.', error);
       throw error;
     }
   }
@@ -158,11 +154,8 @@ export class S3Service {
       await this.client.send(command);
       console.info('[S3Service] Upload concluído com sucesso.', { key });
     } catch (error: any) {
-      console.error('[S3Service] PutObjectCommand falhou.', error);
       if (error?.name === 'TypeError' && typeof error?.message === 'string' && error.message.includes('getReader')) {
-        console.warn('[S3Service] getReader indisponível no Blob original. Upload refeito usando ArrayBuffer.');
       } else if (error?.$metadata?.httpStatusCode === 403) {
-        console.error('[S3Service] Acesso negado ao bucket. Verifique permissões IAM da identity pool.');
       }
       throw error;
     }

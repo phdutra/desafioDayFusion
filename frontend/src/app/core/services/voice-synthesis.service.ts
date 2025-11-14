@@ -29,9 +29,7 @@ export class VoiceSynthesisService {
       // Iniciar processamento contínuo da fila em uma zona separada
       this.startQueueProcessor()
       
-      console.log('✅ VoiceSynthesisService inicializado')
     } else {
-      console.warn('⚠️ SpeechSynthesis não está disponível neste navegador')
     }
   }
 
@@ -138,7 +136,6 @@ export class VoiceSynthesisService {
    */
   speak(text: string, lang: string = 'pt-BR', cancelPrevious: boolean = true, priority: number = 0): void {
     if (!this.isEnabled || !this.speechSynthesis) {
-      console.warn('⚠️ VoiceSynthesis desabilitado ou não disponível')
       return
     }
 
@@ -223,11 +220,9 @@ export class VoiceSynthesisService {
           // Forçar cancelamento de qualquer utterance pendente (caso haja algum problema)
           try {
             if (this.speechSynthesis?.speaking) {
-              console.warn('⚠️ [onend] SpeechSynthesis ainda marcado como speaking, forçando cancel...')
               this.speechSynthesis.cancel()
             }
           } catch (e) {
-            console.warn('⚠️ [onend] Erro ao cancelar speechSynthesis:', e)
           }
           
           // Processar próxima mensagem imediatamente e também após delays múltiplos
@@ -268,7 +263,6 @@ export class VoiceSynthesisService {
         this.ngZone.run(() => {
           // Ignorar erros de interrupção/cancelamento
           if (error.error !== 'interrupted' && error.error !== 'canceled') {
-            console.error('❌ Erro na síntese de voz:', error.error)
           }
           this.isProcessing = false
           this.currentUtterance = null
@@ -309,7 +303,6 @@ export class VoiceSynthesisService {
           if (!this.speechSynthesis) {
             // Log apenas se realmente falhar após várias tentativas
             if (attempts >= maxAttempts - 2) {
-              console.warn('⚠️ SpeechSynthesis não disponível após', attempts, 'tentativas')
             }
             if (attempts >= maxAttempts) {
               this.isProcessing = false
@@ -345,7 +338,6 @@ export class VoiceSynthesisService {
             } catch (speakError: any) {
               // Log apenas se realmente falhar após várias tentativas
               if (attempts >= maxAttempts - 2) {
-                console.warn('⚠️ Erro ao chamar speak() após', attempts, 'tentativas:', speakError)
               }
               hasStarted = false
               // Tentar novamente se ainda não atingiu máximo
@@ -374,7 +366,6 @@ export class VoiceSynthesisService {
         } catch (error) {
           // Log apenas erros críticos
           if (attempts >= maxAttempts - 2) {
-            console.error('❌ Erro geral ao tentar falar após', attempts, 'tentativas:', error)
           }
           hasStarted = false
           if (attempts < maxAttempts) {
@@ -408,7 +399,6 @@ export class VoiceSynthesisService {
         }, 100)
       })
     } catch (error) {
-      console.error('❌ Erro ao criar utterance:', error)
       this.isProcessing = false
       this.currentUtterance = null
       setTimeout(() => this.processQueue(), 100)

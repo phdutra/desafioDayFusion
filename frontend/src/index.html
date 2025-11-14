@@ -27,23 +27,20 @@
   <!-- Face Liveness Widget (AWS Amplify UI React como Web Component) -->
   <script 
     src="/assets/liveness/widget.js"
-    onerror="console.error('❌ ERRO CRÍTICO: widget.js falhou ao carregar!', this.src); window.widgetLoadError = true; window.dispatchEvent(new CustomEvent('widget-load-error', { detail: { src: this.src } }));"
-    onload="console.log('✅ widget.js carregado com sucesso:', this.src); window.widgetLoadSuccess = true; window.dispatchEvent(new CustomEvent('widget-load-success', { detail: { src: this.src } }));">
+    onerror="window.widgetLoadError = true; window.dispatchEvent(new CustomEvent('widget-load-error', { detail: { src: this.src } }));"
+    onload="window.widgetLoadSuccess = true; window.dispatchEvent(new CustomEvent('widget-load-success', { detail: { src: this.src } }));">
   </script>
   <script>
     // Verificar se o widget foi carregado após um tempo
     setTimeout(function() {
       if (!window.widgetLoadSuccess && !window.widgetLoadError) {
-        console.warn('⚠️ widget.js ainda não sinalizou carregamento após 2 segundos');
-        console.warn('💡 Verificando se custom element está registrado...');
         if (typeof customElements !== 'undefined') {
           customElements.whenDefined('face-liveness-widget')
             .then(function() {
-              console.log('✅ Custom element definido após timeout');
               window.widgetLoadSuccess = true;
             })
             .catch(function(err) {
-              console.error('❌ Custom element não foi definido:', err);
+              // Erro ao definir custom element - silencioso
             });
         }
       }

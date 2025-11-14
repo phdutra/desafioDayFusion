@@ -68,14 +68,11 @@ export class ProfileComponent implements OnDestroy {
           return;
         }
 
-        console.log('[ProfileComponent] Dados do usuário recebidos:', user);
 
         // Suporta ambos os formatos (camelCase e PascalCase do backend)
         this.cpf = user.cpf || user.Cpf || '';
         const userName = user.name || user.Name || '';
         
-        console.log('[ProfileComponent] CPF:', this.cpf);
-        console.log('[ProfileComponent] Nome extraído:', userName);
         
         if (!this.form.dirty) {
           this.form.patchValue({ name: userName });
@@ -227,7 +224,6 @@ export class ProfileComponent implements OnDestroy {
       .subscribe({
         next: (response) => this.currentAvatar.set(response.url),
         error: (error) => {
-          console.warn('[ProfileComponent] Falha ao gerar URL temporária da foto.', error);
           this.currentAvatar.set(null);
         }
       });

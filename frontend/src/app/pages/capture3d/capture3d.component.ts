@@ -53,7 +53,6 @@ export class Capture3dComponent {
 
   constructor() {
     // Log para debug: mostrar que está usando instruções do serviço compartilhado
-    console.log('🎤 Capture3D inicializado com', this.voiceSteps().length, 'instruções de voz')
   }
 
   @HostListener('window:keydown.escape', ['$event'])
@@ -61,13 +60,11 @@ export class Capture3dComponent {
     // Fechar modal de captura se estiver aberto
     if (this.isModalOpen()) {
       event.preventDefault()
-      console.log('⌨️ ESC pressionado - fechando modal de captura')
       this.closeModal()
     }
     // Fechar modal de alerta se estiver aberto
     else if (this.showAlertModal()) {
       event.preventDefault()
-      console.log('⌨️ ESC pressionado - fechando modal de alerta')
       this.closeAlertModal()
     }
   }
@@ -104,7 +101,6 @@ export class Capture3dComponent {
     try {
       await this.livenessModal.startSession()
     } catch (error: any) {
-      console.error('❌ Erro ao iniciar sessão 3D:', error)
       this.errorMessage.set(error?.message ?? 'Erro ao iniciar verificação 3D.')
     }
   }

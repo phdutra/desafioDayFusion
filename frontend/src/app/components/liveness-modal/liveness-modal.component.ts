@@ -115,7 +115,6 @@ export class LivenessModalComponent implements OnDestroy {
         console.info('[LivenessModal] Gravação de vídeo iniciada.');
       } catch (recorderError) {
         this.videoRecorder = null;
-        console.warn('[LivenessModal] Não foi possível iniciar gravação de vídeo.', recorderError);
       }
       this.updateProgress(25);
 
@@ -283,7 +282,6 @@ export class LivenessModalComponent implements OnDestroy {
             mimeType: uploadResult.mimeType
           });
         } catch (videoError) {
-          console.error('[LivenessModal] ❌ Falha ao enviar vídeo ao S3.', videoError);
         }
       }
 
@@ -343,7 +341,6 @@ export class LivenessModalComponent implements OnDestroy {
               if (backendAnalysis.message && backendAnalysis.message.includes('rejeitado')) {
                 isLive = false;
                 documentRejected = true;
-                console.warn('[LivenessModal] 🚨 Backend rejeitou documento:', backendAnalysis.message);
               }
               
               console.info('[LivenessModal] 📊 Análise completa do backend:', {
@@ -354,7 +351,6 @@ export class LivenessModalComponent implements OnDestroy {
             }
           }
         } catch (backendError) {
-          console.error('[LivenessModal] ❌ Erro ao chamar backend para análise:', backendError);
           // Continua com análise local se backend falhar
         }
       }
@@ -444,10 +440,6 @@ export class LivenessModalComponent implements OnDestroy {
       this.sessionCompleted.emit(summary);
     } catch (error: any) {
       const message = error?.message ?? 'Falha inesperada durante a sessão.';
-      console.error('[LivenessModal] Falha na sessão.', {
-        message,
-        error
-      });
       this.errorMessage = message;
       this.statusMessage = 'Erro durante a sessão.';
       this.sessionFailed.emit(message);
@@ -464,7 +456,6 @@ export class LivenessModalComponent implements OnDestroy {
         try {
           await this.videoRecorder.stopRecording();
         } catch (stopError) {
-          console.warn('[LivenessModal] Erro ao finalizar gravação de vídeo no cleanup.', stopError);
         } finally {
           this.videoRecorder = null;
         }
@@ -488,7 +479,6 @@ export class LivenessModalComponent implements OnDestroy {
       this.videoRecorder = null;
       if (recorder) {
         void recorder.stopRecording().catch((stopError) => {
-          console.warn('[LivenessModal] Erro ao finalizar gravação ao cancelar sessão.', stopError);
         });
       }
     }

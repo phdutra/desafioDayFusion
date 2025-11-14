@@ -37,31 +37,11 @@ export class FaceRecognitionService {
   }
 
   compareFaces(request: FaceComparisonRequest): Observable<FaceComparisonResponse> {
-    console.log('🌐 [FaceRecognitionService] Calling compareFaces API:', {
-      url: `${this.API_URL}/facerecognition/compare`,
-      request: request
-    })
-    
     return this.http.post<FaceComparisonResponse>(`${this.API_URL}/facerecognition/compare`, request)
       .pipe(
         tap({
-          next: (response) => {
-            console.log('✅ [FaceRecognitionService] API response received:', {
-              similarityScore: response.similarityScore,
-              status: response.status,
-              message: response.message,
-              transactionId: response.transactionId
-            })
-          },
-          error: (error) => {
-            console.error('❌ [FaceRecognitionService] API error:', {
-              status: error.status,
-              statusText: error.statusText,
-              message: error.message,
-              error: error.error,
-              fullError: error
-            })
-          }
+          next: () => {},
+          error: () => {}
         })
       )
   }
@@ -150,18 +130,15 @@ export class FaceRecognitionService {
             headers: { 'Content-Type': 'video/webm' }
           }).subscribe({
             next: () => {
-              console.log('✅ Vídeo uploaded:', urlResponse.key);
               observer.next({ key: urlResponse.key });
               observer.complete();
             },
             error: (error) => {
-              console.error('❌ Erro no upload do vídeo para S3:', error);
               observer.error(error);
             }
           });
         },
         error: (error) => {
-          console.error('❌ Erro ao gerar presigned URL:', error);
           observer.error(error);
         }
       });

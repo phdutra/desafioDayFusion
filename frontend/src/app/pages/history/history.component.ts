@@ -142,7 +142,6 @@ export class HistoryComponent {
         await this.selectEntry(entries[0].id, false);
       }
     } catch (error) {
-      console.error('[HistoryComponent] Falha ao sincronizar histórico.', error);
       this.loadError.set('Não foi possível sincronizar o histórico com o backend.');
     } finally {
       this.syncingHistory.set(false);
@@ -161,7 +160,6 @@ export class HistoryComponent {
         this.loadError.set('URL da captura não disponível.');
       }
     } catch (error) {
-      console.error('[HistoryComponent] Falha ao abrir captura.', error);
       this.loadError.set('Não foi possível abrir a captura selecionada.');
     }
   }
@@ -176,7 +174,6 @@ export class HistoryComponent {
       const url = await this.s3Service.getSignedUrl(video.s3Key);
       window.open(url, '_blank');
     } catch (error) {
-      console.error('[HistoryComponent] Falha ao abrir vídeo.', error);
       this.loadError.set('Não foi possível abrir o vídeo da sessão.');
     }
   }
@@ -196,7 +193,6 @@ export class HistoryComponent {
         this.loadError.set('URL do documento não disponível.');
       }
     } catch (error) {
-      console.error('[HistoryComponent] Falha ao abrir documento.', error);
       this.loadError.set('Não foi possível abrir o documento associado à sessão.');
     }
   }
@@ -379,7 +375,6 @@ export class HistoryComponent {
         }
       }));
     } catch (error) {
-      console.error('[HistoryComponent] Falha ao atualizar URLs assinadas.', error);
       this.loadError.set('Não foi possível atualizar as URLs. Verifique as permissões do S3 ou tente novamente.');
     } finally {
       this.loadingMedia.set(false);

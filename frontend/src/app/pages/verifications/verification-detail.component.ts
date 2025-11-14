@@ -91,7 +91,6 @@ export class VerificationDetailComponent implements OnInit {
           this.load();
         },
         error: (err) => {
-          console.error('[VerificationDetail] Falha ao salvar observação manual', err);
           this.saving.set(false);
           this.error.set('Não foi possível salvar a observação. Tente novamente.');
         }
@@ -116,7 +115,6 @@ export class VerificationDetailComponent implements OnInit {
           this.load();
         },
         error: (err) => {
-          console.error('[VerificationDetail] Falha ao atualizar status', err);
           this.statusUpdating.set(false);
           this.error.set('Não foi possível atualizar o status. Tente novamente.');
         }
@@ -153,7 +151,6 @@ export class VerificationDetailComponent implements OnInit {
           this.loading.set(false);
         },
         error: (err) => {
-          console.error('[VerificationDetail] Falha ao carregar verificação', err);
           this.loading.set(false);
           this.error.set('Não foi possível carregar os dados da verificação.');
           this.item.set(null);
