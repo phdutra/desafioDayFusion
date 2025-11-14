@@ -11,7 +11,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: #020617;
+  background: linear-gradient(180deg, #0a101f 0%, #020617 50%, #050a18 100%);
+  overflow: hidden;
 }
 
 .hero-content {
@@ -23,7 +24,12 @@
   justify-content: center;
   overflow: hidden;
   padding: clamp(2.5rem, 6vw, 5rem) clamp(2rem, 6vw, 4.5rem);
-  background: url('/assets/images/logo_dayfusion.png') center / cover no-repeat;
+  background: 
+    radial-gradient(circle at 50% 20%, rgba(59, 130, 246, 0.15) 0%, transparent 50%),
+    radial-gradient(circle at 80% 60%, rgba(168, 85, 247, 0.12) 0%, transparent 50%),
+    radial-gradient(circle at 20% 80%, rgba(14, 165, 233, 0.1) 0%, transparent 50%),
+    url('/assets/images/logo_dayfusion.png') center center / contain no-repeat,
+    linear-gradient(180deg, #0a101f 0%, #020617 100%);
 }
 
 .hero-content::before {
@@ -37,6 +43,13 @@
   animation: particleDrift 12s ease-in-out infinite alternate;
   pointer-events: none;
   mix-blend-mode: screen;
+  
+  @media (max-width: 768px) {
+    background:
+      radial-gradient(circle at 50% 30%, rgba(59, 130, 246, 0.2), transparent 60%),
+      radial-gradient(circle at 80% 70%, rgba(168, 85, 247, 0.15), transparent 65%),
+      radial-gradient(circle at 20% 80%, rgba(14, 165, 233, 0.12), transparent 70%);
+  }
 }
 
 .hero-content::after {
@@ -44,6 +57,10 @@
   position: absolute;
   inset: 0;
   background: linear-gradient(180deg, rgba(2, 6, 23, 0) 15%, rgba(2, 6, 23, 0.22) 45%, rgba(2, 6, 23, 0.85) 100%);
+  
+  @media (max-width: 768px) {
+    background: linear-gradient(180deg, rgba(2, 6, 23, 0) 10%, rgba(2, 6, 23, 0.15) 40%, rgba(2, 6, 23, 0.75) 100%);
+  }
 }
 
 .hero-left {
@@ -349,57 +366,133 @@
   }
 }
 
-.modal-backdrop {
+// Modal de autenticação - mais transparente
+.auth-modal-backdrop {
   position: fixed;
   inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 1.5rem;
-  background: rgba(2, 6, 23, 0.85);
-  backdrop-filter: blur(6px);
+  background: rgba(2, 6, 23, 0.4);
+  backdrop-filter: blur(8px);
   z-index: 1000;
+  animation: fadeIn 0.3s ease;
 
-  .modal-content {
+  .auth-modal-content {
     position: relative;
-    width: min(960px, 100%);
-    border-radius: 18px;
+    width: min(800px, 100%);
+    border-radius: 24px;
     overflow: hidden;
-    background: rgba(15, 23, 42, 0.95);
-    border: 1px solid rgba(59, 130, 246, 0.25);
+    background: rgba(15, 23, 42, 0.3);
+    border: 1px solid rgba(59, 130, 246, 0.15);
     box-shadow:
-      0 30px 70px rgba(14, 116, 144, 0.5),
-      0 20px 40px rgba(59, 130, 246, 0.3);
+      0 20px 60px rgba(0, 0, 0, 0.3),
+      0 0 0 1px rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(12px);
   }
 
-  .modal-close {
+  .auth-modal-close {
     position: absolute;
     top: 1rem;
     right: 1rem;
-    width: 2.25rem;
-    height: 2.25rem;
+    width: 2.5rem;
+    height: 2.5rem;
     border: none;
     border-radius: 999px;
-    background: rgba(15, 23, 42, 0.75);
+    background: rgba(15, 23, 42, 0.5);
     color: #e2e8f0;
-    font-size: 1rem;
-    font-weight: 600;
+    font-size: 1.5rem;
+    font-weight: 300;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
     transition: transform 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
-    box-shadow: 0 8px 20px rgba(14, 165, 233, 0.35);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    z-index: 10;
+    backdrop-filter: blur(8px);
   }
 
-  .modal-close:hover {
-    transform: translateY(-2px);
-    background: rgba(37, 99, 235, 0.8);
+  .auth-modal-close:hover {
+    transform: translateY(-2px) scale(1.05);
+    background: rgba(37, 99, 235, 0.6);
+    box-shadow: 0 6px 16px rgba(59, 130, 246, 0.4);
   }
 
-  .modal-close:focus-visible {
+  .auth-modal-close:focus-visible {
     outline: 2px solid rgba(56, 189, 248, 0.8);
     outline-offset: 2px;
+  }
+
+  // Barra de progresso verde durante autenticação
+  .auth-progress-wrapper {
+    width: 100%;
+    padding: 4rem 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .auth-progress-container-full {
+    width: 100%;
+    max-width: 500px;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    align-items: center;
+  }
+
+  .auth-progress-bar-full {
+    width: 100%;
+    height: 12px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 999px;
+    overflow: hidden;
+    position: relative;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+  }
+
+  .auth-progress-fill-full {
+    height: 100%;
+    background: linear-gradient(90deg, #10b981, #34d399, #10b981);
+    background-size: 200% 100%;
+    border-radius: 999px;
+    transition: width 0.3s ease;
+    box-shadow: 
+      0 0 20px rgba(16, 185, 129, 0.6),
+      0 0 40px rgba(16, 185, 129, 0.4);
+    animation: progressGlowFull 2s ease-in-out infinite, progressShimmer 3s linear infinite;
+  }
+
+  .auth-progress-message {
+    margin: 0;
+    font-size: 1.1rem;
+    color: rgba(255, 255, 255, 0.95);
+    font-weight: 500;
+    text-align: center;
+  }
+
+  @keyframes progressGlowFull {
+    0%, 100% {
+      box-shadow: 
+        0 0 20px rgba(16, 185, 129, 0.6),
+        0 0 40px rgba(16, 185, 129, 0.4);
+    }
+    50% {
+      box-shadow: 
+        0 0 30px rgba(16, 185, 129, 0.8),
+        0 0 60px rgba(16, 185, 129, 0.6);
+    }
+  }
+
+  @keyframes progressShimmer {
+    0% {
+      background-position: 200% 0;
+    }
+    100% {
+      background-position: -200% 0;
+    }
   }
 }
 
@@ -435,28 +528,68 @@
 
   .login-hero {
     position: relative;
+    background: 
+      linear-gradient(180deg, #0a101f 0%, #020617 30%, #050a18 70%, #020617 100%);
+    
+    &::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(ellipse at top, rgba(59, 130, 246, 0.12) 0%, transparent 60%),
+        radial-gradient(ellipse at bottom, rgba(168, 85, 247, 0.1) 0%, transparent 65%),
+        radial-gradient(circle at 50% 50%, rgba(14, 165, 233, 0.08) 0%, transparent 70%);
+      pointer-events: none;
+      mix-blend-mode: screen;
+    }
+    
+    &::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: 
+        repeating-linear-gradient(
+          0deg,
+          transparent,
+          transparent 2px,
+          rgba(59, 130, 246, 0.03) 2px,
+          rgba(59, 130, 246, 0.03) 4px
+        );
+      pointer-events: none;
+      opacity: 0.5;
+    }
   }
 
   .hero-content {
     flex-direction: column;
     align-items: center;
-    justify-content: flex-start;
+    justify-content: center;
     gap: 2.5rem;
-    min-height: auto;
-    background-size: cover;
-    padding: clamp(2.4rem, 9vw, 3.2rem) clamp(1.5rem, 7vw, 2.5rem) clamp(2rem, 9vw, 3rem);
+    min-height: 100vh;
+    min-height: 100dvh;
+    background: 
+      radial-gradient(ellipse at 50% 50%, rgba(59, 130, 246, 0.18) 0%, transparent 70%),
+      radial-gradient(ellipse at 50% 50%, rgba(168, 85, 247, 0.15) 0%, transparent 75%),
+      radial-gradient(circle at 50% 50%, rgba(14, 165, 233, 0.12) 0%, transparent 80%),
+      url('/assets/images/logo_dayfusion.png') center center / cover no-repeat,
+      linear-gradient(180deg, #0a101f 0%, #020617 50%, #050a18 100%);
+    padding: clamp(2.4rem, 9vw, 3.2rem) clamp(1.5rem, 7vw, 2.5rem);
   }
 
   .hero-left {
     align-items: center;
     text-align: center;
     margin-bottom: 0;
-    gap: 1rem;
+    gap: 1.25rem;
+    max-width: 90%;
+    width: 100%;
   }
 
   .hero-left .cta-button {
-    width: min(320px, 100%);
-    padding: 0.95rem 1.2rem;
+    width: min(320px, 90%);
+    max-width: 100%;
+    padding: 1rem 2rem;
+    font-size: 1rem;
   }
 
   .hero-right {
@@ -476,13 +609,28 @@
 }
 
 @media (max-width: 640px) {
+  .hero-content {
+    justify-content: center;
+    padding: 2rem 1.25rem;
+  }
+
   .brand-title {
     letter-spacing: 0.18em;
     font-size: clamp(2rem, 7vw, 2.6rem);
   }
 
+  .hero-left {
+    gap: 1rem;
+  }
+
   .hero-left p {
     font-size: clamp(1rem, 3.5vw, 1.1rem);
+    max-width: 100%;
+  }
+
+  .hero-left .cta-button {
+    width: 100%;
+    max-width: 100%;
   }
 
   .hero-right {
@@ -500,16 +648,27 @@
 
 @media (max-width: 480px) {
   .hero-content {
-    gap: 2rem;
-    padding: 2rem 1.25rem 2.4rem;
+    gap: 1.75rem;
+    padding: 1.5rem 1.25rem;
+    justify-content: center;
   }
 
   .hero-left {
     max-width: 100%;
+    gap: 1rem;
+  }
+
+  .brand-title {
+    font-size: clamp(1.8rem, 8vw, 2.4rem);
+  }
+
+  .hero-left p {
+    font-size: clamp(0.95rem, 4vw, 1.05rem);
   }
 
   .hero-left .cta-button {
     width: 100%;
+    padding: 0.95rem 1.5rem;
     font-size: 0.95rem;
   }
 

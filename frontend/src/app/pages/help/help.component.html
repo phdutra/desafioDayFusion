@@ -11,6 +11,9 @@
     </div>
   </header>
 
+  <!-- Overlay para fechar sidebar em mobile -->
+  <div class="sidebar-overlay" *ngIf="sidebarOpen()" (click)="closeSidebar()"></div>
+
   <!-- Sidebar de navegação -->
   <aside class="help-sidebar" [class.open]="sidebarOpen()">
     <div class="help-sidebar-header">

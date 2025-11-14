@@ -1,0 +1,26 @@
+<div class="auth-video-container">
+  <section class="video-section">
+    <div class="video-circle">
+      <div class="progress-ring">
+        <span
+          class="ring-segment"
+          *ngFor="let segment of ringSegments"
+          [style.transform]="segment.rotation"
+          [class.active]="segment.active">
+        </span>
+      </div>
+
+      <div class="video-mask">
+        <video #videoElement autoplay playsinline muted></video>
+        <div class="guides">
+          <span class="guide vertical"></span>
+          <span class="guide horizontal"></span>
+        </div>
+        <div class="progress-indicator" *ngIf="progress > 0">
+          {{ progress }}%
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+

@@ -81,20 +81,22 @@ html, body {
 }
 
 .sidebar-header {
-  padding: 2rem 1rem 3.5rem 1.5rem;
+  padding: 1.25rem 0.75rem 1.5rem;
+  margin-bottom: 0.5rem;
 }
 
 .logo {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1.5rem;
+  gap: 1rem;
   text-align: center;
 }
 
 .logo-icon {
-  width: 160px;
-  height: 160px;
+  width: 100px;
+  height: 100px;
+  margin: 0 auto;
   background: linear-gradient(135deg, rgba(139, 92, 246, 0.1), rgba(6, 182, 212, 0.1));
   border-radius: var(--radius-xl);
   display: flex;
@@ -173,20 +175,20 @@ html, body {
 
 .logo-text {
   position: absolute;
-  top: calc(100% + 0.25rem);
+  top: calc(100% + 0.5rem);
   left: 50%;
   transform: translateX(-50%);
   display: flex;
   flex-direction: column;
   align-items: center;
-  width: 200px;
+  width: 180px;
   z-index: 10;
   text-align: center;
   margin-top: 0;
 }
 
 .logo-title {
-  font-size: 1.75rem;
+  font-size: 1.35rem;
   font-weight: 700;
   background: linear-gradient(135deg, var(--text-primary), var(--primary-light));
   -webkit-background-clip: text;
@@ -197,16 +199,17 @@ html, body {
 }
 
 .logo-subtitle {
-  font-size: 0.875rem;
+  font-size: 0.75rem;
   color: var(--text-secondary);
   font-weight: 500;
   letter-spacing: 0.5px;
+  margin-top: 0.15rem;
 }
 
 .sidebar-divider {
   height: 1px;
-  background: var(--border-color);
-  margin: 0 1.5rem;
+  background: rgba(148, 163, 184, 0.15);
+  margin: 0.75rem 0;
 }
 
 .nav-menu {

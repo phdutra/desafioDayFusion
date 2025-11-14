@@ -114,13 +114,13 @@
 }
 
 .sidebar {
-  width: 260px;
+  width: 240px;
   height: 100vh;
   display: flex;
   flex-direction: column;
   background: linear-gradient(180deg, rgba(10, 16, 31, 0.95), rgba(12, 18, 32, 0.88));
   border-right: 1px solid rgba(148, 163, 184, 0.12);
-  padding: 1.5rem 1.75rem 1.75rem;
+  padding: 1.25rem 1rem 1rem;
   position: sticky;
   top: 0;
   overflow-y: auto;
@@ -163,9 +163,10 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
+  gap: 0.3rem;
   flex: 1;
-  margin-top: 1.25rem;
+  margin-top: 0.75rem;
+  min-height: 0;
 }
 
 .nav-item {
@@ -175,24 +176,50 @@
 .nav-link {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  padding: 0.85rem 1rem;
-  border-radius: 12px;
+  justify-content: center;
+  padding: 0.75rem 1rem;
+  border-radius: 10px;
   text-decoration: none;
-  color: rgba(226, 232, 240, 0.85);
+  color: rgba(226, 232, 240, 0.75);
   font-weight: 500;
-  transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
+  font-size: 0.9rem;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  letter-spacing: 0.3px;
+
+  &::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 3px;
+    height: 0;
+    background: linear-gradient(180deg, #3b82f6, #06b6d4);
+    border-radius: 0 3px 3px 0;
+    transition: height 0.25s ease;
+  }
 
   &:hover {
-    background: rgba(59, 130, 246, 0.12);
+    background: rgba(59, 130, 246, 0.1);
     color: #f8fafc;
-    transform: translateX(2px);
+    padding-left: 1.25rem;
+    
+    &::before {
+      height: 60%;
+    }
   }
 
   &.active {
-    background: linear-gradient(135deg, rgba(59, 130, 246, 0.25), rgba(99, 102, 241, 0.18));
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(99, 102, 241, 0.15));
     color: #e0f2ff;
     font-weight: 600;
+    padding-left: 1.25rem;
+    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.2);
+
+    &::before {
+      height: 70%;
+    }
   }
 }
 
@@ -203,19 +230,15 @@
   cursor: pointer;
 }
 
-.nav-icon {
-  font-size: 1.25rem;
-  flex-shrink: 0;
-}
-
 .nav-text {
-  font-size: 0.95rem;
+  font-size: 0.9rem;
+  letter-spacing: 0.2px;
 }
 
 .nav-divider {
   height: 1px;
-  background: rgba(148, 163, 184, 0.15);
-  margin: 1.5rem 0 1rem 0;
+  background: linear-gradient(90deg, transparent, rgba(148, 163, 184, 0.2), transparent);
+  margin: 1rem 0 0.75rem 0;
   list-style: none;
 }
 
@@ -247,8 +270,10 @@
 
 // Menu do Usuário com Hover
 .user-menu-container {
-  margin-top: 1.75rem;
-  margin-bottom: 0.5rem;
+  margin-top: auto;
+  margin-bottom: 0;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(148, 163, 184, 0.1);
 }
 
 .user-avatar-trigger {
@@ -261,12 +286,12 @@
   .user-info-visible {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
-    padding: 0.75rem;
-    border-radius: 12px;
+    gap: 0.65rem;
+    padding: 0.65rem 0.75rem;
+    border-radius: 10px;
     background: rgba(30, 41, 59, 0.4);
     border: 1px solid rgba(99, 102, 241, 0.2);
-    transition: all 0.3s ease;
+    transition: all 0.25s ease;
 
     &:hover {
       background: rgba(30, 41, 59, 0.6);
@@ -276,17 +301,17 @@
 
   // Avatar principal (pequeno)
   .avatar {
-    width: 48px;
-    height: 48px;
+    width: 40px;
+    height: 40px;
     border-radius: 50%;
     display: grid;
     place-items: center;
     overflow: hidden;
     background: linear-gradient(135deg, rgba(59, 130, 246, 0.45), rgba(129, 140, 248, 0.35));
     box-shadow:
-      0 8px 20px rgba(59, 130, 246, 0.25),
+      0 6px 16px rgba(59, 130, 246, 0.25),
       inset 0 1px 0 rgba(255, 255, 255, 0.2);
-    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
     border: 2px solid rgba(99, 102, 241, 0.3);
     flex-shrink: 0;
 
@@ -307,18 +332,20 @@
   }
 
   .user-name-text {
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     font-weight: 600;
     color: #f1f5f9;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    line-height: 1.3;
   }
 
   .user-cpf-text {
     font-size: 0.7rem;
     color: rgba(203, 213, 225, 0.6);
     letter-spacing: 0.02em;
+    line-height: 1.2;
   }
 
   .admin-badge-small {
@@ -561,14 +588,24 @@
   .sidebar {
     position: fixed;
     inset: 0 auto 0 0;
-    width: min(280px, 82vw);
+    width: min(260px, 82vw);
     height: 100vh;
     transform: translateX(-100%);
     transition: transform 0.3s ease;
     box-shadow: 0 0 40px rgba(0, 0, 0, 0.4);
     border-right: 1px solid rgba(99, 102, 241, 0.25);
     background: linear-gradient(180deg, rgba(10, 16, 31, 0.98), rgba(12, 18, 32, 0.92));
-    padding: 2rem 1.5rem;
+    padding: 1.25rem 1rem 1rem;
+    
+    .user-menu-container {
+      margin-top: auto;
+      margin-bottom: 0;
+      padding-top: 1rem;
+      position: sticky;
+      bottom: 0;
+      background: linear-gradient(to top, rgba(10, 16, 31, 0.98) 0%, rgba(10, 16, 31, 0.95) 80%, transparent 100%);
+      padding-bottom: 0.5rem;
+    }
 
     &.open {
       transform: translateX(0);

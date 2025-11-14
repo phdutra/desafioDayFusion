@@ -48,22 +48,35 @@
   </div>
 </section>
 
-<!-- Modal de Captura Facial -->
-<div class="modal-backdrop" *ngIf="isModalOpen()">
-  <div class="modal-content">
+<!-- Modal de Captura Facial para Autenticação -->
+<div class="auth-modal-backdrop" *ngIf="isModalOpen()">
+  <div class="auth-modal-content">
     <button
       type="button"
-      class="modal-close"
+      class="auth-modal-close"
       (click)="closeModal()"
-      aria-label="Fechar reconhecimento facial">
-      X
+      aria-label="Fechar reconhecimento facial"
+      *ngIf="!isAuthenticating()">
+      ×
     </button>
-    <app-liveness-modal
+    
+    <!-- Vídeo durante captura -->
+    <app-auth-video-modal
+      *ngIf="!isAuthenticating()"
       [voiceSteps]="voiceSteps()"
-      [documentFile]="null"
       (sessionCompleted)="handleSessionCompleted($event)"
       (sessionFailed)="handleSessionFailed($event)">
-    </app-liveness-modal>
+    </app-auth-video-modal>
+    
+    <!-- Barra de progresso verde durante autenticação -->
+    <div class="auth-progress-wrapper" *ngIf="isAuthenticating()">
+      <div class="auth-progress-container-full">
+        <div class="auth-progress-bar-full">
+          <div class="auth-progress-fill-full" [style.width.%]="authProgress()"></div>
+        </div>
+        <p class="auth-progress-message">{{ statusMessage() || 'Autenticando...' }}</p>
+      </div>
+    </div>
   </div>
 </div>
 

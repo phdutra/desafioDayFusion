@@ -1,0 +1,152 @@
+.auth-video-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+}
+
+.video-section {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.video-circle {
+  position: relative;
+  width: 360px;
+  height: 360px;
+}
+
+.progress-ring {
+  position: absolute;
+  inset: 0;
+  --ring-radius: 170px;
+  transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 8;
+}
+
+.ring-segment {
+  position: absolute;
+  width: 0;
+  height: 0;
+  top: 50%;
+  left: 50%;
+  transform-origin: center;
+  transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+
+  &::after {
+    content: '';
+    display: block;
+    width: 6px;
+    height: 30px;
+    border-radius: 999px;
+    background: rgba(21, 128, 61, 0.25);
+    box-shadow: 0 0 6px rgba(34, 197, 94, 0.25);
+    transform: translate(-50%, calc(-1 * var(--ring-radius)));
+    transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  &.active::after {
+    background: #22c55e;
+    box-shadow: 0 0 14px rgba(34, 197, 94, 0.65);
+  }
+}
+
+.video-mask {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+}
+
+.video-mask video {
+  width: 320px;
+  height: 320px;
+  border-radius: 50%;
+  object-fit: cover;
+  box-shadow: inset 0 0 45px rgba(8, 145, 178, 0.15), 0 25px 45px rgba(0, 0, 0, 0.45);
+  background: rgba(6, 9, 20, 0.85);
+  transform: scaleX(-1);
+  position: relative;
+  z-index: 10;
+}
+
+.guides {
+  position: absolute;
+  width: 320px;
+  height: 320px;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 11;
+}
+
+.guide {
+  position: absolute;
+  background: rgba(148, 163, 184, 0.4);
+
+  &.vertical {
+    width: 2px;
+    height: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+
+  &.horizontal {
+    height: 2px;
+    width: 100%;
+    top: 50%;
+    transform: translateY(-50%);
+  }
+}
+
+.progress-indicator {
+  position: absolute;
+  bottom: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(15, 23, 42, 0.65);
+  padding: 0.35rem 0.9rem;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: #bbf7d0;
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(34, 197, 94, 0.35);
+  box-shadow: 0 8px 18px rgba(34, 197, 94, 0.25);
+  z-index: 12;
+}
+
+
+@media (max-width: 768px) {
+  .auth-video-container {
+    padding: 1.5rem;
+  }
+
+  .video-circle {
+    width: 300px;
+    height: 300px;
+  }
+
+  .video-mask video {
+    width: 270px;
+    height: 270px;
+  }
+
+  .guides {
+    width: 270px;
+    height: 270px;
+  }
+
+  .progress-ring {
+    --ring-radius: 140px;
+  }
+}
+

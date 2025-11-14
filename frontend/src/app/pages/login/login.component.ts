@@ -3,7 +3,7 @@ import { Component, HostListener, ViewChild, computed, inject, signal } from '@a
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { finalize } from 'rxjs';
-import { LivenessModalComponent } from '../../components/liveness-modal/liveness-modal.component';
+import { AuthVideoModalComponent } from '../../components/auth-video-modal/auth-video-modal.component';
 import { VoiceStep } from '../../core/models/voice-step.model';
 import { LivenessCaptureSummary, LivenessSummary } from '../../core/models/liveness-result.model';
 import { AuthService } from '../../core/services/auth.service';
@@ -12,12 +12,12 @@ import { CpfLookupResponse } from '../../shared/models/auth.model';
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, LivenessModalComponent],
+  imports: [CommonModule, ReactiveFormsModule, AuthVideoModalComponent],
   templateUrl: './login.component.html',
   styleUrls: ['./login.component.scss']
 })
 export class LoginComponent {
-  @ViewChild(LivenessModalComponent) livenessModal?: LivenessModalComponent;
+  @ViewChild(AuthVideoModalComponent) authVideoModal?: AuthVideoModalComponent;
   private readonly fb = inject(FormBuilder);
   private readonly route = inject(ActivatedRoute);
 
@@ -40,6 +40,7 @@ export class LoginComponent {
   readonly waitModalTitle = signal<string>('Autenticando...');
   readonly waitModalMessage = signal<string>('Por favor, aguarde enquanto validamos sua identidade.');
   readonly waitModalClosable = signal(false);
+  readonly authProgress = signal(0);
 
   readonly isCpfInvalid = computed(() => {
     const control = this.form.controls.cpf;
@@ -74,30 +75,27 @@ export class LoginComponent {
     this.isModalOpen.set(true);
 
     setTimeout(() => {
-      void this.livenessModal?.startSession();
+      void this.authVideoModal?.startSession();
     }, 150);
   }
 
   handleSessionCompleted(summary: LivenessSummary): void {
     console.log('[LoginComponent] Sessão de captura concluída:', summary);
     
-    // Fecha o modal de captura
-    this.closeModal();
-    
     const capture = this.selectBestCapture(summary);
 
     if (!capture) {
       console.warn('[LoginComponent] Nenhuma captura válida encontrada');
+      this.closeModal();
       this.triggerFallback('Não foi possível capturar seu rosto. Tente novamente ou confirme pelo CPF.');
       return;
     }
 
     console.log('[LoginComponent] Melhor captura selecionada:', capture);
     
-    // Abre o modal de espera
-    this.showWaitModal.set(true);
-    this.waitModalTitle.set('Autenticando...');
-    this.waitModalMessage.set('Validando sua identidade facial. Aguarde...');
+    // Mantém o modal aberto e inicia autenticação com barra de progresso
+    this.authProgress.set(0);
+    this.statusMessage.set('Autenticando...');
     
     // Inicia autenticação
     this.authenticateWithFace(capture);
@@ -161,14 +159,26 @@ export class LoginComponent {
 
   private authenticateWithFace(capture: LivenessCaptureSummary): void {
     this.isAuthenticating.set(true);
+    this.authProgress.set(10);
 
     console.log('[LoginComponent] Iniciando autenticação facial com imageKey:', capture.s3Key);
+
+    // Simula progresso durante autenticação
+    const progressInterval = setInterval(() => {
+      const current = this.authProgress();
+      if (current < 90) {
+        this.authProgress.set(current + 10);
+      }
+    }, 200);
 
     this.authService.loginWithFace({
       cpf: '',
       imageKey: capture.s3Key
     })
-      .pipe(finalize(() => this.isAuthenticating.set(false)))
+      .pipe(finalize(() => {
+        this.isAuthenticating.set(false);
+        clearInterval(progressInterval);
+      }))
       .subscribe({
         next: (response) => {
           console.log('[LoginComponent] ========== RESPOSTA DO LOGIN FACIAL ==========');
@@ -178,9 +188,13 @@ export class LoginComponent {
           console.log('[LoginComponent] JSON.stringify(response.user):', JSON.stringify(response.user));
           
           if (response.success) {
-            this.waitModalClosable.set(false);
+            // Completa a barra de progresso
+            this.authProgress.set(100);
+            
+            // Fecha o modal de captura
+            this.closeModal();
+            
             // Busca o nome do usuário autenticado
-            // Primeiro tenta pegar de response.user, depois busca do currentUser após carregar
             let userName = response.user?.name || (response.user as any)?.name;
             
             console.log('[LoginComponent] response.user completo:', JSON.stringify(response.user));
@@ -217,6 +231,10 @@ export class LoginComponent {
             // Atualiza o modal de espera com a mensagem de sucesso
             this.waitModalTitle.set('✅ Autenticado com Sucesso!');
             this.waitModalMessage.set(welcomeMessage);
+            this.waitModalClosable.set(false);
+            
+            // Abre o modal de boas-vindas
+            this.showWaitModal.set(true);
             
             // Fala a mensagem de boas-vindas
             this.speakWelcomeMessage(welcomeMessage);
@@ -230,8 +248,8 @@ export class LoginComponent {
           }
 
           // Falha na autenticação
-          this.showWaitModal.set(false);
-          this.waitModalClosable.set(false);
+          this.authProgress.set(0);
+          this.closeModal();
           if (this.isPendingApprovalMessage(response.message)) {
             this.showPendingApprovalModal(response.message);
             return;
@@ -243,13 +261,14 @@ export class LoginComponent {
           const rawMessage = error?.error?.message ?? error?.message;
           const message = typeof rawMessage === 'string' ? rawMessage : null;
 
+          this.authProgress.set(0);
+          this.closeModal();
+
           if (error?.status === 401 && this.isPendingApprovalMessage(message)) {
             this.showPendingApprovalModal(message ?? undefined);
             return;
           }
 
-          this.showWaitModal.set(false);
-          this.waitModalClosable.set(false);
           this.triggerFallback(message ?? 'Não reconhecemos seu rosto. Confirme seu CPF abaixo.');
         }
       });
@@ -358,8 +377,8 @@ export class LoginComponent {
   }
 
   closeModal(): void {
-    if (this.livenessModal) {
-      this.livenessModal.cancelSession();
+    if (this.authVideoModal) {
+      this.authVideoModal.cancelSession();
     }
 
     this.isModalOpen.set(false);
