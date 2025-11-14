@@ -41,9 +41,7 @@ export default function Widget() {
           }
         }
       })
-      console.log('✅ Amplify configurado com Identity Pool:', identityPoolId)
     } catch (configError) {
-      console.warn('⚠️ Erro ao configurar Amplify v6, tentando configuração alternativa:', configError)
       // Fallback para configuração compatível
       Amplify.configure({
         Auth: {
@@ -57,7 +55,6 @@ export default function Widget() {
     // Função para processar sessionId quando disponível
     const processSessionId = (sessionIdValue) => {
       if (sessionIdValue) {
-        console.log('✅ SessionId recebido:', sessionIdValue)
         setSessionId(sessionIdValue)
         setLoading(false)
         return true
@@ -82,7 +79,6 @@ export default function Widget() {
         if (mutation.type === 'attributes' && mutation.attributeName === 'session-id') {
           const newSessionId = el.getAttribute('session-id')
           if (newSessionId && !sessionIdProcessed) {
-            console.log('✅ SessionId atualizado via MutationObserver:', newSessionId)
             if (processSessionId(newSessionId)) {
               sessionIdProcessed = true
               observer.disconnect()
@@ -121,7 +117,6 @@ export default function Widget() {
             if (data.sessionId) {
               setSessionId(data.sessionId)
               setLoading(false)
-              console.log('✅ Sessão criada pelo widget:', data.sessionId)
               sessionIdProcessed = true
               observer.disconnect()
             } else {
@@ -199,14 +194,8 @@ export default function Widget() {
     )
   }
 
-  // ✅ TESTE RÁPIDO DE VERIFICAÇÃO (antes de renderizar)
-  console.log("🔍 [widget.jsx] Teste rápido de verificação antes de renderizar:")
-  const windowAWS = typeof window !== 'undefined' ? window.AWS : null
-  console.log("AWS:", windowAWS)
-  console.log("FaceLivenessDetector:", FaceLivenessDetector)
-  console.log("SessionId:", sessionId)
-  
   // Verificar se AWS está disponível
+  const windowAWS = typeof window !== 'undefined' ? window.AWS : null
   const aws = windowAWS
   if (!aws) {
     console.error("❌ AWS não está disponível no window")
@@ -244,8 +233,6 @@ export default function Widget() {
       </div>
     )
   }
-
-  console.log("✅ [widget.jsx] Todas as verificações passaram, renderizando FaceLivenessDetector...")
 
   // ✅ Usa o FaceLivenessDetector com WebRTC real e sem login
   // Usar a região extraída do atributo ou padrão
