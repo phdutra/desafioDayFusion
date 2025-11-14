@@ -66,7 +66,6 @@ export class AuthVideoModalComponent implements OnDestroy {
     this.updateProgress(5);
     this.isRunning = true;
     this.statusMessage = 'Preparando sessão...';
-    console.info('[AuthVideoModal] Iniciando sessão de liveness.');
 
     const sessionId = `${Date.now()}`;
     const captures: CaptureInternal[] = [];
@@ -74,9 +73,7 @@ export class AuthVideoModalComponent implements OnDestroy {
     let recordedVideo: RecordedMedia | null = null;
 
     try {
-      console.info('[AuthVideoModal] Solicitando credenciais Cognito (forceRefresh=true).');
       const credentials = await this.cognitoService.getCredentials(true);
-      console.info('[AuthVideoModal] Credenciais obtidas.');
       this.updateProgress(15);
 
       this.stream = await startCameraStream();
@@ -161,7 +158,6 @@ export class AuthVideoModalComponent implements OnDestroy {
               size: uploadResult.size,
               durationMs: recordedVideo.durationMs
             };
-            console.info('[AuthVideoModal] Vídeo enviado para S3:', uploadResult.key);
           } catch (videoError) {
           }
         }

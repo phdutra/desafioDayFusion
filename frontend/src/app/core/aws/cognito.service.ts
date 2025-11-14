@@ -66,7 +66,6 @@ export class CognitoService {
       request.onblocked = () => resolve();
     });
 
-    console.info('[CognitoService] Cache Cognito limpo – novas credenciais serão geradas.');
   }
 }
 

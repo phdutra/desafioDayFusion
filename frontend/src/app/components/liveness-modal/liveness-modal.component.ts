@@ -76,7 +76,6 @@ export class LivenessModalComponent implements OnDestroy {
     this.updateProgress(5);
     this.isRunning = true;
     this.statusMessage = 'Preparando sessão...';
-    console.info('[LivenessModal] Iniciando sessão de liveness.');
 
     const sessionId = `${Date.now()}`;
     const captures: CaptureInternal[] = [];
@@ -90,12 +89,7 @@ export class LivenessModalComponent implements OnDestroy {
       | null = null;
 
     try {
-      console.info('[LivenessModal] Solicitando credenciais Cognito (forceRefresh=true).');
       const credentials = await this.cognitoService.getCredentials(true);
-      console.info('[LivenessModal] Credenciais obtidas.', {
-        accessKeyId: credentials.accessKeyId?.slice(0, 4) + '***',
-        expiration: (credentials as any).expiration ?? null
-      });
       this.updateProgress(15);
 
       this.stream = await startCameraStream();
@@ -107,12 +101,10 @@ export class LivenessModalComponent implements OnDestroy {
 
       videoElement.srcObject = this.stream;
       await videoElement.play();
-      console.info('[LivenessModal] Stream de vídeo iniciado.');
       this.updateProgress(20);
 
       try {
         this.videoRecorder = startVideoRecording(this.stream);
-        console.info('[LivenessModal] Gravação de vídeo iniciada.');
       } catch (recorderError) {
         this.videoRecorder = null;
       }
@@ -129,7 +121,6 @@ export class LivenessModalComponent implements OnDestroy {
           }
           this.statusMessage = step.texto;
           this.updateDirection(step.posicao);
-          console.info('[LivenessModal] Instrução anunciada.', { index, step });
         },
         (step, index) => {
           if (this.shouldAbort) {
@@ -145,7 +136,6 @@ export class LivenessModalComponent implements OnDestroy {
               this.currentDirection = null;
             }
           }, 500);
-          console.info('[LivenessModal] Captura concluída.', { position: step.posicao, index });
         },
         async (step) => {
           if (this.shouldAbort) {
@@ -157,24 +147,9 @@ export class LivenessModalComponent implements OnDestroy {
 
           const blob = await captureFrame(videoElement);
           const bytes = await blobToUint8Array(blob);
-          const sizeKB = (blob.size / 1024).toFixed(2);
-          
-          console.info('[LivenessModal] ✅ Foto comprimida e capturada:', {
-            position: step.posicao,
-            size: `${sizeKB} KB`,
-            mimeType: blob.type,
-            resolution: '640×480',
-            quality: '80%'
-          });
           
           const confidence = await this.rekognitionService.detectFaceConfidence(bytes);
           const { key, url } = await this.s3Service.uploadLivenessAsset(sessionId, step.posicao, blob);
-          
-          console.info('[LivenessModal] ✅ Foto enviada ao S3:', {
-            position: step.posicao,
-            s3Key: key,
-            size: `${sizeKB} KB`
-          });
 
           captures.push({
             position: step.posicao,
@@ -204,26 +179,7 @@ export class LivenessModalComponent implements OnDestroy {
       this.updateProgress(85);
 
       if (this.videoRecorder) {
-        console.info('[LivenessModal] Finalizando gravação de vídeo.');
         recordedVideo = await this.videoRecorder.stopRecording();
-        const sizeMB = (recordedVideo.blob.size / 1024 / 1024).toFixed(2);
-        const sizeKB = (recordedVideo.blob.size / 1024).toFixed(2);
-        const durationSeconds = (recordedVideo.durationMs / 1000).toFixed(2);
-        const bitrate = recordedVideo.durationMs > 0
-          ? ((recordedVideo.blob.size * 8) / (recordedVideo.durationMs / 1000) / 1000).toFixed(0)
-          : '0';
-        
-        console.info('[LivenessModal] ✅ Vídeo comprimido e capturado:', {
-          mimeType: recordedVideo.mimeType,
-          size: `${sizeMB} MB (${sizeKB} KB)`,
-          duration: `${durationSeconds}s`,
-          bitrate: `${bitrate} kbps`,
-          codec: recordedVideo.mimeType.includes('h264') || recordedVideo.mimeType.includes('avc1')
-            ? 'H.264 (MP4) - Compatível com Rekognition'
-            : recordedVideo.mimeType.includes('vp9')
-            ? 'VP9 (WebM) - Fallback'
-            : 'WebM'
-        });
         this.videoRecorder = null;
         this.updateProgress(90);
       }
@@ -273,14 +229,6 @@ export class LivenessModalComponent implements OnDestroy {
             size: uploadResult.size,
             durationMs: recordedVideo.durationMs
           };
-          
-          console.info('[LivenessModal] ✅ Vídeo enviado ao S3 com sucesso:', {
-            s3Key: uploadResult.key,
-            size: `${(uploadResult.size / 1024 / 1024).toFixed(2)} MB`,
-            uploadDuration: `${uploadDurationFormatted}s`,
-            uploadSpeed: `${uploadSpeed} MB/s`,
-            mimeType: uploadResult.mimeType
-          });
         } catch (videoError) {
         }
       }
@@ -311,12 +259,6 @@ export class LivenessModalComponent implements OnDestroy {
           const selfieKey = frontCapture?.s3Key;
           
           if (selfieKey && documentUpload.key) {
-            console.info('[LivenessModal] 📊 Chamando backend para análise completa:', {
-              sessionId,
-              selfieKey,
-              documentKey: documentUpload.key
-            });
-            
             const livenessResultRequest = {
               sessionId,
               transactionId: this.transactionId,
@@ -326,8 +268,6 @@ export class LivenessModalComponent implements OnDestroy {
             
             // Chamar endpoint do backend para análise completa
             backendAnalysis = await this.faceService.getLivenessResult(livenessResultRequest).toPromise();
-            
-            console.info('[LivenessModal] ✅ Resposta do backend recebida:', backendAnalysis);
             
             // Se backend retornou análise, usar esses dados
             if (backendAnalysis) {
@@ -342,12 +282,6 @@ export class LivenessModalComponent implements OnDestroy {
                 isLive = false;
                 documentRejected = true;
               }
-              
-              console.info('[LivenessModal] 📊 Análise completa do backend:', {
-                liveness: livenessScore,
-                message: backendAnalysis.message,
-                status: backendAnalysis.status
-              });
             }
           }
         } catch (backendError) {
@@ -370,7 +304,6 @@ export class LivenessModalComponent implements OnDestroy {
         backendAnalysis: backendAnalysis ?? undefined
       };
 
-      console.info('[LivenessModal] Sessão concluída.', summary);
 
       // Animação de finalização até 100%
       this.statusMessage = 'Finalizando...';
@@ -399,10 +332,8 @@ export class LivenessModalComponent implements OnDestroy {
       // Se backend retornou análise, usar observação do backend (prioridade) ou mensagem
       if (backendAnalysis?.observacao) {
         observation = backendAnalysis.observacao;
-        console.info('[LivenessModal] 📋 Usando observação do backend:', observation);
       } else if (backendAnalysis?.message) {
         observation = backendAnalysis.message;
-        console.info('[LivenessModal] 📋 Usando mensagem do backend:', observation);
       } else if (isApproved) {
         observation = `Liveness: ${summary.livenessScore}%`;
         if (summary.faceMatchScore !== undefined) {
@@ -451,7 +382,6 @@ export class LivenessModalComponent implements OnDestroy {
       stopMediaStream(this.stream);
       this.stream = undefined;
       this.isRunning = false;
-      console.info('[LivenessModal] Sessão finalizada (cleanup).');
       if (this.videoRecorder) {
         try {
           await this.videoRecorder.stopRecording();

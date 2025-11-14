@@ -37,25 +37,14 @@ export class S3Service {
         const request: any = args.request;
         if (request?.body) {
           const body = request.body;
-          console.info('[S3Service][Middleware] Request body antes do envio.', {
-            type: typeof body,
-            constructorName: body?.constructor?.name,
-            hasGetReader: typeof body?.getReader === 'function',
-            hasStream: typeof body?.stream === 'function'
-          });
-
+          // Verificação de body para compatibilidade
           if (typeof body?.getReader !== 'function' && typeof body?.stream === 'function') {
             try {
-              const streamResult = body.stream();
-              console.info('[S3Service][Middleware] Resultado de body.stream().', {
-                constructorName: streamResult?.constructor?.name,
-                hasGetReader: typeof streamResult?.getReader === 'function'
-              });
+              body.stream();
             } catch (streamError) {
+              // Erro ao processar stream - silencioso
             }
           }
-        } else {
-          console.info('[S3Service][Middleware] Request sem body.');
         }
 
         return next(args);
@@ -86,15 +75,8 @@ export class S3Service {
       Key: key
     });
 
-    console.info('[S3Service] Gerando URL assinada.', {
-      bucket: this.bucket,
-      key,
-      expiresInSeconds
-    });
-
     try {
       const url = await getSignedUrl(this.client, command, { expiresIn: expiresInSeconds });
-      console.info('[S3Service] URL assinada gerada.', { key });
       return url;
     } catch (error) {
       throw error;
@@ -141,18 +123,8 @@ export class S3Service {
       ContentType: mimeType
     });
 
-    console.info('[S3Service] Enviando PutObjectCommand.', {
-      bucket: this.bucket,
-      key,
-      contentType: mimeType,
-      size: blob.size,
-      bodyType: body.constructor.name,
-      ...metadata
-    });
-
     try {
       await this.client.send(command);
-      console.info('[S3Service] Upload concluído com sucesso.', { key });
     } catch (error: any) {
       if (error?.name === 'TypeError' && typeof error?.message === 'string' && error.message.includes('getReader')) {
       } else if (error?.$metadata?.httpStatusCode === 403) {

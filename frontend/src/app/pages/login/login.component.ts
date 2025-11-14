@@ -125,6 +125,7 @@ export class LoginComponent {
       .subscribe({
         next: (response) => this.handleLookupSuccess(response),
         error: (error) => {
+          console.error('[LoginComponent] Erro ao validar CPF:', error);
           const message = error?.error?.message ?? 'Erro ao validar CPF. Tente novamente.';
           this.errorMessage.set(message);
         }
@@ -196,7 +197,9 @@ export class LoginComponent {
                     this.waitModalMessage.set(welcomeMessage);
                     this.speakWelcomeMessage(welcomeMessage);
                   },
-                  error: () => {}
+                  error: (err) => {
+                    console.error('[LoginComponent] Erro ao buscar nome do usuário:', err);
+                  }
                 });
               }, 500);
               
@@ -234,6 +237,7 @@ export class LoginComponent {
           this.triggerFallback(response.message || 'Não reconhecemos seu rosto. Confirme seu CPF abaixo.');
         },
         error: (error) => {
+          console.error('[LoginComponent] Erro no login facial:', error);
           const rawMessage = error?.error?.message ?? error?.message;
           const message = typeof rawMessage === 'string' ? rawMessage : null;
 
@@ -263,7 +267,7 @@ export class LoginComponent {
       
       speechSynthesis.speak(utterance);
     } catch (error) {
-      // Erro ao falar mensagem - silencioso
+      console.error('[LoginComponent] Erro ao falar mensagem de boas-vindas:', error);
     }
   }
 
