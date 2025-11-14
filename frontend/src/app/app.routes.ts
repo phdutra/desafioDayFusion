@@ -47,6 +47,7 @@ export const routes: Routes = [
   },
   {
     path: 'help',
+    canActivate: [authGuard],
     loadComponent: () => import('./pages/help/help.component').then(m => m.HelpComponent)
   },
   {

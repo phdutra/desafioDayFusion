@@ -1,5 +1,6 @@
 import { CommonModule } from '@angular/common';
-import { Component, signal, OnInit, HostListener } from '@angular/core';
+import { Component, signal, OnInit, HostListener, inject } from '@angular/core';
+import { AuthService } from '../../core/services/auth.service';
 
 interface HelpSection {
   id: string;
@@ -16,6 +17,8 @@ interface HelpSection {
   styleUrls: ['./help.component.scss']
 })
 export class HelpComponent implements OnInit {
+  private readonly authService = inject(AuthService);
+  
   readonly sections = signal<HelpSection[]>([
     { id: 'anti-deepfake', title: 'Segurança Anti-Deepfake', icon: '🛡️', active: true },
     { id: 'fluxo', title: 'Fluxo de Autenticação', icon: '🔄', active: false },
@@ -30,6 +33,7 @@ export class HelpComponent implements OnInit {
 
   readonly currentSection = signal<string>('anti-deepfake');
   readonly sidebarOpen = signal<boolean>(false);
+  readonly isAuthenticated = signal<boolean>(false);
   private readonly scrollOffset = 180;
   private userScrolling = false;
   private scrollTimeout: number | null = null;
@@ -45,6 +49,17 @@ export class HelpComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    // Verifica se o usuário está autenticado (apenas para informação, não para autorização)
+    // Todas as seções são públicas e acessíveis sem autenticação
+    // A rota /help não requer autenticação e não aplica restrições baseadas em autenticação
+    this.isAuthenticated.set(this.authService.isAuthenticated());
+    
+    // Observa mudanças no estado de autenticação (opcional, apenas para informação)
+    // Usa effect ou subscription para sincronizar com o signal do AuthService
+    this.authService.currentUser$.subscribe(() => {
+      this.isAuthenticated.set(this.authService.isAuthenticated());
+    });
+    
     setTimeout(() => this.detectSectionInView(), 100);
   }
 
