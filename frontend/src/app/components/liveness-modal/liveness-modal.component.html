@@ -76,14 +76,24 @@
   <!-- Resultado após animação -->
   <div class="result-display" *ngIf="resultStatus === 'approved' || resultStatus === 'rejected'">
     <div class="result-content" [class.approved]="resultStatus === 'approved'" [class.rejected]="resultStatus === 'rejected'">
-      <div class="result-score">
-        <span class="score-label">Score:</span>
+      <!-- Quando aprovado: mostrar apenas score consolidado -->
+      <div class="result-score" *ngIf="resultStatus === 'approved'">
+        <span class="score-label">Score de Validação:</span>
         <span class="score-value">{{ resultScore }}%</span>
       </div>
-      <div class="result-document-score" *ngIf="resultDocumentScore !== null && resultDocumentScore !== undefined">
-        <span class="score-label">Score Documento:</span>
-        <span class="score-value">{{ resultDocumentScore }}%</span>
-      </div>
+      
+      <!-- Quando rejeitado: mostrar scores separados para diagnóstico -->
+      <ng-container *ngIf="resultStatus === 'rejected'">
+        <div class="result-score">
+          <span class="score-label">Score:</span>
+          <span class="score-value">{{ resultScore }}%</span>
+        </div>
+        <div class="result-document-score" *ngIf="resultDocumentScore !== null && resultDocumentScore !== undefined">
+          <span class="score-label">Score Documento:</span>
+          <span class="score-value">{{ resultDocumentScore }}%</span>
+        </div>
+      </ng-container>
+      
       <div class="result-observation" *ngIf="resultObservation">
         <span class="observation-label">Observação:</span>
         <span class="observation-text">{{ resultObservation }}</span>

@@ -243,8 +243,12 @@ public class DocumentAnalyzerService : IDocumentAnalyzerService
 
     private async Task<AnalysisComponent> AnalyzeTextInDocumentAsync(string bucket, string fileName)
     {
+        var startTime = DateTime.UtcNow;
         try
         {
+            _logger.LogInformation("🔍 [DIAGNÓSTICO] Iniciando análise de texto OCR. Bucket: {Bucket}, FileName: {FileName}, Timestamp: {Timestamp}", 
+                bucket, fileName, startTime);
+            
             var request = new DetectTextRequest
             {
                 Image = new Image
@@ -257,7 +261,14 @@ public class DocumentAnalyzerService : IDocumentAnalyzerService
                 }
             };
 
+            _logger.LogInformation("📤 [DIAGNÓSTICO] Enviando requisição DetectText para AWS Rekognition. Bucket: {Bucket}, Key: {Key}", 
+                bucket, fileName);
+            
             var response = await _rekognition.DetectTextAsync(request);
+            
+            var duration = (DateTime.UtcNow - startTime).TotalMilliseconds;
+            _logger.LogInformation("✅ [DIAGNÓSTICO] Resposta recebida do AWS Rekognition. Duração: {Duration}ms, TextDetections: {Count}", 
+                duration, response.TextDetections?.Count ?? 0);
             var score = 0.0;
             var observacoes = new List<string>();
             var flags = new List<string>();
@@ -284,17 +295,30 @@ public class DocumentAnalyzerService : IDocumentAnalyzerService
             var allText = string.Join(" ", textDetections.Select(t => t.DetectedText ?? "").Where(t => !string.IsNullOrWhiteSpace(t)));
             var allTextUpper = allText.ToUpperInvariant();
 
-            _logger.LogInformation("📝 Texto detectado no documento (primeiros 200 chars): {Text}", 
-                allText.Length > 200 ? allText.Substring(0, 200) + "..." : allText);
+            // Log detalhado do texto detectado
+            _logger.LogInformation("📝 [DIAGNÓSTICO] Texto detectado no documento:");
+            _logger.LogInformation("   - Total de detecções: {Count}", textDetections.Count);
+            _logger.LogInformation("   - Linhas: {LineCount}", textDetections.Count(t => t.Type == TextTypes.LINE));
+            _logger.LogInformation("   - Palavras: {WordCount}", textDetections.Count(t => t.Type == TextTypes.WORD));
+            _logger.LogInformation("   - Texto completo (primeiros 500 chars): {Text}", 
+                allText.Length > 500 ? allText.Substring(0, 500) + "..." : allText);
+            _logger.LogInformation("   - Confiança média: {AvgConfidence:F2}%", 
+                textDetections.Any() ? textDetections.Average(t => t.Confidence ?? 0) : 0);
 
             // Validação crítica: verifica se é RG ou CNH
             var isRgOrCnh = ValidateRgOrCnh(allTextUpper, out var validationFlags, out var validationObs);
+            
+            _logger.LogInformation("📊 [DIAGNÓSTICO] Resultado da validação RG/CNH: {IsValid}, Flags: [{Flags}], Observações: [{Obs}]", 
+                isRgOrCnh, string.Join(", ", validationFlags), string.Join(" | ", validationObs));
             
             if (!isRgOrCnh)
             {
                 flags.AddRange(validationFlags);
                 flags.Add("nao_e_documento");
                 observacoes.AddRange(validationObs);
+                
+                _logger.LogWarning("⚠️ [DIAGNÓSTICO] Documento rejeitado na validação RG/CNH. Flags: [{Flags}]", string.Join(", ", flags));
+                
                 return new AnalysisComponent
                 {
                     Score = 0,
@@ -341,10 +365,113 @@ public class DocumentAnalyzerService : IDocumentAnalyzerService
                 Flags = flags
             };
         }
+        catch (Amazon.Rekognition.Model.InvalidImageFormatException ex)
+        {
+            var duration = (DateTime.UtcNow - startTime).TotalMilliseconds;
+            _logger.LogError(ex, "❌ [DIAGNÓSTICO] Formato de imagem inválido para OCR. Bucket: {Bucket}, FileName: {FileName}, Duração: {Duration}ms, ErrorCode: {ErrorCode}, StatusCode: {StatusCode}, Message: {Message}", 
+                bucket, fileName, duration, ex.ErrorCode, ex.StatusCode, ex.Message);
+            
+            return new AnalysisComponent 
+            { 
+                Score = 0, 
+                Observacao = $"Erro ao analisar texto: Formato de imagem inválido ({ex.Message})", 
+                Flags = new List<string> { "erro_texto", "formato_invalido" }
+            };
+        }
+        catch (Amazon.Rekognition.Model.ImageTooLargeException ex)
+        {
+            var duration = (DateTime.UtcNow - startTime).TotalMilliseconds;
+            _logger.LogError(ex, "❌ [DIAGNÓSTICO] Imagem muito grande para OCR. Bucket: {Bucket}, FileName: {FileName}, Duração: {Duration}ms, ErrorCode: {ErrorCode}, StatusCode: {StatusCode}, Message: {Message}", 
+                bucket, fileName, duration, ex.ErrorCode, ex.StatusCode, ex.Message);
+            
+            return new AnalysisComponent 
+            { 
+                Score = 0, 
+                Observacao = $"Erro ao analisar texto: Imagem muito grande ({ex.Message})", 
+                Flags = new List<string> { "erro_texto", "imagem_muito_grande" }
+            };
+        }
+        catch (Amazon.Rekognition.Model.ProvisionedThroughputExceededException ex)
+        {
+            var duration = (DateTime.UtcNow - startTime).TotalMilliseconds;
+            _logger.LogError(ex, "❌ [DIAGNÓSTICO] Limite de throughput do Rekognition excedido. Bucket: {Bucket}, FileName: {FileName}, Duração: {Duration}ms, ErrorCode: {ErrorCode}, StatusCode: {StatusCode}, Message: {Message}", 
+                bucket, fileName, duration, ex.ErrorCode, ex.StatusCode, ex.Message);
+            
+            return new AnalysisComponent 
+            { 
+                Score = 0, 
+                Observacao = $"Erro ao analisar texto: Limite de requisições excedido (tente novamente)", 
+                Flags = new List<string> { "erro_texto", "limite_excedido" }
+            };
+        }
+        catch (Amazon.Runtime.AmazonServiceException ex)
+        {
+            var duration = (DateTime.UtcNow - startTime).TotalMilliseconds;
+            _logger.LogError(ex, "❌ [DIAGNÓSTICO] Erro do AWS Rekognition ao analisar texto. Bucket: {Bucket}, FileName: {FileName}, Duração: {Duration}ms, ErrorCode: {ErrorCode}, StatusCode: {StatusCode}, RequestId: {RequestId}, Message: {Message}, InnerException: {InnerException}", 
+                bucket, fileName, duration, ex.ErrorCode, ex.StatusCode, ex.RequestId, ex.Message, ex.InnerException?.Message ?? "N/A");
+            
+            // Log detalhes adicionais se disponíveis (apenas para exceções específicas do Rekognition)
+            if (ex is Amazon.Rekognition.Model.InvalidImageFormatException ||
+                ex is Amazon.Rekognition.Model.ImageTooLargeException ||
+                ex is Amazon.Rekognition.Model.ProvisionedThroughputExceededException)
+            {
+                _logger.LogError("   - Detalhes adicionais da exceção Rekognition disponíveis");
+            }
+            
+            return new AnalysisComponent 
+            { 
+                Score = 0, 
+                Observacao = $"Erro ao analisar texto: {ex.ErrorCode} - {ex.Message}", 
+                Flags = new List<string> { "erro_texto", $"rekognition_{ex.ErrorCode?.ToLowerInvariant() ?? "erro"}" }
+            };
+        }
+        catch (System.Threading.Tasks.TaskCanceledException ex)
+        {
+            var duration = (DateTime.UtcNow - startTime).TotalMilliseconds;
+            _logger.LogError(ex, "❌ [DIAGNÓSTICO] Timeout ao analisar texto no documento. Bucket: {Bucket}, FileName: {FileName}, Duração: {Duration}ms, Message: {Message}, InnerException: {InnerException}", 
+                bucket, fileName, duration, ex.Message, ex.InnerException?.Message ?? "N/A");
+            
+            return new AnalysisComponent 
+            { 
+                Score = 0, 
+                Observacao = "Erro ao analisar texto: Timeout na requisição (tente novamente)", 
+                Flags = new List<string> { "erro_texto", "timeout" }
+            };
+        }
+        catch (System.Net.Http.HttpRequestException ex)
+        {
+            var duration = (DateTime.UtcNow - startTime).TotalMilliseconds;
+            _logger.LogError(ex, "❌ [DIAGNÓSTICO] Erro de conectividade ao analisar texto. Bucket: {Bucket}, FileName: {FileName}, Duração: {Duration}ms, Message: {Message}, InnerException: {InnerException}", 
+                bucket, fileName, duration, ex.Message, ex.InnerException?.Message ?? "N/A");
+            
+            return new AnalysisComponent 
+            { 
+                Score = 0, 
+                Observacao = "Erro ao analisar texto: Problema de conectividade com AWS", 
+                Flags = new List<string> { "erro_texto", "conectividade" }
+            };
+        }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Erro ao analisar texto no documento");
-            return new AnalysisComponent { Score = 0, Observacao = "Erro ao analisar texto", Flags = new List<string> { "erro_texto", "nao_e_documento" } };
+            var duration = (DateTime.UtcNow - startTime).TotalMilliseconds;
+            _logger.LogError(ex, "❌ [DIAGNÓSTICO] Erro inesperado ao analisar texto no documento. Bucket: {Bucket}, FileName: {FileName}, Duração: {Duration}ms, Tipo: {ExceptionType}, Message: {Message}, StackTrace: {StackTrace}, InnerException: {InnerException}", 
+                bucket, fileName, duration, ex.GetType().FullName, ex.Message, ex.StackTrace, ex.InnerException?.Message ?? "N/A");
+            
+            // Log inner exception completo se houver
+            if (ex.InnerException != null)
+            {
+                _logger.LogError("   - InnerException Tipo: {InnerType}, Message: {InnerMessage}, StackTrace: {InnerStackTrace}", 
+                    ex.InnerException.GetType().FullName, ex.InnerException.Message, ex.InnerException.StackTrace);
+            }
+            
+            // Não rejeita imediatamente por erro - pode ser problema temporário do OCR
+            // Retorna score baixo mas não marca como "nao_e_documento" para permitir revisão manual
+            return new AnalysisComponent 
+            { 
+                Score = 0, 
+                Observacao = $"Erro ao analisar texto: {ex.GetType().Name} - {ex.Message}", 
+                Flags = new List<string> { "erro_texto" } // Removido "nao_e_documento" para permitir revisão
+            };
         }
     }
 
@@ -394,10 +521,17 @@ public class DocumentAnalyzerService : IDocumentAnalyzerService
         var hasRgKeyword = rgKeywords.Any(kw => text.Contains(kw));
         var hasCnhKeyword = cnhKeywords.Any(kw => text.Contains(kw));
 
+        _logger.LogInformation("🔍 [DIAGNÓSTICO] Busca de indicadores RG/CNH:");
+        _logger.LogInformation("   - Indicadores RG encontrados: {HasRg}", hasRgKeyword);
+        _logger.LogInformation("   - Indicadores CNH encontrados: {HasCnh}", hasCnhKeyword);
+        _logger.LogInformation("   - Palavras-chave RG testadas: {RgKeywords}", string.Join(", ", rgKeywords));
+        _logger.LogInformation("   - Palavras-chave CNH testadas: {CnhKeywords}", string.Join(", ", cnhKeywords));
+
         if (!hasRgKeyword && !hasCnhKeyword)
         {
             flags.Add("sem_indicador_rg_cnh");
             observacoes.Add("❌ Não encontrado indicador de RG ou CNH");
+            _logger.LogWarning("⚠️ [DIAGNÓSTICO] Nenhum indicador RG/CNH encontrado no texto");
             return false;
         }
 
@@ -408,32 +542,61 @@ public class DocumentAnalyzerService : IDocumentAnalyzerService
         var cpfPattern = @"\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b"; // Formato: 123.456.789-00 ou 12345678900
         var hasCpf = System.Text.RegularExpressions.Regex.IsMatch(text, cpfPattern);
         
+        _logger.LogInformation("🔍 [DIAGNÓSTICO] Busca de CPF:");
+        _logger.LogInformation("   - CPF com formato padrão: {HasCpf}", hasCpf);
+        
         if (!hasCpf)
         {
             // Tenta padrão mais flexível (apenas números)
             var cpfNumbersOnly = System.Text.RegularExpressions.Regex.Matches(text, @"\d{11}");
+            _logger.LogInformation("   - Sequências de 11 dígitos encontradas: {Count}", cpfNumbersOnly.Count);
+            
             if (cpfNumbersOnly.Count == 0)
             {
-                flags.Add("sem_cpf");
-                observacoes.Add("❌ CPF não encontrado no documento");
-                return false;
+                // Tenta padrão ainda mais flexível: qualquer sequência de 9-11 dígitos
+                var flexibleNumbers = System.Text.RegularExpressions.Regex.Matches(text, @"\d{9,11}");
+                _logger.LogInformation("   - Sequências de 9-11 dígitos encontradas: {Count}", flexibleNumbers.Count);
+                
+                if (flexibleNumbers.Count == 0)
+                {
+                    flags.Add("sem_cpf");
+                    observacoes.Add("❌ CPF não encontrado no documento");
+                    _logger.LogWarning("⚠️ [DIAGNÓSTICO] CPF não encontrado em nenhum formato");
+                    return false;
+                }
+                // Se encontrou 9-11 dígitos, considera válido (pode ser CPF com OCR imperfeito)
+                foundIndicators.Add("CPF (possível - formato flexível)");
+                _logger.LogInformation("   ✅ CPF encontrado em formato flexível");
             }
-            // Se encontrou 11 dígitos, considera válido (pode ser CPF)
-            foundIndicators.Add("CPF (possível)");
+            else
+            {
+                // Se encontrou 11 dígitos, considera válido (pode ser CPF)
+                foundIndicators.Add("CPF (possível)");
+                _logger.LogInformation("   ✅ CPF encontrado em formato numérico");
+            }
         }
         else
         {
             foundIndicators.Add("CPF");
+            _logger.LogInformation("   ✅ CPF encontrado em formato padrão");
         }
 
         // Verifica se tem texto suficiente (documentos reais têm muito texto)
         var wordCount = text.Split(new[] { ' ', '\n', '\t' }, StringSplitOptions.RemoveEmptyEntries).Length;
-        if (wordCount < 15) // Aumentado de 10 para 15 palavras
+        _logger.LogInformation("🔍 [DIAGNÓSTICO] Análise de quantidade de texto:");
+        _logger.LogInformation("   - Total de palavras: {WordCount}", wordCount);
+        _logger.LogInformation("   - Limite mínimo: 10 palavras");
+        
+        // Reduzido de 15 para 10 palavras (mais flexível)
+        if (wordCount < 10)
         {
             flags.Add("texto_insuficiente");
             observacoes.Add($"❌ Texto insuficiente ({wordCount} palavras) - documento inválido");
+            _logger.LogWarning("⚠️ [DIAGNÓSTICO] Texto insuficiente: {WordCount} palavras (mínimo: 10)", wordCount);
             return false;
         }
+        
+        _logger.LogInformation("   ✅ Quantidade de texto suficiente");
 
         // Verifica campos comuns de documentos brasileiros (OBRIGATÓRIO)
         var commonFields = new[]
@@ -454,12 +617,23 @@ public class DocumentAnalyzerService : IDocumentAnalyzerService
         };
 
         var foundFields = commonFields.Count(field => text.Contains(field));
-        if (foundFields < 3) // Aumentado de 2 para 3 campos obrigatórios
+        var foundFieldsList = commonFields.Where(field => text.Contains(field)).ToList();
+        
+        _logger.LogInformation("🔍 [DIAGNÓSTICO] Análise de campos do documento:");
+        _logger.LogInformation("   - Campos encontrados: {Count} de {Total}", foundFields, commonFields.Length);
+        _logger.LogInformation("   - Campos detectados: [{Fields}]", string.Join(", ", foundFieldsList));
+        _logger.LogInformation("   - Limite mínimo: 2 campos");
+        
+        // Reduzido de 3 para 2 campos obrigatórios (mais flexível)
+        if (foundFields < 2)
         {
             flags.Add("campos_insuficientes");
-            observacoes.Add($"❌ Poucos campos de documento detectados ({foundFields} de pelo menos 3) - documento inválido");
-            return false; // Agora REJEITA se não tiver campos suficientes
+            observacoes.Add($"❌ Poucos campos de documento detectados ({foundFields} de pelo menos 2) - documento inválido");
+            _logger.LogWarning("⚠️ [DIAGNÓSTICO] Campos insuficientes: {Found} campos encontrados (mínimo: 2)", foundFields);
+            return false;
         }
+        
+        _logger.LogInformation("   ✅ Campos suficientes encontrados");
 
         _logger.LogInformation("✅ Validação RG/CNH: Indicadores encontrados: {Indicators}", string.Join(", ", foundIndicators));
 

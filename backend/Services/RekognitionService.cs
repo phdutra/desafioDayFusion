@@ -401,40 +401,125 @@ public class RekognitionService : IRekognitionService
                 return 0f;
             }
 
-            var request = new CompareFacesRequest
+            // Verificar se há faces nas imagens antes de comparar (diagnóstico)
+            try
             {
-                SourceImage = new Image { Bytes = new MemoryStream(sourceImage) },
-                TargetImage = new Image { Bytes = new MemoryStream(targetImage) },
-                SimilarityThreshold = 0F
-            };
-
-            _logger.LogInformation("📤 Calling AWS Rekognition CompareFaces API...");
-            var response = await _rekognitionClient.CompareFacesAsync(request);
-            
-            _logger.LogInformation("📥 AWS Rekognition response received. FaceMatches count: {MatchCount}", 
-                response.FaceMatches?.Count ?? 0);
-
-            if (response.FaceMatches != null && response.FaceMatches.Any())
-            {
-                var maxSimilarity = response.FaceMatches.Max(m => m.Similarity ?? 0f);
-                var allSimilarities = string.Join(", ", response.FaceMatches.Select(m => $"{m.Similarity:F2}%"));
-                
-                _logger.LogInformation("✅ Face matches found! Max similarity: {MaxSimilarity}%, All similarities: [{AllSimilarities}]", 
-                    maxSimilarity, allSimilarities);
-                
-                return maxSimilarity;
+                _logger.LogInformation("🔍 [DIAGNÓSTICO] Verificando detecção de faces na selfie...");
+                using (var sourceStream = new MemoryStream(sourceImage))
+                {
+                    var sourceDetectRequest = new DetectFacesRequest
+                    {
+                        Image = new Image { Bytes = sourceStream },
+                        Attributes = new List<string> { "ALL" }
+                    };
+                    var sourceDetectResponse = await _rekognitionClient.DetectFacesAsync(sourceDetectRequest);
+                    var sourceFaceCount = sourceDetectResponse.FaceDetails?.Count ?? 0;
+                    _logger.LogInformation("🔍 [DIAGNÓSTICO] Selfie: {FaceCount} face(s) detectada(s)", sourceFaceCount);
+                    
+                    if (sourceFaceCount == 0)
+                    {
+                        _logger.LogWarning("⚠️ [DIAGNÓSTICO] Nenhuma face detectada na selfie! Isso pode causar score 0.");
+                    }
+                }
             }
-            else
+            catch (Exception exDetect)
             {
-                _logger.LogWarning("⚠️ No face matches found. AWS Rekognition não encontrou faces correspondentes entre as duas imagens.");
+                _logger.LogWarning(exDetect, "⚠️ [DIAGNÓSTICO] Erro ao detectar faces na selfie: {Message}", exDetect.Message);
+            }
+
+            try
+            {
+                _logger.LogInformation("🔍 [DIAGNÓSTICO] Verificando detecção de faces no documento...");
+                using (var targetStream = new MemoryStream(targetImage))
+                {
+                    var targetDetectRequest = new DetectFacesRequest
+                    {
+                        Image = new Image { Bytes = targetStream },
+                        Attributes = new List<string> { "ALL" }
+                    };
+                    var targetDetectResponse = await _rekognitionClient.DetectFacesAsync(targetDetectRequest);
+                    var targetFaceCount = targetDetectResponse.FaceDetails?.Count ?? 0;
+                    _logger.LogInformation("🔍 [DIAGNÓSTICO] Documento: {FaceCount} face(s) detectada(s)", targetFaceCount);
+                    
+                    if (targetFaceCount == 0)
+                    {
+                        _logger.LogWarning("⚠️ [DIAGNÓSTICO] Nenhuma face detectada no documento! Isso causará score 0. Verifique qualidade/resolução da imagem.");
+                    }
+                }
+            }
+            catch (Exception exDetect)
+            {
+                _logger.LogWarning(exDetect, "⚠️ [DIAGNÓSTICO] Erro ao detectar faces no documento: {Message}", exDetect.Message);
+            }
+
+            // Criar novos streams para a comparação (não reutilizar os anteriores)
+            using (var sourceStream = new MemoryStream(sourceImage))
+            using (var targetStream = new MemoryStream(targetImage))
+            {
+                var request = new CompareFacesRequest
+                {
+                    SourceImage = new Image { Bytes = sourceStream },
+                    TargetImage = new Image { Bytes = targetStream },
+                    SimilarityThreshold = 0F
+                };
+
+                _logger.LogInformation("📤 Calling AWS Rekognition CompareFaces API...");
+                var response = await _rekognitionClient.CompareFacesAsync(request);
+            
+                _logger.LogInformation("📥 AWS Rekognition response received. FaceMatches count: {MatchCount}, UnmatchedFaces source: {UnmatchedSource}, UnmatchedFaces target: {UnmatchedTarget}", 
+                    response.FaceMatches?.Count ?? 0,
+                    response.SourceImageFace?.Confidence ?? 0,
+                    response.UnmatchedFaces?.Count ?? 0);
+
+                // Log adicional sobre faces não correspondidas
+                if (response.UnmatchedFaces != null && response.UnmatchedFaces.Any())
+                {
+                    _logger.LogWarning("⚠️ [DIAGNÓSTICO] {Count} face(s) não correspondida(s) encontrada(s). Isso pode indicar problema de qualidade ou formato das imagens.", 
+                        response.UnmatchedFaces.Count);
+                }
+
+                if (response.FaceMatches != null && response.FaceMatches.Any())
+                {
+                    var maxSimilarity = response.FaceMatches.Max(m => m.Similarity ?? 0f);
+                    var allSimilarities = string.Join(", ", response.FaceMatches.Select(m => $"{m.Similarity:F2}%"));
+                    
+                    _logger.LogInformation("✅ Face matches found! Max similarity: {MaxSimilarity}%, All similarities: [{AllSimilarities}]", 
+                        maxSimilarity, allSimilarities);
+                    
+                    return maxSimilarity;
+                }
+                else
+                {
+                    _logger.LogWarning("⚠️ No face matches found. AWS Rekognition não encontrou faces correspondentes entre as duas imagens.");
+                    _logger.LogWarning("⚠️ [DIAGNÓSTICO] Possíveis causas: 1) Nenhuma face detectada no documento, 2) Qualidade/resolução baixa, 3) Formato de imagem incompatível, 4) Faces muito diferentes");
+                }
             }
 
             return 0f;
         }
         catch (Amazon.Rekognition.AmazonRekognitionException ex)
         {
-            _logger.LogError(ex, "❌ AWS Rekognition API error. ErrorCode: {ErrorCode}, StatusCode: {StatusCode}, Message: {Message}", 
-                ex.ErrorCode, ex.StatusCode, ex.Message);
+            _logger.LogError(ex, "❌ AWS Rekognition API error. ErrorCode: {ErrorCode}, StatusCode: {StatusCode}, Message: {Message}, RequestId: {RequestId}", 
+                ex.ErrorCode, ex.StatusCode, ex.Message, ex.RequestId);
+            
+            // Log adicional para diagnóstico
+            if (ex.ErrorCode == "InvalidParameterException")
+            {
+                _logger.LogError("❌ [DIAGNÓSTICO] InvalidParameterException: Verifique formato e tamanho das imagens (máx 15MB, formatos: JPEG/PNG)");
+            }
+            else if (ex.ErrorCode == "ImageTooLargeException")
+            {
+                _logger.LogError("❌ [DIAGNÓSTICO] ImageTooLargeException: Imagem excede 15MB. Considere comprimir antes de enviar.");
+            }
+            else if (ex.ErrorCode == "InvalidImageFormatException")
+            {
+                _logger.LogError("❌ [DIAGNÓSTICO] InvalidImageFormatException: Formato de imagem inválido. Use JPEG ou PNG.");
+            }
+            else if (ex.ErrorCode == "AccessDeniedException")
+            {
+                _logger.LogError("❌ [DIAGNÓSTICO] AccessDeniedException: Verifique permissões IAM para Rekognition CompareFaces");
+            }
+            
             return 0f;
         }
         catch (Exception ex)

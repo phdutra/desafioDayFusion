@@ -5,6 +5,7 @@ using Amazon.Runtime;
 using Amazon.Rekognition;
 using Amazon.S3;
 using Amazon.Lambda;
+using Amazon.CloudWatchLogs;
 using Amazon.Extensions.NETCore.Setup;
 using DayFusion.API.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -16,10 +17,26 @@ using System.Text.Json.Serialization;
 var builder = WebApplication.CreateBuilder(args);
 
 // Configure Serilog
+// Nota: No Elastic Beanstalk, os logs são enviados automaticamente para CloudWatch pelo agente do EB
+// Os logs escritos em arquivo e console serão capturados pelo agente e enviados ao CloudWatch
+var logGroupName = builder.Configuration["AWS:CloudWatchLogGroup"] 
+    ?? builder.Configuration["AWS_CLOUDWATCH_LOG_GROUP"]
+    ?? "/aws/elasticbeanstalk/dayfusion-api-env/var/log/web.stdout.log";
+
 Log.Logger = new LoggerConfiguration()
     .WriteTo.Console()
     .WriteTo.File("logs/dayfusion-.txt", rollingInterval: RollingInterval.Day)
     .CreateLogger();
+
+// Log inicial informando sobre CloudWatch
+if (!builder.Environment.IsDevelopment())
+{
+    Log.Information("✅ Logs serão enviados para CloudWatch automaticamente pelo agente do Elastic Beanstalk. LogGroup configurado: {LogGroup}", logGroupName);
+}
+else
+{
+    Log.Information("ℹ️ Modo desenvolvimento: logs locais apenas. Em produção, logs serão enviados ao CloudWatch automaticamente.");
+}
 
 builder.Host.UseSerilog();
 
@@ -111,13 +128,53 @@ builder.Services.AddSingleton<IAmazonS3>(sp =>
     // SDK will automatically use the default credential chain (no explicit factory needed)
     return new AmazonS3Client(config);
 });
-builder.Services.AddAWSService<IAmazonRekognition>();
+// Configure AWS Rekognition with timeout and retry policies
+builder.Services.AddSingleton<IAmazonRekognition>(sp =>
+{
+    var opts = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<AWSOptions>>().Value;
+    var config = new Amazon.Rekognition.AmazonRekognitionConfig
+    {
+        RegionEndpoint = opts.Region,
+        Timeout = TimeSpan.FromSeconds(30), // Timeout de 30 segundos para OCR
+        MaxErrorRetry = 2, // Retry automático até 2 vezes
+        RetryMode = RequestRetryMode.Standard
+    };
+    
+    // Use credentials from AWSOptions if provided, otherwise let SDK use default credential chain
+    if (opts.Credentials != null)
+    {
+        return new Amazon.Rekognition.AmazonRekognitionClient(opts.Credentials, config);
+    }
+    
+    return new Amazon.Rekognition.AmazonRekognitionClient(config);
+});
+
 builder.Services.AddAWSService<IAmazonDynamoDB>();
 builder.Services.AddAWSService<IAmazonLambda>();
+builder.Services.AddAWSService<Amazon.CloudWatchLogs.IAmazonCloudWatchLogs>();
 builder.Services.AddScoped<IDynamoDBContext, DynamoDBContext>();
+
+// Validate AWS Rekognition configuration
+var rekognitionRegion = builder.Configuration["AWS:Region"] ?? builder.Configuration["AWS_REGION"] ?? "us-east-1";
+var rekognitionCollection = builder.Configuration["AWS:RekognitionCollection"] ?? builder.Configuration["AWS_REKOGNITION_COLLECTION"];
+var s3Bucket = builder.Configuration["AWS:S3Bucket"] ?? builder.Configuration["AWS_S3_BUCKET"];
+
+if (string.IsNullOrEmpty(rekognitionCollection))
+{
+    Log.Warning("⚠️ AWS:RekognitionCollection não configurado. Usando valor padrão: dayfusion-collection");
+}
+
+if (string.IsNullOrEmpty(s3Bucket))
+{
+    Log.Warning("⚠️ AWS:S3Bucket não configurado. Verifique as configurações.");
+}
+
+Log.Information("✅ Configuração AWS Rekognition: Region={Region}, Collection={Collection}, S3Bucket={Bucket}", 
+    rekognitionRegion, rekognitionCollection ?? "não configurado", s3Bucket ?? "não configurado");
 
 // Configure application services
 builder.Services.AddScoped<IS3Service, S3Service>();
+builder.Services.AddScoped<ILogsService, LogsService>();
 builder.Services.AddScoped<IRekognitionService, RekognitionService>();
 builder.Services.AddScoped<IDynamoDBService, DynamoDBService>();
 builder.Services.AddScoped<IUserProfileService, UserProfileService>();

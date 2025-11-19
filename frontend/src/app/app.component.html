@@ -70,6 +70,11 @@
             <span class="nav-text">Configurações</span>
           </a>
         </li>
+        <li class="nav-item" *ngIf="isAdmin()">
+          <a routerLink="/logs" routerLinkActive="active" class="nav-link">
+            <span class="nav-text">📋 Logs</span>
+          </a>
+        </li>
         <li class="nav-item">
           <a routerLink="/help" routerLinkActive="active" class="nav-link">
             <span class="nav-text">Ajuda</span>

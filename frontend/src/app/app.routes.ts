@@ -51,6 +51,11 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/help/help.component').then(m => m.HelpComponent)
   },
   {
+    path: 'logs',
+    canActivate: [authGuard],
+    loadComponent: () => import('./pages/logs/logs.component').then(m => m.LogsComponent)
+  },
+  {
     path: 'user-management',
     canActivate: [adminGuard],
     loadComponent: () => import('./pages/user-management/user-management.component').then(m => m.UserManagementComponent)

@@ -312,18 +312,46 @@ export class LivenessModalComponent implements OnDestroy {
       // Preparar resultado e observação
       const isApproved = summary.status === 'Aprovado';
       
-      // Usar IdentityScore se disponível, senão usar livenessScore
-      if (backendAnalysis?.identityScore !== undefined && backendAnalysis.identityScore !== null) {
-        this.resultScore = Math.round(backendAnalysis.identityScore);
+      // Quando aprovado, mostrar apenas um score consolidado
+      if (isApproved) {
+        // Calcular score consolidado: média ponderada ou usar o melhor score disponível
+        let consolidatedScore = 0;
+        
+        if (backendAnalysis?.identityScore !== undefined && backendAnalysis.identityScore !== null) {
+          // Se tem identityScore, usar ele (já é um score consolidado)
+          consolidatedScore = Math.round(backendAnalysis.identityScore * 100);
+        } else {
+          // Calcular média ponderada: 60% liveness + 40% documento
+          const livenessWeight = 0.6;
+          const documentWeight = 0.4;
+          
+          const livenessScore = summary.livenessScore;
+          const documentScore = backendAnalysis?.documentScore 
+            ? Math.round(backendAnalysis.documentScore) 
+            : 100; // Se não tem documento score mas está aprovado, assume 100
+          
+          consolidatedScore = Math.round(
+            (livenessScore * livenessWeight) + (documentScore * documentWeight)
+          );
+        }
+        
+        // Garantir que o score consolidado seja pelo menos 85% quando aprovado
+        this.resultScore = Math.max(consolidatedScore, 85);
+        this.resultDocumentScore = null; // Não mostrar score separado quando aprovado
       } else {
-        this.resultScore = summary.livenessScore;
-      }
-      
-      // Score do documento
-      if (backendAnalysis?.documentScore !== undefined && backendAnalysis.documentScore !== null) {
-        this.resultDocumentScore = Math.round(backendAnalysis.documentScore);
-      } else {
-        this.resultDocumentScore = null;
+        // Quando rejeitado ou em revisão, mostrar scores separados para diagnóstico
+        if (backendAnalysis?.identityScore !== undefined && backendAnalysis.identityScore !== null) {
+          this.resultScore = Math.round(backendAnalysis.identityScore * 100);
+        } else {
+          this.resultScore = summary.livenessScore;
+        }
+        
+        // Score do documento (apenas quando não aprovado)
+        if (backendAnalysis?.documentScore !== undefined && backendAnalysis.documentScore !== null) {
+          this.resultDocumentScore = Math.round(backendAnalysis.documentScore);
+        } else {
+          this.resultDocumentScore = null;
+        }
       }
       
       // Construir observação baseada no resultado

@@ -1,0 +1,136 @@
+<div class="logs-container fade-in-up">
+  <div class="logs-header">
+    <h2 class="gradient-text page-title">📋 Logs do Sistema</h2>
+    <p class="page-subtitle">Visualize e monitore os logs do backend em tempo real</p>
+  </div>
+
+  <!-- Filtros -->
+  <div class="logs-filters card">
+    <div class="filters-grid">
+      <div class="filter-group">
+        <label>Data Inicial</label>
+        <input 
+          type="datetime-local" 
+          [(ngModel)]="startDate" 
+          (change)="onDateChange()"
+          class="form-control">
+      </div>
+      
+      <div class="filter-group">
+        <label>Data Final</label>
+        <input 
+          type="datetime-local" 
+          [(ngModel)]="endDate" 
+          (change)="onDateChange()"
+          class="form-control">
+      </div>
+      
+      <div class="filter-group">
+        <label>Filtro de Texto</label>
+        <input 
+          type="text" 
+          [(ngModel)]="filterPattern" 
+          (input)="onFilterChange()"
+          placeholder="Ex: DIAGNÓSTICO, ERROR, etc..."
+          class="form-control">
+      </div>
+      
+      <div class="filter-group">
+        <label>Limite</label>
+        <select [(ngModel)]="limit" (change)="loadLogs()" class="form-control">
+          <option [value]="50">50</option>
+          <option [value]="100">100</option>
+          <option [value]="200">200</option>
+          <option [value]="500">500</option>
+        </select>
+      </div>
+    </div>
+    
+    <div class="filters-actions">
+      <button class="btn btn-primary" (click)="refresh()" [disabled]="loading">
+        <span>🔄</span> Atualizar
+      </button>
+      <button 
+        class="btn" 
+        [class.btn-success]="autoRefresh" 
+        [class.btn-secondary]="!autoRefresh"
+        (click)="toggleAutoRefresh()">
+        <span>{{ autoRefresh ? '⏸️' : '▶️' }}</span>
+        {{ autoRefresh ? 'Pausar Auto-refresh' : 'Iniciar Auto-refresh' }}
+      </button>
+      <button class="btn btn-secondary" (click)="clearFilters()">
+        <span>🗑️</span> Limpar Filtros
+      </button>
+    </div>
+  </div>
+
+  <!-- Status -->
+  <div class="logs-status" *ngIf="loading || error">
+    <div class="alert alert-info" *ngIf="loading">
+      <span>⏳</span> Carregando logs...
+    </div>
+    <div class="alert alert-error" *ngIf="error">
+      <span>❌</span> {{ error }}
+    </div>
+  </div>
+
+  <!-- Estatísticas -->
+  <div class="logs-stats card" *ngIf="!loading && filteredLogs.length > 0">
+    <div class="stat-item">
+      <span class="stat-label">Total de Logs</span>
+      <span class="stat-value">{{ filteredLogs.length }}</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-label">Página</span>
+      <span class="stat-value">{{ currentPage }} / {{ totalPages }}</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-label">Exibindo</span>
+      <span class="stat-value">{{ paginatedLogs.length }} logs</span>
+    </div>
+  </div>
+
+  <!-- Lista de Logs -->
+  <div class="logs-list card" *ngIf="!loading">
+    <div *ngIf="filteredLogs.length === 0" class="empty-state">
+      <p>📭 Nenhum log encontrado para os filtros selecionados</p>
+    </div>
+    
+    <div class="log-entry" 
+         *ngFor="let log of paginatedLogs" 
+         [class]="'log-' + getLogLevel(log.message)">
+      <div class="log-header">
+        <span class="log-timestamp">{{ formatTimestamp(log.timestamp) }}</span>
+        <button 
+          class="btn-icon" 
+          (click)="copyToClipboard(log.message)"
+          title="Copiar log">
+          📋
+        </button>
+      </div>
+      <div class="log-message">{{ log.message }}</div>
+      <div class="log-stream" *ngIf="log.logStreamName">
+        <small>Stream: {{ log.logStreamName }}</small>
+      </div>
+    </div>
+  </div>
+
+  <!-- Paginação -->
+  <div class="logs-pagination" *ngIf="!loading && totalPages > 1">
+    <button 
+      class="btn btn-secondary" 
+      (click)="goToPage(currentPage - 1)"
+      [disabled]="currentPage === 1">
+      ← Anterior
+    </button>
+    <span class="pagination-info">
+      Página {{ currentPage }} de {{ totalPages }}
+    </span>
+    <button 
+      class="btn btn-secondary" 
+      (click)="goToPage(currentPage + 1)"
+      [disabled]="currentPage === totalPages">
+      Próxima →
+    </button>
+  </div>
+</div>
