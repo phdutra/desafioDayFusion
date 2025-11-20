@@ -1,0 +1,926 @@
+<div class="presentation-container" #presentationContainer>
+  <!-- Menu de Navegação -->
+  <nav class="presentation-menu">
+    <div class="menu-content">
+      <div class="menu-logo">
+        <img src="assets/images/logo_dayfusion.png" alt="DayFusion Logo" />
+        <span>DayFusion</span>
+      </div>
+      <div class="menu-nav">
+        <button 
+          class="nav-btn" 
+          (click)="previousSlide()" 
+          [disabled]="currentSlide === 1"
+          aria-label="Slide anterior">
+          <i class="fas fa-chevron-left"></i>
+        </button>
+        <div class="slide-indicator">
+          <span class="current-slide">{{ currentSlide }}</span>
+          <span class="separator">/</span>
+          <span class="total-slides">{{ totalSlides }}</span>
+        </div>
+        <button 
+          class="nav-btn" 
+          (click)="nextSlide()" 
+          [disabled]="currentSlide === totalSlides"
+          aria-label="Próximo slide">
+          <i class="fas fa-chevron-right"></i>
+        </button>
+      </div>
+      <div class="menu-actions">
+        <button class="action-btn" (click)="exitPresentation()" aria-label="Sair da apresentação">
+          <i class="fas fa-home"></i>
+          <span>Sair</span>
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Conteúdo dos Slides -->
+  <div class="slides-wrapper">
+    <!-- Slide 1 -->
+    <div class="slide-container slide-1-hero" *ngIf="currentSlide === 1">
+      <!-- Hero Image as Background -->
+      <div class="hero-background-image">
+        <img 
+          alt="Autenticação Facial Biométrica" 
+          src="assets/images/imagem-dayfusion_2.jpeg"/>
+      </div>
+      
+      <!-- Overlay for text readability -->
+      <div class="hero-overlay"></div>
+
+      <!-- Content Container -->
+      <div class="slide-content slide-content-hero">
+        <!-- Hero Image Section -->
+        <div class="hero-container">
+          <div class="hero-image-wrapper">
+          </div>
+        </div>
+
+        <!-- Title Section -->
+        <div class="title-section">
+          <h1 class="main-title">
+            <span class="title-day">Day</span><span class="neon-text-cyan">Fusion</span>
+          </h1>
+          <div class="features-list">
+            <p class="feature-item">Autenticação Facial</p>
+            <span class="bullet-separator">•</span>
+            <p class="feature-item">Liveness 3D</p>
+            <span class="bullet-separator">•</span>
+            <p class="feature-item">Comparação com Documento</p>
+            <span class="bullet-separator">•</span>
+            <p class="feature-item">Auditoria Corporativa</p>
+          </div>
+          <div class="progress-bar">
+            <div class="progress-fill neon-text-green"></div>
+          </div>
+          <div class="neon-border tagline-box">
+            <p class="tagline-text">
+              <span class="neon-text-green tagline-icon"><i class="fas fa-shield-alt"></i></span>
+              Uma solução completa de verificação de identidade nível bancário
+            </p>
+          </div>
+        </div>
+
+        <!-- Bottom Tech Elements -->
+        <div class="bottom-info">
+          <div class="info-item">
+            <span class="info-icon"><i class="fas fa-lock"></i></span>
+            <p>LGPD + ISO 27001 Ready</p>
+          </div>
+          <div class="info-item">
+            <p>Powered by</p>
+            <span class="aws-icon"><i class="fab fa-aws"></i> AWS</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Slide 2 -->
+    <div class="slide-container slide-2" *ngIf="currentSlide === 2">
+      <!-- Background Image Overlay -->
+      <div class="bg-image-overlay"></div>
+      <!-- Grid Overlay -->
+      <div class="grid-overlay"></div>
+
+      <!-- Main Content -->
+      <div class="slide-content-2">
+        <!-- Title Section -->
+        <div class="title-section-2">
+          <h1 class="title-font-2">
+            <span class="title-o">O</span>
+            <span class="neon-text-cyan">Problema</span>
+            <span class="title-icon"><i class="fas fa-shield-alt"></i></span>
+          </h1>
+          <div class="neon-line"></div>
+        </div>
+
+        <!-- Problem Blocks - 2x2 Grid -->
+        <div class="problems-grid">
+          <!-- Problem Block 1 -->
+          <div class="problem-card">
+            <div class="problem-card-content">
+              <div class="icon-container">
+                <i class="fas fa-user-ninja neon-text-cyan"></i>
+              </div>
+              <div class="problem-text">
+                <h3 class="problem-title">Fraudes Digitais em Ascensão</h3>
+                <p class="problem-description">
+                  Crescente sofisticação de ataques usando fotos, vídeos e 
+                  <span class="neon-text-green">deepfakes</span> para burlar sistemas tradicionais.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Problem Block 2 -->
+          <div class="problem-card">
+            <div class="problem-card-content">
+              <div class="icon-container">
+                <i class="fas fa-lock-open neon-text-cyan"></i>
+              </div>
+              <div class="problem-text">
+                <h3 class="problem-title">Validação Remota Vulnerável</h3>
+                <p class="problem-description">
+                  Sistemas atuais são lentos, caros e apresentam alta taxa de falsos positivos durante verificações remotas.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Problem Block 3 -->
+          <div class="problem-card">
+            <div class="problem-card-content">
+              <div class="icon-container">
+                <i class="fas fa-balance-scale neon-text-cyan"></i>
+              </div>
+              <div class="problem-text">
+                <h3 class="problem-title">Compliance Bancário Rigoroso</h3>
+                <p class="problem-description">
+                  Bancos exigem precisão máxima, tempo de resposta ágil e 
+                  <span class="neon-text-green">total conformidade</span> com LGPD e regulações.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Problem Block 4 -->
+          <div class="problem-card">
+            <div class="problem-card-content">
+              <div class="icon-container">
+                <i class="fas fa-chart-line neon-text-cyan"></i>
+              </div>
+              <div class="problem-text">
+                <h3 class="problem-title">Soluções Atuais Limitadas</h3>
+                <p class="problem-description">
+                  Ferramentas existentes não conseguem escalar, têm custo alto ou falham em ambientes adversos.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Impact Section -->
+        <div class="impact-box">
+          <h3 class="impact-title">Impactos Diretos:</h3>
+          <div class="impacts-grid">
+            <div class="impact-item">
+              <span class="neon-bullet"><i class="fas fa-caret-right"></i></span>
+              <p>Chargebacks e perdas financeiras</p>
+            </div>
+            <div class="impact-item">
+              <span class="neon-bullet"><i class="fas fa-caret-right"></i></span>
+              <p>Abertura de contas fraudulentas</p>
+            </div>
+            <div class="impact-item">
+              <span class="neon-bullet"><i class="fas fa-caret-right"></i></span>
+              <p>Risco reputacional elevado</p>
+            </div>
+            <div class="impact-item">
+              <span class="neon-bullet"><i class="fas fa-caret-right"></i></span>
+              <p>Ineficiência operacional</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bottom Tech Element -->
+        <div class="bottom-tech-2">
+          <p class="tech-text">
+            <i class="fas fa-shield-alt"></i> DayFusion foi criado exatamente para resolver isso.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Slide 3 -->
+    <div class="slide-container slide-3" *ngIf="currentSlide === 3">
+      <!-- Grid Overlay -->
+      <div class="grid-overlay-3"></div>
+      
+      <!-- Circuit Background Element -->
+      <svg class="circuit-lines" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <path d="M10,30 L50,30 L50,10 L70,10 L70,50 L90,50" fill="none" stroke="#00D9FF" stroke-width="1"></path>
+        <path d="M10,50 L30,50 L30,70 L60,70 L60,40" fill="none" stroke="#00FF88" stroke-width="1"></path>
+        <path d="M50,90 L50,60 L20,60 L20,40" fill="none" stroke="#B829FF" stroke-width="1"></path>
+        <circle cx="30" cy="50" fill="#00D9FF" r="2"></circle>
+        <circle cx="50" cy="30" fill="#00FF88" r="2"></circle>
+        <circle cx="70" cy="50" fill="#B829FF" r="2"></circle>
+        <circle cx="50" cy="60" fill="#FF6B00" r="2"></circle>
+      </svg>
+
+      <!-- Main Content -->
+      <div class="slide-content-3">
+        <!-- Title Section -->
+        <div class="title-section-3">
+          <h1 class="title-font-3">
+            <span class="title-solucao">A Solução</span>
+            <span class="neon-text-cyan">DayFusion</span>
+            <span class="title-icon-3"><i class="fas fa-fingerprint"></i></span>
+          </h1>
+          <div class="neon-line-3"></div>
+        </div>
+
+        <!-- Solution Grid - 2x2 -->
+        <div class="solutions-grid">
+          <!-- Solution 1 - Face Liveness 3D -->
+          <div class="solution-card card-cyan">
+            <div class="solution-header">
+              <div class="icon-container icon-cyan">
+                <i class="fas fa-id-badge neon-text-cyan"></i>
+              </div>
+              <h3 class="solution-title neon-text-cyan">Face Liveness 3D</h3>
+            </div>
+            <div class="solution-body">
+              <p class="solution-description">Detecção avançada de presença real com verificação tridimensional.</p>
+              <ul class="solution-list">
+                <li class="solution-item">
+                  <span class="bullet-icon"><i class="fas fa-caret-right neon-text-cyan"></i></span>
+                  <p>Análise de profundidade e perspectiva facial</p>
+                </li>
+                <li class="solution-item">
+                  <span class="bullet-icon"><i class="fas fa-caret-right neon-text-cyan"></i></span>
+                  <p>Detecção de micro-movimentos naturais</p>
+                </li>
+                <li class="solution-item">
+                  <span class="bullet-icon"><i class="fas fa-caret-right neon-text-cyan"></i></span>
+                  <p>Anti-spoofing contra fotos, vídeos e máscaras</p>
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <!-- Solution 2 - Match Face + Documento -->
+          <div class="solution-card card-green">
+            <div class="solution-header">
+              <div class="icon-container icon-green">
+                <i class="fas fa-id-card neon-text-green"></i>
+              </div>
+              <h3 class="solution-title neon-text-green">Match Face + Documento</h3>
+            </div>
+            <div class="solution-body">
+              <p class="solution-description">Comparação automática entre o rosto capturado e a foto do documento.</p>
+              <ul class="solution-list">
+                <li class="solution-item">
+                  <span class="bullet-icon"><i class="fas fa-caret-right neon-text-green"></i></span>
+                  <p>Extração precisa da foto do RG/CNH</p>
+                </li>
+                <li class="solution-item">
+                  <span class="bullet-icon"><i class="fas fa-caret-right neon-text-green"></i></span>
+                  <p>Algoritmo de comparação Rekognition AWS</p>
+                </li>
+                <li class="solution-item">
+                  <span class="bullet-icon"><i class="fas fa-caret-right neon-text-green"></i></span>
+                  <p>MatchScore com limiar configurável</p>
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <!-- Solution 3 - Auditoria Completa -->
+          <div class="solution-card card-purple">
+            <div class="solution-header">
+              <div class="icon-container icon-purple">
+                <i class="fas fa-clipboard-check neon-text-purple"></i>
+              </div>
+              <h3 class="solution-title neon-text-purple">Auditoria Completa</h3>
+            </div>
+            <div class="solution-body">
+              <p class="solution-description">Rastreabilidade total para compliance e segurança corporativa.</p>
+              <ul class="solution-list">
+                <li class="solution-item">
+                  <span class="bullet-icon"><i class="fas fa-caret-right neon-text-purple"></i></span>
+                  <p>SessionId único para cada verificação</p>
+                </li>
+                <li class="solution-item">
+                  <span class="bullet-icon"><i class="fas fa-caret-right neon-text-purple"></i></span>
+                  <p>ConfidenceScore, MatchScore, FraudScore</p>
+                </li>
+                <li class="solution-item">
+                  <span class="bullet-icon"><i class="fas fa-caret-right neon-text-purple"></i></span>
+                  <p>Device Info e histórico de tentativas</p>
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <!-- Solution 4 - Arquitetura AWS -->
+          <div class="solution-card card-orange">
+            <div class="solution-header">
+              <div class="icon-container icon-orange">
+                <i class="fas fa-cloud neon-text-orange"></i>
+              </div>
+              <h3 class="solution-title neon-text-orange">Arquitetura 100% AWS</h3>
+            </div>
+            <div class="solution-body">
+              <p class="solution-description">Infraestrutura robusta baseada em serviços AWS de alto desempenho.</p>
+              <ul class="solution-list">
+                <li class="solution-item">
+                  <span class="bullet-icon"><i class="fas fa-caret-right neon-text-orange"></i></span>
+                  <p>Escalabilidade automática e global</p>
+                </li>
+                <li class="solution-item">
+                  <span class="bullet-icon"><i class="fas fa-caret-right neon-text-orange"></i></span>
+                  <p>Alta disponibilidade e baixa latência</p>
+                </li>
+                <li class="solution-item">
+                  <span class="bullet-icon"><i class="fas fa-caret-right neon-text-orange"></i></span>
+                  <p>Segurança certificada para uso bancário</p>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bottom Tech Element -->
+        <div class="bottom-tech-3">
+          <p class="tech-text-3">
+            <i class="fas fa-shield-alt"></i> Solução completa de verificação de identidade nível bancário
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Slide 4 -->
+    <div class="slide-container slide-4" *ngIf="currentSlide === 4">
+      <!-- Grid Overlay -->
+      <div class="grid-overlay-4"></div>
+
+      <!-- Main Content -->
+      <div class="slide-content-4">
+        <!-- Title Section -->
+        <div class="title-section-4">
+          <h1 class="title-font-4">
+            <span class="title-arquitetura">Arquitetura</span>
+            <span class="neon-text-cyan">AWS</span>
+            <span class="title-visao">— Visão Técnica</span>
+            <span class="title-icon-4"><i class="fab fa-aws"></i></span>
+          </h1>
+          <div class="neon-line-4"></div>
+        </div>
+
+        <!-- Canvas Container -->
+        <div class="canvas-container-4">
+          <canvas #architectureCanvas id="architectureDiagram" width="1200" height="600"></canvas>
+        </div>
+
+        <!-- Legend -->
+        <div class="legend-container">
+          <div class="legend-items">
+            <div class="legend-item">
+              <div class="legend-color legend-cyan"></div>
+              <p>Frontend/Cliente</p>
+            </div>
+            <div class="legend-item">
+              <div class="legend-color legend-purple"></div>
+              <p>Autenticação</p>
+            </div>
+            <div class="legend-item">
+              <div class="legend-color legend-green"></div>
+              <p>Processamento</p>
+            </div>
+            <div class="legend-item">
+              <div class="legend-color legend-orange"></div>
+              <p>Armazenamento/Logs</p>
+            </div>
+          </div>
+          <p class="legend-info">
+            <i class="fas fa-info-circle"></i> Segurança: KMS, VPC Endpoints, IAM Least Privilege, HTTPS/TLS 1.2+
+          </p>
+        </div>
+
+        <!-- Bottom Tech Element -->
+        <div class="bottom-tech-4">
+          <p class="tech-text-4">
+            <i class="fab fa-aws"></i> Arquitetura 100% AWS — Segura, escalável e pronta para produção
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Slide 5 -->
+    <div class="slide-container slide-5" *ngIf="currentSlide === 5">
+      <!-- Grid Overlay -->
+      <div class="grid-overlay-5"></div>
+
+      <!-- Main Content -->
+      <div class="slide-content-5">
+        <!-- Title Section -->
+        <div class="title-section-5">
+          <h1 class="title-font-5">
+            <span class="title-fluxo">Fluxo</span>
+            <span class="neon-text-cyan">Liveness</span>
+            <span class="title-antifraude">— Anti-fraude 3D</span>
+            <span class="title-icon-5"><i class="fas fa-shield-alt"></i></span>
+          </h1>
+          <div class="neon-line-5"></div>
+        </div>
+
+        <!-- Canvas Container -->
+        <div class="canvas-container-5">
+          <canvas #livenessCanvas id="livenessFlowDiagram" width="1000" height="500"></canvas>
+        </div>
+
+        <!-- Legend -->
+        <div class="legend-container-5">
+          <div class="legend-items-5">
+            <div class="legend-item-5">
+              <div class="legend-color-5 legend-cyan-5"></div>
+              <p>Interação Usuário</p>
+            </div>
+            <div class="legend-item-5">
+              <div class="legend-color-5 legend-purple-5"></div>
+              <p>Captura & Transmissão</p>
+            </div>
+            <div class="legend-item-5">
+              <div class="legend-color-5 legend-green-5"></div>
+              <p>Processamento AWS</p>
+            </div>
+            <div class="legend-item-5">
+              <div class="legend-color-5 legend-orange-5"></div>
+              <p>Resultado & Armazenamento</p>
+            </div>
+          </div>
+          <p class="legend-info-5">
+            <i class="fas fa-info-circle"></i> Todo o fluxo é executado em tempo real com latência média inferior a 2 segundos
+          </p>
+        </div>
+
+        <!-- Bottom Tech Element -->
+        <div class="bottom-tech-5">
+          <p class="tech-text-5">
+            <i class="fas fa-shield-alt"></i> Detecção avançada de deepfakes, fotos e máscaras 3D
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Slide 6 -->
+    <div class="slide-container slide-6" *ngIf="currentSlide === 6">
+      <!-- Grid Overlay -->
+      <div class="grid-overlay-6"></div>
+
+      <!-- Main Content -->
+      <div class="slide-content-6">
+        <!-- Title Section -->
+        <div class="title-section-6">
+          <h1 class="title-font-6">
+            <span class="title-fluxo-match-6">Fluxo</span>
+            <span class="neon-text-cyan">Match Face</span>
+            <span class="title-plus">+</span>
+            <span class="neon-text-green">Documento</span>
+            <span class="title-icon-6"><i class="fas fa-id-card"></i></span>
+          </h1>
+          <div class="neon-line-6"></div>
+        </div>
+
+        <!-- Canvas Container -->
+        <div class="canvas-container-6">
+          <canvas #matchFaceCanvas id="flowDiagram" width="950" height="350"></canvas>
+        </div>
+
+        <!-- Legend -->
+        <div class="legend-container-6">
+          <div class="legend-items-6">
+            <div class="legend-item-6">
+              <div class="legend-color-6 legend-cyan-6"></div>
+              <p>Etapa 1-2: Documento</p>
+            </div>
+            <div class="legend-item-6">
+              <div class="legend-color-6 legend-green-6"></div>
+              <p>Etapa 3: Captura Facial</p>
+            </div>
+            <div class="legend-item-6">
+              <div class="legend-color-6 legend-purple-6"></div>
+              <p>Etapa 4: Processamento</p>
+            </div>
+            <div class="legend-item-6">
+              <div class="legend-color-6 legend-orange-6"></div>
+              <p>Etapa 5: Resultado</p>
+            </div>
+          </div>
+          <p class="legend-info-6">
+            <i class="fas fa-check-circle"></i> Todo o processo é automatizado, seguro e com trilha de auditoria completa
+          </p>
+        </div>
+
+        <!-- Bottom Tech Element -->
+        <div class="bottom-tech-6">
+          <p class="tech-text-6">
+            <i class="fas fa-tachometer-alt"></i> Tempo médio de processamento: &lt; 2 segundos
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Slide 7 -->
+    <div class="slide-container slide-7" *ngIf="currentSlide === 7">
+      <!-- Grid Overlay -->
+      <div class="grid-overlay-7"></div>
+
+      <!-- Main Content -->
+      <div class="slide-content-7">
+        <!-- Title Section -->
+        <div class="title-section-7">
+          <h1 class="title-font-7">
+            <span class="title-servicos">Serviços</span>
+            <span class="neon-text-cyan">AWS</span>
+            <span class="title-resumo">(Resumo)</span>
+            <span class="title-icon-7"><i class="fab fa-aws"></i></span>
+          </h1>
+          <div class="neon-line-7"></div>
+        </div>
+
+        <!-- AWS Services Grid -->
+        <div class="services-grid-7">
+          <!-- Service 1: Rekognition Face Liveness -->
+          <div class="service-card-7 card-processing-7">
+            <div class="service-card-content-7">
+              <div class="icon-container-7 icon-processing-7">
+                <i class="fas fa-camera-retro"></i>
+              </div>
+              <div class="service-text-7">
+                <h3 class="service-title-7 neon-text-cyan">Rekognition Face Liveness</h3>
+                <p class="service-description-7">Validação facial 3D em tempo real com detecção de profundidade e anti-spoofing para comprovar presença real.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Service 2: Rekognition CompareFaces -->
+          <div class="service-card-7 card-processing-7">
+            <div class="service-card-content-7">
+              <div class="icon-container-7 icon-processing-7">
+                <i class="fas fa-id-card"></i>
+              </div>
+              <div class="service-text-7">
+                <h3 class="service-title-7 neon-text-cyan">Rekognition CompareFaces</h3>
+                <p class="service-description-7">Comparação precisa entre o rosto capturado e a foto do documento, com score de similaridade detalhado.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Service 3: Kinesis Video WebRTC -->
+          <div class="service-card-7 card-networking-7">
+            <div class="service-card-content-7">
+              <div class="icon-container-7 icon-networking-7">
+                <i class="fas fa-video"></i>
+              </div>
+              <div class="service-text-7">
+                <h3 class="service-title-7 neon-text-purple">Kinesis Video WebRTC</h3>
+                <p class="service-description-7">Canal de vídeo em tempo real para transmissão segura e eficiente dos dados faciais para validação.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Service 4: S3 -->
+          <div class="service-card-7 card-storage-7">
+            <div class="service-card-content-7">
+              <div class="icon-container-7 icon-storage-7">
+                <i class="fas fa-database"></i>
+              </div>
+              <div class="service-text-7">
+                <h3 class="service-title-7 neon-text-green">S3</h3>
+                <p class="service-description-7">Armazenamento seguro e versionado para artefatos, documentos e evidências de verificação biométrica.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Service 5: DynamoDB -->
+          <div class="service-card-7 card-storage-7">
+            <div class="service-card-content-7">
+              <div class="icon-container-7 icon-storage-7">
+                <i class="fas fa-table"></i>
+              </div>
+              <div class="service-text-7">
+                <h3 class="service-title-7 neon-text-green">DynamoDB</h3>
+                <p class="service-description-7">Banco de dados serverless para trilha completa de auditoria, sessões e scores de confiança.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Service 6: Cognito -->
+          <div class="service-card-7 card-networking-7">
+            <div class="service-card-content-7">
+              <div class="icon-container-7 icon-networking-7">
+                <i class="fas fa-lock"></i>
+              </div>
+              <div class="service-text-7">
+                <h3 class="service-title-7 neon-text-purple">Cognito</h3>
+                <p class="service-description-7">Autenticação segura e geração de credenciais temporárias para acesso controlado aos serviços.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Service 7: CloudFront/Route 53 -->
+          <div class="service-card-7 card-networking-7">
+            <div class="service-card-content-7">
+              <div class="icon-container-7 icon-networking-7">
+                <i class="fas fa-globe"></i>
+              </div>
+              <div class="service-text-7">
+                <h3 class="service-title-7 neon-text-purple">CloudFront/Route 53</h3>
+                <p class="service-description-7">Distribuição global CDN e DNS para garantir baixa latência e alta disponibilidade do serviço.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Legend -->
+        <div class="legend-7">
+          <div class="legend-item-7">
+            <div class="legend-dot-7 legend-cyan-7"></div>
+            <p>Processamento</p>
+          </div>
+          <div class="legend-item-7">
+            <div class="legend-dot-7 legend-green-7"></div>
+            <p>Armazenamento</p>
+          </div>
+          <div class="legend-item-7">
+            <div class="legend-dot-7 legend-purple-7"></div>
+            <p>Networking</p>
+          </div>
+        </div>
+
+        <!-- AWS Logo -->
+        <div class="aws-logo-7">
+          <i class="fab fa-aws"></i>
+        </div>
+      </div>
+    </div>
+
+    <!-- Slide 8 -->
+    <div class="slide-container slide-8" *ngIf="currentSlide === 8">
+      <!-- Grid Overlay -->
+      <div class="grid-overlay-8"></div>
+
+      <!-- Main Content -->
+      <div class="slide-content-8">
+        <!-- Title Section -->
+        <div class="title-section-8">
+          <h1 class="title-font-8">
+            <span class="title-seguranca">Segurança e</span>
+            <span class="neon-text-cyan">Compliance</span>
+            <span class="title-icon-8"><i class="fas fa-shield-alt"></i></span>
+          </h1>
+          <div class="neon-line-8"></div>
+        </div>
+
+        <!-- Security Blocks - 3 Vertical -->
+        <div class="security-blocks-8">
+          <!-- Block 1: Criptografia Total -->
+          <div class="security-card-8 neon-border-cyan-8">
+            <div class="security-card-content-8">
+              <div class="icon-container-8 icon-cyan-8">
+                <i class="fas fa-lock neon-text-cyan"></i>
+              </div>
+              <div class="security-text-8">
+                <h3 class="security-title-8 neon-text-cyan">Criptografia Total</h3>
+                <ul class="feature-list-8">
+                  <li class="cyan-bullet-8"><p>HTTPS/TLS 1.2+ em todas as comunicações</p></li>
+                  <li class="cyan-bullet-8"><p>KMS para gestão de chaves criptográficas</p></li>
+                  <li class="cyan-bullet-8"><p>SSE-S3 para armazenamento criptografado</p></li>
+                  <li class="cyan-bullet-8"><p>Políticas IAM restritivas com privilégios mínimos</p></li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <!-- Block 2: Auditoria Completa -->
+          <div class="security-card-8 neon-border-green-8">
+            <div class="security-card-content-8">
+              <div class="icon-container-8 icon-green-8">
+                <i class="fas fa-clipboard-list neon-text-green"></i>
+              </div>
+              <div class="security-text-8">
+                <h3 class="security-title-8 neon-text-green">Auditoria Completa</h3>
+                <ul class="feature-list-8">
+                  <li class="green-bullet-8"><p>Logs detalhados em CloudWatch para todas operações</p></li>
+                  <li class="green-bullet-8"><p>Métricas de performance e segurança em tempo real</p></li>
+                  <li class="green-bullet-8"><p>Rastreabilidade total por SessionId e usuário</p></li>
+                  <li class="green-bullet-8"><p>Alertas automáticos para atividades suspeitas</p></li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <!-- Block 3: LGPD + ISO 27001 Ready -->
+          <div class="security-card-8 neon-border-purple-8">
+            <div class="security-card-content-8">
+              <div class="icon-container-8 icon-purple-8">
+                <i class="fas fa-certificate neon-text-purple"></i>
+              </div>
+              <div class="security-text-8">
+                <h3 class="security-title-8 neon-text-purple">LGPD + ISO 27001 Ready</h3>
+                <ul class="feature-list-8">
+                  <li class="purple-bullet-8"><p>Princípio de minimização de dados pessoais</p></li>
+                  <li class="purple-bullet-8"><p>Política de retenção configurável para cada cliente</p></li>
+                  <li class="purple-bullet-8"><p>Segregação de ambientes (dev/homolog/prod)</p></li>
+                  <li class="purple-bullet-8"><p>Processos alinhados a normas de segurança bancárias</p></li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bottom Tech Element -->
+        <div class="bottom-tech-8">
+          <p class="tech-text-8">
+            <i class="fas fa-shield-alt"></i> Arquitetura projetada com segurança desde o início
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Slide 9 -->
+    <div class="slide-container slide-9" *ngIf="currentSlide === 9">
+      <!-- Background Image Overlay -->
+      <div class="bg-image-overlay-9"></div>
+      <!-- Grid Overlay -->
+      <div class="grid-overlay-9"></div>
+
+      <!-- Main Content -->
+      <div class="slide-content-9">
+        <!-- Title Section -->
+        <div class="title-section-9">
+          <h1 class="title-font-9">
+            <span class="title-beneficios">Benefícios para</span>
+            <span class="neon-text-cyan">Bancos</span>
+            <span class="title-icon-9"><i class="fas fa-university"></i></span>
+          </h1>
+          <div class="neon-line-9"></div>
+        </div>
+
+        <!-- Benefits List -->
+        <div class="benefits-list-9">
+          <!-- Benefit 1 -->
+          <div class="benefit-card-9">
+            <div class="benefit-card-content-9">
+              <div class="check-container-9">
+                <i class="fas fa-check neon-text-green"></i>
+              </div>
+              <div class="benefit-text-9">
+                <h3 class="benefit-title-9">Redução drástica de fraude digital</h3>
+                <p class="benefit-description-9">Eliminação de até 99,8% das tentativas de fraude com identidade, minimizando perdas financeiras e operacionais.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Benefit 2 -->
+          <div class="benefit-card-9">
+            <div class="benefit-card-content-9">
+              <div class="check-container-9">
+                <i class="fas fa-check neon-text-green"></i>
+              </div>
+              <div class="benefit-text-9">
+                <h3 class="benefit-title-9">Onboarding ágil e seguro</h3>
+                <p class="benefit-description-9">Processo KYC remoto completo em menos de 40 segundos, com validação em tempo real e segurança nível bancário.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Benefit 3 -->
+          <div class="benefit-card-9">
+            <div class="benefit-card-content-9">
+              <div class="check-container-9">
+                <i class="fas fa-check neon-text-green"></i>
+              </div>
+              <div class="benefit-text-9">
+                <h3 class="benefit-title-9">Experiência fluida para o cliente</h3>
+                <p class="benefit-description-9">Interface intuitiva com orientação por voz, captura automática e feedback instantâneo, reduzindo o abandono em 70%.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Benefit 4 -->
+          <div class="benefit-card-9">
+            <div class="benefit-card-content-9">
+              <div class="check-container-9">
+                <i class="fas fa-check neon-text-green"></i>
+              </div>
+              <div class="benefit-text-9">
+                <h3 class="benefit-title-9">Integração rápida via APIs</h3>
+                <p class="benefit-description-9">SDKs prontos para web e mobile, documentação completa, suporte à integração e implementação em até 2 semanas.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Benefit 5 -->
+          <div class="benefit-card-9">
+            <div class="benefit-card-content-9">
+              <div class="check-container-9">
+                <i class="fas fa-check neon-text-green"></i>
+              </div>
+              <div class="benefit-text-9">
+                <h3 class="benefit-title-9">Rastreabilidade ponta a ponta</h3>
+                <p class="benefit-description-9">Auditoria corporativa completa com histórico detalhado, scores de confiança e registro de sessões para compliance.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bottom Tech Element -->
+        <div class="bottom-tech-9">
+          <p class="tech-text-9">
+            <i class="fas fa-shield-alt"></i> Tecnologia pronta para integração em produtos bancários.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Slide 10 -->
+    <div class="slide-container slide-10" *ngIf="currentSlide === 10">
+      <!-- Grid Overlay -->
+      <div class="grid-overlay-10"></div>
+
+      <!-- Main Content -->
+      <div class="slide-content-10">
+        <!-- Title Section -->
+        <div class="title-section-10">
+          <h1 class="title-font-10">
+            <span class="neon-text-cyan">Demonstração</span>
+            <span class="title-icon-10"><i class="fas fa-play-circle"></i></span>
+          </h1>
+          <div class="neon-line-10"></div>
+        </div>
+
+        <!-- Main Demo Content -->
+        <div class="demo-main-content-10">
+          <div class="demo-header-10">
+            <div class="circle-pulse-10"></div>
+            <p class="demo-text-10">Veja o DayFusion em ação</p>
+          </div>
+          
+          <a class="neon-button-10" href="#">
+            <span class="neon-text-cyan"><i class="fas fa-play"></i> Ver Demo</span>
+          </a>
+          
+          <p class="demo-description-10">
+            <span class="neon-text-green">Acesse nossa plataforma</span> para experimentar o fluxo completo de verificação facial e comparação com documento.
+          </p>
+          
+          <p class="demo-subtext-10">
+            Ou escaneie o QR code abaixo para acessar diretamente de seu dispositivo móvel
+          </p>
+        </div>
+
+        <!-- Bottom Section - Two Columns -->
+        <div class="demo-bottom-section-10">
+          <!-- QR Code Section -->
+          <div class="qr-section-10">
+            <h3 class="qr-title-10 neon-text-cyan">Acesso Rápido</h3>
+            <div class="qr-placeholder-10">
+              <i class="fas fa-qrcode"></i>
+            </div>
+            <p class="qr-url-10">
+              <span class="text-white">dayfusion.example/demo</span>
+            </p>
+          </div>
+
+          <!-- Production Tools Section -->
+          <div class="demo-card-10">
+            <h3 class="tools-title-10">Sugestões de Produção</h3>
+            <p class="tools-description-10">Ferramentas recomendadas para criar vídeos demo:</p>
+            <div class="tools-badges-10">
+              <span class="tool-badge-10"><i class="fas fa-video"></i> InVideo</span>
+              <span class="tool-badge-10"><i class="fas fa-magic"></i> Runway</span>
+              <span class="tool-badge-10"><i class="fas fa-robot"></i> Pika Labs</span>
+              <span class="tool-badge-10"><i class="fas fa-cut"></i> Clipchamp</span>
+            </div>
+            <p class="tools-info-10">
+              <i class="fas fa-info-circle"></i> Nossa equipe pode auxiliar na produção de vídeos personalizados
+            </p>
+          </div>
+        </div>
+
+        <!-- Bottom Tech Element -->
+        <div class="bottom-tech-10">
+          <p class="tech-text-10">
+            <i class="fas fa-shield-alt"></i> DayFusion • Autenticação Facial Biométrica
+          </p>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+

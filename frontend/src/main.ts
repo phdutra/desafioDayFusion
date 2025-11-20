@@ -4,7 +4,7 @@ declare const process: { env: { NODE_ENV: string } } | undefined;
 if (typeof process === 'undefined' || !process) {
   const processPolyfill = {
     env: {
-      NODE_ENV: 'development'
+      NODE_ENV: 'production'
     }
   };
   // Definir tanto no window quanto globalmente

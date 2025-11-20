@@ -71,6 +71,11 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/verifications/verification-detail.component').then(m => m.VerificationDetailComponent)
   },
   {
+    path: 'apresentacao',
+    canActivate: [authGuard],
+    loadComponent: () => import('./pages/presentation/presentation.component').then(m => m.PresentationComponent)
+  },
+  {
     path: '**',
     redirectTo: '/login'
   }
