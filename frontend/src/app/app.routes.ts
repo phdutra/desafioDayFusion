@@ -76,6 +76,11 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/presentation/presentation.component').then(m => m.PresentationComponent)
   },
   {
+    path: 'aws-widget',
+    canActivate: [authGuard],
+    loadComponent: () => import('./pages/aws-widget/aws-widget.component').then(m => m.AwsWidgetComponent)
+  },
+  {
     path: '**',
     redirectTo: '/login'
   }

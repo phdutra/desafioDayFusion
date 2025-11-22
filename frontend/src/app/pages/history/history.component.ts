@@ -274,11 +274,51 @@ export class HistoryComponent {
     return null;
   }
 
+  /**
+   * Determina se o documento é válido baseado no documentScore, não apenas no status geral da sessão.
+   * Documento é considerado válido se:
+   * - documentScore >= 30 (threshold mínimo do backend)
+   * - OU se não houver documentScore mas status for "Aprovado" e houver documentKey
+   */
+  isDocumentValid(entry: LivenessHistoryEntry): boolean {
+    const documentScore = this.getDocumentScore(entry);
+    
+    // Se temos um score, usar threshold do backend (>= 30)
+    if (documentScore !== null) {
+      return documentScore >= 30;
+    }
+    
+    // Fallback: se não há score mas status é "Aprovado" e há documentKey, considerar válido
+    if (entry.summary.status === 'Aprovado' && entry.summary.documentKey) {
+      return true;
+    }
+    
+    // Se não há documentKey, documento não foi enviado
+    if (!entry.summary.documentKey) {
+      return false;
+    }
+    
+    // Se há documentKey mas não há score e status não é "Aprovado", verificar observação
+    // Se observação contém "Documento visualmente autêntico", considerar válido
+    const observacao = this.getObservacao(entry);
+    if (observacao && observacao.includes('Documento visualmente autêntico')) {
+      return true;
+    }
+    
+    // Por padrão, se não há informações suficientes, considerar inválido
+    return false;
+  }
+
   getObservacao(entry: LivenessHistoryEntry): string | null {
     let observacao: string | null = null;
     
-    // Prioridade: backendAnalysis.observacao > backendAnalysis.message > metadata.observacao
-    if (entry.summary.backendAnalysis?.observacao) {
+    // Prioridade: metadata.observacao (do frontend) > backendAnalysis.observacao > backendAnalysis.message > metadata.observacao (legado)
+    // A observação do frontend tem prioridade porque já inclui informações de AWS Liveness
+    if (entry.summary.metadata?.['observacao']) {
+      observacao = entry.summary.metadata['observacao'];
+    } else if (entry.metadata?.['observacao']) {
+      observacao = entry.metadata['observacao'];
+    } else if (entry.summary.backendAnalysis?.observacao) {
       observacao = entry.summary.backendAnalysis.observacao;
     } else if (entry.summary.backendAnalysis?.message) {
       // Se message começa com "Documento rejeitado:", usar diretamente
@@ -289,10 +329,21 @@ export class HistoryComponent {
       } else {
         observacao = entry.summary.backendAnalysis.message;
       }
-    } else if (entry.summary.metadata?.['observacao']) {
-      observacao = entry.summary.metadata['observacao'];
-    } else if (entry.metadata?.['observacao']) {
-      observacao = entry.metadata['observacao'];
+    }
+    
+    // Se ainda não tem observação mas foi rejeitado, tentar construir uma baseada nos metadados
+    if (!observacao && entry.summary.status === 'Rejeitado') {
+      const awsDetectedFake = entry.summary.metadata?.['awsDetectedFake'] === 'true';
+      const awsDecision = entry.summary.metadata?.['awsDecision'];
+      const mergeReason = entry.summary.metadata?.['mergeReason'];
+      
+      if (awsDetectedFake) {
+        observacao = `🚨 Fraude detectada pelo AWS Liveness: ${mergeReason || 'Possível spoofing detectado'}`;
+      } else if (mergeReason) {
+        observacao = mergeReason;
+      } else if (entry.summary.livenessScore < 70) {
+        observacao = `Liveness abaixo do mínimo (${entry.summary.livenessScore}% < 70%)`;
+      }
     }
     
     if (!observacao) {

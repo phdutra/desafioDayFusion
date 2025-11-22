@@ -1,0 +1,188 @@
+<div class="aws-widget-page">
+  <div class="widget-header">
+    <h1>Widget AWS Face Liveness</h1>
+    <p class="subtitle">Verificação de liveness facial usando AWS Rekognition</p>
+  </div>
+
+  <!-- Botão para abrir modal -->
+  <div class="actions-start">
+    <button type="button" class="btn-start" (click)="openModal()">
+      <span>🚀</span>
+      <span>Iniciar Verificação</span>
+    </button>
+  </div>
+
+  <!-- Modal do Widget AWS -->
+  <div class="modal-overlay" *ngIf="isModalOpen()" (click)="closeModal()">
+    <div class="modal-wrapper" (click)="$event.stopPropagation()">
+      <button class="modal-close" (click)="closeModal()">✕</button>
+      
+      <div class="widget-content">
+        <!-- Mensagens de status -->
+        <div class="status-messages" *ngIf="statusMessage() || errorMessage()">
+          <div class="status-message" *ngIf="statusMessage()">
+            <span class="status-icon">ℹ️</span>
+            <span>{{ statusMessage() }}</span>
+          </div>
+          <div class="error-message" *ngIf="errorMessage()">
+            <span class="error-icon">⚠️</span>
+            <pre class="error-text">{{ errorMessage() }}</pre>
+          </div>
+        </div>
+
+        <!-- Botão para iniciar dentro do modal (oculto, pois inicia automaticamente) -->
+        <div class="actions-start-modal" *ngIf="!sessionId && !isLoading() && !result() && false" style="display: none;">
+          <button type="button" class="btn-start" (click)="startVerification()">
+            <span>🚀</span>
+            <span>Iniciar Verificação</span>
+          </button>
+        </div>
+
+        <!-- Container do widget AWS (interface nativa) -->
+        <div class="widget-container">
+          <!-- Widget AWS oficial (se carregado) -->
+          <div id="liveness-container" class="liveness-container" style="position: relative;" *ngIf="sessionId && !useLocalWidget()">
+            <!-- Overlay AWS Liveness Widget -->
+            <div class="aws-liveness-overlay" *ngIf="sessionId && !useLocalWidget()">
+              <div class="left-gradient"></div>
+              <div class="right-gradient"></div>
+            </div>
+          </div>
+          
+          <!-- Widget local como fallback -->
+          <div class="local-widget-container" *ngIf="useLocalWidget() && sessionId">
+            <face-liveness-widget
+              [attr.session-id]="sessionId"
+              [attr.region]="awsRegion"
+              [attr.create-session-url]="createSessionUrl"
+              [attr.results-url]="resultsUrl"
+              [attr.identity-pool-id]="identityPoolId">
+            </face-liveness-widget>
+          </div>
+
+          <!-- Loading inicial -->
+          <div class="loading-overlay" *ngIf="isLoading()">
+            <div class="spinner"></div>
+            <p>Carregando widget...</p>
+          </div>
+
+          <!-- Loading com contador enquanto aguarda resultado -->
+          <div class="result-wait-overlay" *ngIf="isWaitingResult() && !result()">
+            <div class="result-wait-content">
+              <div class="spinner"></div>
+              <p class="wait-message">Processando resultado...</p>
+              <p class="wait-timer">{{ resultWaitSeconds() }}s</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Resultado dentro do modal -->
+        <div class="result-container-modal" *ngIf="result()">
+          <div class="result-card" [class.success]="result()?.decision === 'LIVE'" [class.failed]="result()?.decision !== 'LIVE'">
+            <h3>Resultado da Verificação</h3>
+            <div class="result-details">
+              <div class="result-item">
+                <span class="label">Status:</span>
+                <span class="value">{{ result()?.status }}</span>
+              </div>
+              <div class="result-item">
+                <span class="label">Decisão:</span>
+                <span class="value decision" [class.live]="result()?.decision === 'LIVE'" [class.fake]="result()?.decision !== 'FAKE'">
+                  {{ result()?.decision }}
+                </span>
+              </div>
+              <div class="result-item">
+                <span class="label">Confiança:</span>
+                <span class="value">{{ result()?.confidence }}%</span>
+              </div>
+              <div class="result-item" *ngIf="result()?.sessionId">
+                <span class="label">Session ID:</span>
+                <span class="value session-id">{{ result()?.sessionId }}</span>
+              </div>
+            </div>
+            
+            <!-- Thumbnails das capturas -->
+            <div class="result-thumbs" *ngIf="result()?.referenceImageUrl || (result()?.auditImageUrls && result()?.auditImageUrls.length > 0)">
+              <h4>Imagens da Verificação</h4>
+              <div class="thumbs-grid">
+                <!-- Imagem de referência -->
+                <div class="thumb-item" *ngIf="result()?.referenceImageUrl">
+                  <div class="thumb-label">Referência</div>
+                  <img [src]="result()?.referenceImageUrl" alt="Imagem de referência" class="thumb-image" />
+                </div>
+                
+                <!-- Imagens de auditoria -->
+                <div class="thumb-item" *ngFor="let auditUrl of result()?.auditImageUrls; let i = index">
+                  <div class="thumb-label">Captura {{ i + 1 }}</div>
+                  <img [src]="auditUrl" [alt]="'Imagem de auditoria ' + (i + 1)" class="thumb-image" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Botão de reiniciar dentro do modal -->
+          <div class="actions-modal" *ngIf="result() || errorMessage()">
+            <button type="button" class="btn-restart" (click)="restart()">
+              <span>🔄</span>
+              <span>Reiniciar Verificação</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Resultado (fora do modal, visível mesmo após fechar) -->
+  <div class="result-container" *ngIf="result() && !isModalOpen()">
+    <div class="result-card" [class.success]="result()?.decision === 'LIVE'" [class.failed]="result()?.decision !== 'LIVE'">
+      <h3>Resultado da Verificação</h3>
+      <div class="result-details">
+        <div class="result-item">
+          <span class="label">Status:</span>
+          <span class="value">{{ result()?.status }}</span>
+        </div>
+        <div class="result-item">
+          <span class="label">Decisão:</span>
+          <span class="value decision" [class.live]="result()?.decision === 'LIVE'" [class.fake]="result()?.decision !== 'FAKE'">
+            {{ result()?.decision }}
+          </span>
+        </div>
+        <div class="result-item">
+          <span class="label">Confiança:</span>
+          <span class="value">{{ result()?.confidence }}%</span>
+        </div>
+        <div class="result-item" *ngIf="result()?.sessionId">
+          <span class="label">Session ID:</span>
+          <span class="value session-id">{{ result()?.sessionId }}</span>
+        </div>
+      </div>
+      
+      <!-- Thumbnails das capturas -->
+      <div class="result-thumbs" *ngIf="result()?.referenceImageUrl || (result()?.auditImageUrls && result()?.auditImageUrls.length > 0)">
+        <h4>Imagens da Verificação</h4>
+        <div class="thumbs-grid">
+          <!-- Imagem de referência -->
+          <div class="thumb-item" *ngIf="result()?.referenceImageUrl">
+            <div class="thumb-label">Referência</div>
+            <img [src]="result()?.referenceImageUrl" alt="Imagem de referência" class="thumb-image" />
+          </div>
+          
+          <!-- Imagens de auditoria -->
+          <div class="thumb-item" *ngFor="let auditUrl of result()?.auditImageUrls; let i = index">
+            <div class="thumb-label">Captura {{ i + 1 }}</div>
+            <img [src]="auditUrl" [alt]="'Imagem de auditoria ' + (i + 1)" class="thumb-image" />
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Botão de reiniciar -->
+  <div class="actions" *ngIf="result() || errorMessage()">
+    <button type="button" class="btn-restart" (click)="restart()">
+      <span>🔄</span>
+      <span>Reiniciar Verificação</span>
+    </button>
+  </div>
+</div>
+

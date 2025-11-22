@@ -25,31 +25,16 @@
       };
     }
   </script>
-  <!-- AWS SDK (carregado antes do widget para garantir disponibilidade) -->
-  <!-- Nota: sem async/defer para garantir carregamento antes do Angular -->
-  <script src="https://sdk.amazonaws.com/js/aws-sdk-2.1000.0.min.js"></script>
-  <!-- Face Liveness Widget (AWS Amplify UI React como Web Component) -->
-  <script 
-    src="/assets/liveness/widget.js"
-    onerror="window.widgetLoadError = true; window.dispatchEvent(new CustomEvent('widget-load-error', { detail: { src: this.src } }));"
-    onload="window.widgetLoadSuccess = true; window.dispatchEvent(new CustomEvent('widget-load-success', { detail: { src: this.src } }));">
-  </script>
-  <script>
-    // Verificar se o widget foi carregado após um tempo
-    setTimeout(function() {
-      if (!window.widgetLoadSuccess && !window.widgetLoadError) {
-        if (typeof customElements !== 'undefined') {
-          customElements.whenDefined('face-liveness-widget')
-            .then(function() {
-              window.widgetLoadSuccess = true;
-            })
-            .catch(function(err) {
-              // Erro ao definir custom element - silencioso
-            });
-        }
-      }
-    }, 2000);
-  </script>
+  <!-- AWS SDK v3 (necessário para widget local) -->
+  <script src="https://sdk.amazonaws.com/js/aws-sdk-2.1536.0.min.js" onerror="console.warn('AWS SDK failed to load')"></script>
+  <!-- Widget AWS Face Liveness (conforme aws_widget_angular19.md) -->
+  <script src="https://d2vvq1ykw7p3zk.cloudfront.net/faceLiveness/latest/faceLiveness.js" onerror="console.warn('AWS CloudFront script failed to load')"></script>
+  <!-- Widget AWS Face Liveness V2 (oficial) - fallback -->
+  <!-- Conforme dayfusion-liveness-modal-aws-v2.md: usar sempre o domínio oficial -->
+  <script src="https://assets.face-liveness.aws.dev/v2/face-liveness.js" onerror="console.warn('V2 script failed to load')"></script>
+  <link rel="stylesheet" href="https://assets.face-liveness.aws.dev/v2/face-liveness.css" onerror="console.warn('V2 CSS failed to load')" />
+  <!-- Widget local como fallback -->
+  <script src="/assets/liveness/widget.js" onerror="console.warn('Local widget script failed to load')"></script>
 </head>
 <body>
   <app-root></app-root>

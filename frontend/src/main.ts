@@ -54,7 +54,13 @@ if (originalFetch) {
 // Configurar Amplify globalmente (necessário para FaceLivenessDetector)
 try {
   Amplify.configure(awsExports);
-} catch {
+  // Exportar Amplify para window para widgets standalone acessarem
+  (window as any).Amplify = Amplify;
+  // Também exportar como globalThis para garantir acesso
+  (globalThis as any).Amplify = Amplify;
+  console.log('[Main] Amplify configurado e exportado para window e globalThis');
+} catch (error) {
+  console.error('[Main] Erro ao configurar Amplify:', error);
 }
 
 bootstrapApplication(AppComponent, appConfig)

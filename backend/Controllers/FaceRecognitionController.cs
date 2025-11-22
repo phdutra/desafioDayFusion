@@ -181,8 +181,8 @@ public class FaceRecognitionController : ControllerBase
             // Verificar se sessionId é um UUID válido (AWS Rekognition requer UUID)
             // Se não for, significa que é captura local (não usa widget AWS)
             LivenessResultResponse? response = null;
-            float livenessScore = 100f; // Default para captura local
-            string livenessDecision = "LIVE";
+            float livenessScore = 0f; // PATCH ANTI-FRAUDE: Default é 0 (não assumir LIVE sem validação AWS)
+            string livenessDecision = "FAKE"; // PATCH ANTI-FRAUDE: Default é FAKE
             
             if (Guid.TryParse(request.SessionId, out _))
             {
@@ -191,27 +191,65 @@ public class FaceRecognitionController : ControllerBase
                 {
                     response = await _rekognitionService.GetFaceLivenessSessionResultsAsync(request);
                     livenessScore = response.Confidence * 100;
-                    livenessDecision = response.LivenessDecision ?? "LIVE";
+                    livenessDecision = response.LivenessDecision ?? "FAKE"; // PATCH: Fallback para FAKE, não LIVE
+                    
+                    // PATCH ANTI-FRAUDE: Se AWS retornou confiança baixa ou decisão FAKE, tratar como rejeitado
+                    if (response.Confidence < 0.70f || (response.LivenessDecision?.ToUpper() == "FAKE" || response.LivenessDecision?.ToUpper() == "SPOOF"))
+                    {
+                        livenessScore = Math.Min(livenessScore, 30f); // Limitar score máximo a 30% se AWS indicou fraude
+                        livenessDecision = "FAKE";
+                        _logger.LogWarning("🚨 AWS indicou possível fraude. Confidence: {Confidence}, Decision: {Decision}", response.Confidence, response.LivenessDecision);
+                    }
+                    
                     _logger.LogInformation("✅ Liveness do AWS Rekognition: {Score}%, Decision: {Decision}", livenessScore, livenessDecision);
                 }
                 catch (Exception exRekognition)
                 {
-                    _logger.LogWarning(exRekognition, "⚠️ Erro ao obter resultados do AWS Rekognition para sessionId {SessionId}. Usando liveness padrão (100%)", request.SessionId);
-                    // Continua com liveness padrão
+                    _logger.LogWarning(exRekognition, "⚠️ Erro ao obter resultados do AWS Rekognition para sessionId {SessionId}. PATCH ANTI-FRAUDE: Tratando como FRAUDE (liveness=0)", request.SessionId);
+                    // PATCH ANTI-FRAUDE: Se AWS falhar, tratar como fraude
+                    livenessScore = 0f;
+                    livenessDecision = "FAKE";
                 }
             }
             else
             {
                 // SessionId não é UUID - captura local, não tem sessão AWS Rekognition
-                _logger.LogInformation("ℹ️ SessionId não é UUID válido ({SessionId}). Captura local detectada. Usando liveness padrão (100%)", request.SessionId);
-                response = new LivenessResultResponse
+                // AJUSTE: Se há score local calculado pelo frontend, usar ele (mas com penalidade por não ter AWS)
+                if (request.LocalLivenessScore.HasValue && request.LocalLivenessScore.Value > 0)
                 {
-                    SessionId = request.SessionId,
-                    Confidence = 1.0f,
-                    LivenessDecision = "LIVE",
-                    Status = "SUCCEEDED",
-                    Message = "Liveness verificado localmente"
-                };
+                    // Usar score local, mas aplicar penalidade de 20% por não ter validação AWS 3D
+                    // Isso garante segurança mas não rejeita completamente capturas locais válidas
+                    var localScore = request.LocalLivenessScore.Value;
+                    livenessScore = Math.Max(0, localScore - 20f); // Penalidade de 20 pontos
+                    livenessDecision = livenessScore >= 70 ? "LIVE" : "FAKE";
+                    
+                    _logger.LogInformation("ℹ️ SessionId não é UUID ({SessionId}). Usando score local: {LocalScore}% (com penalidade de 20% por não ter AWS) = {FinalScore}%", 
+                        request.SessionId, localScore, livenessScore);
+                    
+                    response = new LivenessResultResponse
+                    {
+                        SessionId = request.SessionId,
+                        Confidence = livenessScore / 100f,
+                        LivenessDecision = livenessDecision,
+                        Status = livenessScore >= 70 ? "SUCCEEDED" : "FAILED",
+                        Message = $"Liveness calculado localmente: {livenessScore:F1}% (penalidade de 20% por não ter validação AWS 3D)"
+                    };
+                }
+                else
+                {
+                    // Sem score local e sem AWS = tratar como fraude
+                    _logger.LogWarning("🚨 SessionId não é UUID válido ({SessionId}) e não há score local. PATCH ANTI-FRAUDE: Tratando como FRAUDE", request.SessionId);
+                    livenessScore = 0f;
+                    livenessDecision = "FAKE";
+                    response = new LivenessResultResponse
+                    {
+                        SessionId = request.SessionId,
+                        Confidence = 0f,
+                        LivenessDecision = "FAKE",
+                        Status = "FAILED",
+                        Message = "Liveness não validado (sem AWS e sem score local) - tratado como fraude"
+                    };
+                }
             }
 
             var transactionId = request.TransactionId ?? response?.TransactionId ?? Guid.NewGuid().ToString();
@@ -327,25 +365,48 @@ public class FaceRecognitionController : ControllerBase
                 }
             }
 
+            // REGRA ANTI-FRAUDE: Se AWS detectou FAKE, SEMPRE rejeitar (não importa outros scores)
+            // Isso previne spoofing (foto em celular, vídeo em outro dispositivo, etc)
+            var awsLivenessDecision = (response?.LivenessDecision ?? livenessDecision)?.ToUpper();
+            var awsDetectedFake = awsLivenessDecision == "FAKE" || awsLivenessDecision == "SPOOF" || livenessScore <= 0;
+            
+            if (awsDetectedFake)
+            {
+                _logger.LogWarning("🚨 AWS detectou FRAUDE (LivenessDecision: {Decision}, Score: {Score}) – REJEITANDO independente de outros scores", 
+                    awsLivenessDecision, livenessScore);
+            }
+            
+            // Determinar status final ANTES de persistir e preencher resposta
+            TransactionStatus finalStatus;
+            
+            // Se AWS detectou fraude, rejeitar imediatamente
+            if (awsDetectedFake)
+            {
+                finalStatus = TransactionStatus.Rejected;
+            }
+            else if (identityScore.HasValue && docAnalysis != null)
+            {
+                // Se análise completa foi feita E AWS não detectou fraude, usar status baseado no IdentityScore
+                finalStatus = _validator.DetermineFinalStatus(
+                    identityScore.Value,
+                    livenessScore,
+                    matchScore,
+                    docAnalysis.DocumentScore);
+            }
+            else
+            {
+                // Fallback: se AWS disse LIVE, aprovar; caso contrário, rejeitar
+                finalStatus = awsLivenessDecision == "LIVE" 
+                    ? TransactionStatus.Approved 
+                    : TransactionStatus.Rejected;
+            }
+
             // Persist transaction com todos os scores
             if (!string.IsNullOrEmpty(transactionId))
             {
                 try
                 {
                     var userId = GetCurrentUserId();
-                    var status = (response?.LivenessDecision ?? livenessDecision) == "LIVE" 
-                        ? TransactionStatus.Approved 
-                        : TransactionStatus.Rejected;
-
-                    // Se análise completa foi feita, usar status baseado no IdentityScore
-                    if (identityScore.HasValue && docAnalysis != null)
-                    {
-                        status = _validator.DetermineFinalStatus(
-                            identityScore.Value,
-                            livenessScore,
-                            matchScore,
-                            docAnalysis.DocumentScore);
-                    }
 
                     var transaction = new Transaction
                     {
@@ -358,14 +419,14 @@ public class FaceRecognitionController : ControllerBase
                         DocumentScore = docAnalysis != null ? (float)docAnalysis.DocumentScore : null,
                         IdentityScore = identityScore,
                         Observacao = observacao,
-                        Status = status,
+                        Status = finalStatus,
                         ProcessedAt = DateTime.UtcNow,
                         CreatedAt = DateTime.UtcNow,
                         AutoObservations = docAnalysis?.Flags.Any() == true ? docAnalysis.Flags : null
                     };
 
                     await _dynamoService.CreateTransactionAsync(transaction);
-                    _logger.LogInformation("✅ Transaction {TransactionId} persistida com análise completa", transactionId);
+                    _logger.LogInformation("✅ Transaction {TransactionId} persistida com análise completa. Status: {Status}", transactionId, finalStatus);
                 }
                 catch (Exception exPersist)
                 {
@@ -407,6 +468,18 @@ public class FaceRecognitionController : ControllerBase
             {
                 response.MatchScore = matchScore.Value;
             }
+            
+            // AJUSTE: Preencher status da transação na resposta para o frontend usar
+            response.Status = finalStatus switch
+            {
+                TransactionStatus.Approved => "APPROVED",
+                TransactionStatus.Rejected => "REJECTED",
+                TransactionStatus.ManualReview => "REVIEW",
+                _ => response.Status // Manter status original se não mapear
+            };
+            
+            _logger.LogInformation("📤 Resposta final: Status={Status}, IdentityScore={IdentityScore}, Observacao={Observacao}", 
+                response.Status, identityScore, observacao);
 
             _logger.LogInformation("Face Liveness results retrieved. SessionId: {SessionId}, Decision: {Decision}, Confidence: {Confidence}, DocumentScore: {DocScore}, IdentityScore: {IdentityScore}",
                 response.SessionId, response.LivenessDecision, response.Confidence, response.DocumentScore, response.IdentityScore);

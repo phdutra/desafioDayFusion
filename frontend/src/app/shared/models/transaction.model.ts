@@ -93,11 +93,12 @@ export interface GetLivenessResultRequest {
   transactionId?: string;
   documentKey?: string;  // Chave S3 do documento (opcional, para análise completa)
   selfieKey?: string;    // Chave S3 da selfie de referência (opcional)
+  localLivenessScore?: number;  // Score de liveness calculado localmente pelo frontend (0-100)
 }
 
 export interface LivenessResultResponse {
   sessionId: string;
-  status: string; // SUCCEEDED, FAILED, etc
+  status: string; // SUCCEEDED, FAILED, APPROVED, REJECTED, REVIEW, etc
   livenessDecision: string; // LIVE, SPOOF, etc
   confidence: number;
   transactionId: string;
@@ -112,7 +113,7 @@ export interface LivenessResultResponse {
   // Campos adicionais para análise completa
   observacao?: string; // Observação da análise
   documentScore?: number; // Score do documento (0-100)
-  identityScore?: number; // Score de identidade completo (0-100)
+  identityScore?: number; // Score de identidade completo (0-1.0, será convertido para 0-100 no frontend)
   matchScore?: number; // Score de match de faces (0-100)
   qualityAssessment?: string; // Avaliação da qualidade (EXCELLENT, GOOD, FAIR, POOR)
 }

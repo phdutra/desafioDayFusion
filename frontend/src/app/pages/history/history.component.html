@@ -34,16 +34,16 @@
         <div class="item-body">
           <p>Liveness: {{ entry.summary.livenessScore | number: '1.0-2' }}</p>
           <p>FaceMatch: {{ entry.summary.faceMatchScore ?? 'N/A' }}</p>
-          <p [class.document-invalid-text]="entry.summary.status !== 'Aprovado' || !entry.summary.documentKey"
-             [class.document-approved-text]="entry.summary.status === 'Aprovado' && entry.summary.documentKey">
+          <p [class.document-invalid-text]="!isDocumentValid(entry)"
+             [class.document-approved-text]="isDocumentValid(entry)">
             Documento: 
-            <ng-container *ngIf="entry.summary.status === 'Aprovado' && entry.summary.documentKey">
+            <ng-container *ngIf="isDocumentValid(entry)">
               Válido
             </ng-container>
-            <ng-container *ngIf="entry.summary.status !== 'Aprovado' || !entry.summary.documentKey">
+            <ng-container *ngIf="!isDocumentValid(entry)">
               Inválido
             </ng-container>
-            <span *ngIf="entry.summary.status !== 'Aprovado' || !entry.summary.documentKey" class="invalid-indicator">⚠️</span>
+            <span *ngIf="!isDocumentValid(entry)" class="invalid-indicator">⚠️</span>
           </p>
           <p>Capturas: {{ entry.summary.captures.length }}</p>
         </div>
@@ -60,15 +60,14 @@
           <span>Status: <strong>{{ entry.summary.status }}</strong></span>
           <span>Liveness: <strong>{{ entry.summary.livenessScore | number: '1.0-2' }}</strong></span>
           <span>FaceMatch: <strong>{{ entry.summary.faceMatchScore ?? 'N/A' }}</strong></span>
-          <span [class.document-invalid]="entry.summary.status !== 'Aprovado' || !entry.summary.documentKey"
-                [class.document-valid]="entry.summary.status === 'Aprovado' && entry.summary.documentKey">
+          <span [class.document-invalid]="!isDocumentValid(entry)"
+                [class.document-valid]="isDocumentValid(entry)">
             Documento: <strong>
-              <ng-container *ngIf="entry.summary.status === 'Aprovado' && entry.summary.documentKey">
-                <span *ngIf="entry.summary.status === 'Aprovado' && entry.summary.documentKey" class="valid-badge">Válido</span>
-                
+              <ng-container *ngIf="isDocumentValid(entry)">
+                <span class="valid-badge">Válido</span>
               </ng-container>
-              <ng-container *ngIf="entry.summary.status !== 'Aprovado' || !entry.summary.documentKey">
-                <span *ngIf="entry.summary.status !== 'Aprovado' || !entry.summary.documentKey" class="invalid-badge">Inválido</span>
+              <ng-container *ngIf="!isDocumentValid(entry)">
+                <span class="invalid-badge">Inválido</span>
               </ng-container>
             </strong>
             

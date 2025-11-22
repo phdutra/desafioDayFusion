@@ -185,6 +185,16 @@ public class LivenessController : ControllerBase
     }
 
     /// <summary>
+    /// Cria uma sessão de Face Liveness 3D (conforme guia dayfusion-liveness-modal-aws-v2.md)
+    /// POST /api/liveness/create-session
+    /// </summary>
+    [HttpPost("create-session")]
+    public async Task<IActionResult> CreateSessionAlias()
+    {
+        return await StartSession();
+    }
+
+    /// <summary>
     /// Busca resultados da sessão de Liveness e salva imagens no S3
     /// Conforme documento: GET /api/liveness/results?sessionId=xxx
     /// </summary>
@@ -504,6 +514,17 @@ public class LivenessController : ControllerBase
             _logger.LogError(ex, "Error getting Face Liveness results for session: {SessionId}", sessionId);
             return StatusCode(500, new { message = "Erro ao obter resultados de liveness", error = ex.Message });
         }
+    }
+
+    /// <summary>
+    /// Busca resultados da sessão de Liveness (conforme guia dayfusion-liveness-modal-aws-v2.md)
+    /// GET /api/liveness/result/{sessionId}
+    /// </summary>
+    [HttpGet("result/{sessionId}")]
+    public async Task<IActionResult> GetResult(string sessionId)
+    {
+        // Reutilizar lógica do GetResults, mas com path parameter
+        return await GetResults(sessionId);
     }
 
     /// <summary>

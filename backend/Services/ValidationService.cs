@@ -29,8 +29,14 @@ public class ValidationService : IValidationService
         }
 
         // Normaliza valores para 0-1
-        var livenessNorm = (liveness ?? 0) / 100.0; // Liveness já vem como 0-1 ou 0-100
-        if (livenessNorm > 1.0) livenessNorm = livenessNorm / 100.0;
+        // Liveness pode vir como 0-100 (percentual) ou 0-1 (já normalizado)
+        var livenessNorm = liveness ?? 0;
+        if (livenessNorm > 1.0)
+        {
+            // Se maior que 1, assume que está em percentual (0-100) e normaliza
+            livenessNorm = livenessNorm / 100.0;
+        }
+        // Se já está entre 0-1, mantém como está
         
         var matchNorm = (match ?? 0) / 100.0;
         var documentNorm = (document ?? 0) / 100.0;
@@ -76,8 +82,14 @@ public class ValidationService : IValidationService
         }
 
         // Normaliza liveness
+        // Liveness pode vir como 0-100 (percentual) ou 0-1 (já normalizado)
         var livenessNorm = liveness ?? 0;
-        if (livenessNorm > 1.0) livenessNorm = livenessNorm / 100.0;
+        if (livenessNorm > 1.0)
+        {
+            // Se maior que 1, assume que está em percentual (0-100) e normaliza
+            livenessNorm = livenessNorm / 100.0;
+        }
+        // Se já está entre 0-1, mantém como está
 
         // Se qualquer componente crítico falhar, rejeitar
         if (livenessNorm < 0.50)
@@ -98,13 +110,48 @@ public class ValidationService : IValidationService
         }
 
         // Determina status baseado no score final
-        return identityScore switch
+        // Log detalhado para debug
+        _logger.LogInformation("📊 DetermineFinalStatus: IdentityScore={IdentityScore}, Liveness={Liveness} ({LivenessNorm}), Match={Match}, Document={Document}",
+            identityScore, liveness, livenessNorm, match, document);
+        
+        // AJUSTE: Se Match e Documento são muito altos, aprovar mesmo com IdentityScore ligeiramente menor
+        // Isso garante que casos com FaceMatch 99+ e Documento válido sejam aprovados
+        var matchValue = match ?? 0;
+        var documentValue = document ?? 0;
+        var hasHighMatch = matchValue >= 95;
+        var hasValidDocument = documentValue >= 85;
+        
+        TransactionStatus status;
+        
+        if (identityScore >= 0.85)
         {
-            >= 0.85 => TransactionStatus.Approved,
-            >= 0.70 => TransactionStatus.ManualReview,
-            >= 0.50 => TransactionStatus.ManualReview,
-            _ => TransactionStatus.Rejected
-        };
+            // Score alto → aprovar
+            status = TransactionStatus.Approved;
+        }
+        else if (identityScore >= 0.80 && hasHighMatch && hasValidDocument && livenessNorm >= 0.70)
+        {
+            // Score bom (>= 0.80) + Match alto (>= 95) + Documento válido (>= 85) + Liveness razoável (>= 70) → aprovar
+            _logger.LogInformation("✅ Aprovando com score {IdentityScore}: Match alto ({Match}%), Documento válido ({Document}%), Liveness {LivenessNorm}",
+                identityScore, matchValue, documentValue, livenessNorm);
+            status = TransactionStatus.Approved;
+        }
+        else if (identityScore >= 0.70)
+        {
+            status = TransactionStatus.ManualReview;
+        }
+        else if (identityScore >= 0.50)
+        {
+            status = TransactionStatus.ManualReview;
+        }
+        else
+        {
+            status = TransactionStatus.Rejected;
+        }
+        
+        _logger.LogInformation("✅ Status final determinado: {Status} (IdentityScore: {IdentityScore}, Match: {Match}%, Document: {Document}%)", 
+            status, identityScore, matchValue, documentValue);
+        
+        return status;
     }
 }
 

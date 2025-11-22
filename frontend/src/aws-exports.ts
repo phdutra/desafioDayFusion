@@ -1,7 +1,11 @@
+// Configuração do Amplify v6 para Face Liveness
 const awsmobile = {
-  aws_project_region: 'us-east-1',
-  aws_cognito_identity_pool_id: 'us-east-1:2276b22e-33a1-4875-896e-1ec85d5debca',
-  aws_cognito_region: 'us-east-1',
+  Auth: {
+    Cognito: {
+      identityPoolId: 'us-east-1:2276b22e-33a1-4875-896e-1ec85d5debca',
+      allowGuestAccess: true,
+    }
+  }
 };
 
 export default awsmobile;

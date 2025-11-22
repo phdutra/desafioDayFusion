@@ -1,3 +1,72 @@
+/* Container do widget oficial AWS V2 (conforme guia aws_overlay_widget_final.md) */
+.aws-wrapper {
+  position: relative !important;
+  width: 100%;
+  height: 360px;
+  border-radius: 12px;
+  overflow: hidden !important;
+  background: #000;
+  margin-bottom: 1rem;
+}
+
+/* Forçar iframe do AWS para trás */
+.aws-wrapper iframe {
+  position: relative !important;
+  z-index: 1 !important; /* empurra o iframe para trás */
+}
+
+/* Overlay na frente do iframe */
+.aws-overlay {
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  z-index: 999999999 !important; /* acima do iframe */
+  pointer-events: none !important; /* não bloqueia clicks do widget */
+  overflow: hidden;
+}
+
+/* Gradientes do overlay */
+.left-grad,
+.right-grad {
+  position: absolute;
+  width: 140px;
+  height: 100%;
+}
+
+.left-grad {
+  left: 0;
+  top: 0;
+  background: linear-gradient(#ff00ff, #ff0066);
+}
+
+.right-grad {
+  right: 0;
+  top: 0;
+  background: linear-gradient(#ffcc00, #ff0000);
+}
+
+/* Widget AWS custom – funcional para WebRTC, mas "invisível" para o usuário (fallback) */
+.aws-widget-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  z-index: 9999; // garantir que não fique "atrás" de nada do ponto de vista do navegador
+  pointer-events: none; // não recebe clique
+}
+
+.aws-widget-container face-liveness-widget {
+  width: 320px;
+  height: 240px;
+  opacity: 0.01;        // quase invisível, mas não 0
+  transform: scale(0.001); // micro escala
+  pointer-events: none; // não recebe clique
+}
+
 .liveness-container {
   display: flex;
   flex-direction: column;

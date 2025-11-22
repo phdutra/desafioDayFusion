@@ -171,6 +171,8 @@ public class GetLivenessResultRequest
     public string? DocumentKey { get; set; }  // Chave S3 do documento (opcional, para análise completa)
     
     public string? SelfieKey { get; set; }  // Chave S3 da selfie de referência (opcional)
+    
+    public float? LocalLivenessScore { get; set; }  // Score de liveness calculado localmente pelo frontend (0-100)
 }
 
 public class LivenessResultResponse

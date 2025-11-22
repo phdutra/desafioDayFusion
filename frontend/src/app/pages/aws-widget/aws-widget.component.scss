@@ -1,0 +1,655 @@
+.aws-widget-page {
+  padding: 2rem;
+  max-width: 1200px;
+  margin: 0 auto;
+  position: relative;
+  overflow-x: hidden; /* Prevenir overflow horizontal */
+
+  .widget-header {
+    margin-bottom: 2rem;
+    text-align: center;
+
+    h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      color: #1a1a1a;
+      margin-bottom: 0.5rem;
+    }
+
+    .subtitle {
+      color: #666;
+      font-size: 1rem;
+    }
+  }
+
+  .widget-content {
+    position: relative;
+    overflow: hidden; /* Garantir que overlay não escape */
+  }
+
+  .status-messages {
+    margin-bottom: 1.5rem;
+
+    .status-message,
+    .error-message {
+      padding: 1rem;
+      border-radius: 8px;
+      margin-bottom: 0.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+
+      .status-icon,
+      .error-icon {
+        font-size: 1.25rem;
+      }
+    }
+
+    .status-message {
+      background-color: #e3f2fd;
+      color: #1976d2;
+      border: 1px solid #90caf9;
+    }
+
+    .error-message {
+      background-color: #ffebee;
+      color: #c62828;
+      border: 1px solid #ef5350;
+      
+      .error-text {
+        margin: 0;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+        font-family: inherit;
+        font-size: inherit;
+        line-height: 1.5;
+      }
+    }
+  }
+
+  .actions-start {
+    display: flex;
+    justify-content: center;
+    margin: 2rem 0;
+
+    .btn-start {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 1rem 2rem;
+      background: linear-gradient(135deg, #1976d2, #1565c0);
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      font-size: 1.1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 12px rgba(25, 118, 210, 0.3);
+
+      &:hover {
+        background: linear-gradient(135deg, #1565c0, #0d47a1);
+        transform: translateY(-2px);
+        box-shadow: 0 6px 16px rgba(25, 118, 210, 0.4);
+      }
+
+      &:active {
+        transform: translateY(0);
+      }
+    }
+  }
+
+  .widget-container {
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    padding: 2rem;
+    margin-bottom: 2rem;
+    min-height: 500px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative !important;
+    overflow: hidden !important;
+
+    .liveness-container {
+      width: 100%;
+      min-height: 500px;
+      border-radius: 12px;
+      overflow: hidden !important;
+      background: transparent;
+      position: relative !important;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      isolation: isolate; /* Criar novo contexto de empilhamento */
+
+      // Overlay com cores - DEVE ficar na frente de TUDO (acima do modal)
+      .aws-liveness-overlay {
+        position: absolute !important;
+        top: 0 !important;
+        left: 0 !important;
+        width: 100% !important;
+        height: 100% !important;
+        z-index: 50000 !important; /* z-index muito alto - acima de tudo, incluindo modal */
+        pointer-events: none !important;
+        overflow: hidden;
+
+        // Gradientes dentro do overlay
+        .left-gradient,
+        .right-gradient {
+          position: absolute !important;
+          width: 140px !important;
+          height: 100% !important;
+          z-index: 50000 !important; /* z-index muito alto */
+          pointer-events: none !important;
+        }
+
+        .left-gradient {
+          left: 0 !important;
+          top: 0 !important;
+          background: linear-gradient(#ff00ff, #ff0066) !important;
+        }
+
+        .right-gradient {
+          right: 0 !important;
+          top: 0 !important;
+          background: linear-gradient(#ffcc00, #ff0000) !important;
+        }
+      }
+
+      // Container interno do widget AWS
+      > div {
+        width: 100%;
+        height: 100%;
+        min-height: 500px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+      }
+
+      // Vídeo da câmera deve ficar centralizado e atrás (z-index baixo)
+      video {
+        position: absolute !important;
+        top: 50% !important;
+        left: 50% !important;
+        transform: translate(-50%, -50%) scaleX(-1) !important;
+        z-index: 1 !important;
+        width: 100% !important;
+        height: 100% !important;
+        object-fit: cover !important;
+        object-position: center !important;
+      }
+
+      // Canvas do widget deve ficar centralizado e atrás também
+      canvas {
+        position: absolute !important;
+        top: 50% !important;
+        left: 50% !important;
+        transform: translate(-50%, -50%) scaleX(-1) !important;
+        z-index: 1 !important;
+      }
+
+      // Elipse e overlays do widget AWS devem ficar na frente e centralizados
+      svg {
+        position: absolute !important;
+        top: 50% !important;
+        left: 50% !important;
+        transform: translate(-50%, -50%) !important;
+        z-index: 1000 !important;
+        pointer-events: none !important;
+      }
+
+      // Divs com overlay/guide devem ficar centralizados e na frente (z-index máximo)
+      [class*="guide"],
+      [class*="ellipse"],
+      [class*="overlay"],
+      [class*="oval"],
+      [class*="gradient"],
+      [class*="effect"],
+      [style*="gradient"] {
+        position: absolute !important;
+        top: 50% !important;
+        left: 50% !important;
+        transform: translate(-50%, -50%) !important;
+        z-index: 1000 !important;
+        pointer-events: none !important;
+      }
+
+      // Ocultar máscaras pretas (elipse preto)
+      [class*="mask"],
+      [style*="background"][style*="#000"],
+      [style*="background"][style*="black"],
+      [style*="radial-gradient"][style*="black"],
+      [style*="radial-gradient"][style*="#000"] {
+        display: none !important;
+        opacity: 0 !important;
+        visibility: hidden !important;
+      }
+
+      // Garantir que todos os elementos com background/gradient fiquem na frente
+      div[style*="background"]:not(video):not(canvas),
+      div[style*="gradient"]:not(video):not(canvas) {
+        z-index: 1000 !important;
+      }
+
+      // Elementos com cores violeta/roxo (overlays do widget AWS) - z-index máximo
+      [style*="rgba"],
+      [style*="rgb"],
+      [class*="violet"],
+      [class*="purple"],
+      [class*="indigo"],
+      [style*="violet"],
+      [style*="purple"] {
+        z-index: 1000 !important;
+      }
+
+      // Garantir que qualquer elemento com background/gradient tenha z-index alto
+      div[style*="background"]:not(video):not(canvas),
+      span[style*="background"]:not(video):not(canvas),
+      section[style*="background"]:not(video):not(canvas),
+      article[style*="background"]:not(video):not(canvas) {
+        z-index: 1000 !important;
+      }
+    }
+
+    .local-widget-container {
+      width: 100%;
+      min-height: 500px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      face-liveness-widget {
+        width: 100%;
+        height: 100%;
+        min-height: 500px;
+      }
+    }
+  }
+
+  .result-container,
+  .result-container-modal {
+    margin-bottom: 2rem;
+    margin-top: 1rem;
+
+    .result-card {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      padding: 2rem;
+
+      &.success {
+        border-left: 4px solid #4caf50;
+      }
+
+      &.failed {
+        border-left: 4px solid #f44336;
+      }
+
+      h3 {
+        font-size: 1.5rem;
+        font-weight: 600;
+        margin-bottom: 1.5rem;
+        color: #1a1a1a;
+      }
+
+      .result-details {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+
+        .result-item {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 0.75rem;
+          background: #f5f5f5;
+          border-radius: 6px;
+
+          .label {
+            font-weight: 600;
+            color: #666;
+          }
+
+          .value {
+            font-weight: 500;
+            color: #1a1a1a;
+
+            &.decision {
+              padding: 0.25rem 0.75rem;
+              border-radius: 4px;
+              font-weight: 700;
+              text-transform: uppercase;
+
+              &.live {
+                background: #4caf50;
+                color: #fff;
+              }
+
+              &.fake {
+                background: #f44336;
+                color: #fff;
+              }
+            }
+
+            &.session-id {
+              font-family: monospace;
+              font-size: 0.875rem;
+              color: #666;
+            }
+          }
+        }
+      }
+
+      .result-thumbs {
+        margin-top: 2rem;
+        padding-top: 2rem;
+        border-top: 1px solid #e0e0e0;
+
+        h4 {
+          font-size: 1.2rem;
+          font-weight: 600;
+          margin-bottom: 1rem;
+          color: #1a1a1a;
+        }
+
+        .thumbs-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+          gap: 1rem;
+
+          .thumb-item {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            background: #f9f9f9;
+            border-radius: 8px;
+            padding: 0.75rem;
+            border: 1px solid #e0e0e0;
+            transition: all 0.2s ease;
+
+            &:hover {
+              border-color: #1976d2;
+              box-shadow: 0 2px 8px rgba(25, 118, 210, 0.2);
+              transform: translateY(-2px);
+            }
+
+            .thumb-label {
+              font-size: 0.875rem;
+              font-weight: 600;
+              color: #666;
+              text-align: center;
+            }
+
+            .thumb-image {
+              width: 100%;
+              height: auto;
+              border-radius: 6px;
+              object-fit: cover;
+              aspect-ratio: 1;
+              background: #fff;
+              border: 1px solid #e0e0e0;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  .actions,
+  .actions-modal {
+    display: flex;
+    justify-content: center;
+    margin-top: 2rem;
+
+    .btn-restart {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.75rem 1.5rem;
+      background: #1976d2;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+
+      &:hover {
+        background: #1565c0;
+      }
+
+      &:active {
+        background: #0d47a1;
+      }
+    }
+  }
+
+  .loading-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255, 255, 255, 0.9);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    border-radius: 12px;
+    z-index: 1000;
+
+    .spinner {
+      width: 48px;
+      height: 48px;
+      border: 4px solid #e0e0e0;
+      border-top-color: #1976d2;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    p {
+      color: #666;
+      font-size: 1rem;
+    }
+  }
+
+  .result-wait-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255, 255, 255, 0.95);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+    z-index: 1000;
+    backdrop-filter: blur(4px);
+
+    .result-wait-content {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1.5rem;
+      padding: 2rem;
+
+      .spinner {
+        width: 56px;
+        height: 56px;
+        border: 5px solid rgba(25, 118, 210, 0.2);
+        border-top-color: #1976d2;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+
+      .wait-message {
+        color: #1976d2;
+        font-size: 1.2rem;
+        font-weight: 600;
+        margin: 0;
+        text-align: center;
+      }
+
+      .wait-timer {
+        color: #666;
+        font-size: 1.5rem;
+        font-weight: 700;
+        margin: 0;
+        font-family: 'Courier New', monospace;
+        background: rgba(25, 118, 210, 0.1);
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        min-width: 60px;
+        text-align: center;
+      }
+    }
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+// Estilos para espelhar vídeo do widget AWS (corrigir inversão da câmera)
+.liveness-container {
+  video {
+    transform: scaleX(-1) !important;
+  }
+
+  canvas {
+    transform: scaleX(-1);
+  }
+}
+
+.local-widget-container {
+  video {
+    transform: scaleX(-1);
+  }
+}
+
+
+// Modal styles
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  backdrop-filter: blur(6px);
+  background: rgba(10, 10, 20, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  animation: fadeIn 0.25s ease;
+}
+
+.modal-wrapper {
+  position: relative;
+  width: min(900px, 95vw);
+  max-height: 92vh;
+  background: var(--bg-card);
+  border-radius: var(--radius-xl);
+  padding: 1.5rem;
+  box-shadow: 0 25px 70px rgba(15, 23, 42, 0.45);
+  overflow-y: auto;
+  overflow-x: hidden;
+  animation: slideUp 0.3s ease;
+}
+
+.modal-close {
+  position: absolute;
+  top: 1.25rem;
+  right: 1.25rem;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 50%;
+  border: none;
+  background: rgba(15, 23, 42, 0.6);
+  color: #ffffff;
+  font-size: 1.1rem;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+  z-index: 10001;
+
+  &:hover {
+    transform: scale(1.05);
+    background: rgba(15, 23, 42, 0.8);
+  }
+}
+
+.actions-start-modal {
+  display: flex;
+  justify-content: center;
+  margin: 1rem 0;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+// Responsividade
+@media (max-width: 768px) {
+  .aws-widget-page {
+    padding: 1rem;
+
+    .widget-header h1 {
+      font-size: 1.5rem;
+    }
+
+    .widget-container {
+      padding: 1rem;
+      min-height: 400px;
+
+      .liveness-container {
+        min-height: 300px;
+      }
+    }
+
+    .result-container .result-card {
+      padding: 1.5rem;
+
+      .result-details .result-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+      }
+
+      .result-thumbs {
+        .thumbs-grid {
+          grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+          gap: 0.75rem;
+        }
+      }
+    }
+  }
+
+  .modal-wrapper {
+    width: 95vw;
+    max-height: 95vh;
+    padding: 1rem;
+  }
+}
+
