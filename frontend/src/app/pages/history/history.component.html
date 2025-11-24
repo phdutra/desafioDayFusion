@@ -46,6 +46,10 @@
             <span *ngIf="!isDocumentValid(entry)" class="invalid-indicator">⚠️</span>
           </p>
           <p>Capturas: {{ entry.summary.captures.length }}</p>
+          <div class="item-observacao" *ngIf="getObservacao(entry)">
+            <p class="observacao-label">📋 Observação:</p>
+            <p class="observacao-text">{{ getObservacao(entry) }}</p>
+          </div>
         </div>
       </article>
     </aside>

@@ -24,7 +24,7 @@ export class CustomReviewStepComponent implements OnInit {
   @Input() livenessResult!: LivenessResult;
   @Input() documentImageS3Path!: string;
   @Input() documentImageUrl?: string; // URL assinada direta (opcional)
-  @Output() finished = new EventEmitter<void>();
+  @Output() finished = new EventEmitter<string | null>();
 
   isLoadingMatch = false;
   isSaving = false;
@@ -129,14 +129,16 @@ export class CustomReviewStepComponent implements OnInit {
         match: this.matchResult,
         observation: this.observation
       });
-      this.finished.emit();
+      // Emitir observação quando confirmar
+      this.finished.emit(this.observation.trim() || null);
     } finally {
       this.isSaving = false;
     }
   }
 
   cancel(): void {
-    this.finished.emit();
+    // Emitir null quando cancelar (sem observação)
+    this.finished.emit(null);
   }
 
   onDocumentImageError(event: Event): void {

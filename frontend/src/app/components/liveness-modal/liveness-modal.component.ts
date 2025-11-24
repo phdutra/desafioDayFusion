@@ -409,7 +409,8 @@ export class LivenessModalComponent implements OnDestroy {
               transactionId: this.transactionId,
               documentKey: documentUpload.key,
               selfieKey: selfieKey,
-              localLivenessScore: localLivenessScore  // Enviar score LOCAL original (antes do merge), não o score após merge
+              localLivenessScore: localLivenessScore,  // Enviar score LOCAL original (antes do merge), não o score após merge
+              videoKey: videoSummary?.s3Key  // Enviar chave do vídeo gravado
             };
             
             // LOG: Antes de chamar backend

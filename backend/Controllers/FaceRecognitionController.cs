@@ -303,7 +303,11 @@ public class FaceRecognitionController : ControllerBase
                             Status = TransactionStatus.Rejected,
                             ProcessedAt = DateTime.UtcNow,
                             CreatedAt = DateTime.UtcNow,
-                            AutoObservations = docAnalysis.Flags
+                            AutoObservations = docAnalysis.Flags,
+                            VideoKey = request.VideoKey,  // Salvar chave do vídeo gravado
+                            VideoExpiresAt = !string.IsNullOrEmpty(request.VideoKey) 
+                                ? DateTime.UtcNow.AddHours(24)  // Vídeo expira em 24h
+                                : null
                         };
                             await _dynamoService.CreateTransactionAsync(transaction);
                             _logger.LogInformation("✅ Transaction {TransactionId} persistida como REJEITADA (documento inválido)", transactionId);
@@ -422,7 +426,11 @@ public class FaceRecognitionController : ControllerBase
                         Status = finalStatus,
                         ProcessedAt = DateTime.UtcNow,
                         CreatedAt = DateTime.UtcNow,
-                        AutoObservations = docAnalysis?.Flags.Any() == true ? docAnalysis.Flags : null
+                        AutoObservations = docAnalysis?.Flags.Any() == true ? docAnalysis.Flags : null,
+                        VideoKey = request.VideoKey,  // Salvar chave do vídeo gravado
+                        VideoExpiresAt = !string.IsNullOrEmpty(request.VideoKey) 
+                            ? DateTime.UtcNow.AddHours(24)  // Vídeo expira em 24h
+                            : null
                     };
 
                     await _dynamoService.CreateTransactionAsync(transaction);

@@ -173,6 +173,8 @@ public class GetLivenessResultRequest
     public string? SelfieKey { get; set; }  // Chave S3 da selfie de referência (opcional)
     
     public float? LocalLivenessScore { get; set; }  // Score de liveness calculado localmente pelo frontend (0-100)
+    
+    public string? VideoKey { get; set; }  // Chave S3 do vídeo gravado durante a captura (opcional)
 }
 
 public class LivenessResultResponse

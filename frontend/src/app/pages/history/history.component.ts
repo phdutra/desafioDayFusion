@@ -340,27 +340,53 @@ export class HistoryComponent {
 
   getObservacao(entry: LivenessHistoryEntry): string | null {
     let observacao: string | null = null;
+    let isUserObservation = false;
     
-    // Prioridade: metadata.observacao (do frontend) > backendAnalysis.observacao > backendAnalysis.message > metadata.observacao (legado)
-    // A observação do frontend tem prioridade porque já inclui informações de AWS Liveness
+    // Prioridade 1: Observação manual do usuário (digitada no campo "Observações")
+    // Verificar se é uma observação do usuário (não contém marcadores automáticos)
     if (entry.summary.metadata?.['observacao']) {
-      observacao = entry.summary.metadata['observacao'];
-    } else if (entry.metadata?.['observacao']) {
-      observacao = entry.metadata['observacao'];
-    } else if (entry.summary.backendAnalysis?.observacao) {
-      observacao = entry.summary.backendAnalysis.observacao;
-    } else if (entry.summary.backendAnalysis?.message) {
-      // Se message começa com "Documento rejeitado:", usar diretamente
-      // Caso contrário, pode ser apenas uma mensagem genérica
-      if (entry.summary.backendAnalysis.message.includes('Documento rejeitado') || 
-          entry.summary.backendAnalysis.message.includes('não é RG ou CNH')) {
-        observacao = entry.summary.backendAnalysis.message;
+      const metadataObs = entry.summary.metadata['observacao'];
+      // Se não contém marcadores automáticos (Flags, Liveness:, etc), é observação do usuário
+      if (!metadataObs.includes('Flags:') && 
+          !metadataObs.includes('Liveness:') && 
+          !metadataObs.includes('Face Match:') &&
+          !metadataObs.startsWith('🚨') &&
+          !metadataObs.startsWith('✔')) {
+        observacao = metadataObs;
+        isUserObservation = true;
       } else {
-        observacao = entry.summary.backendAnalysis.message;
+        observacao = metadataObs;
+      }
+    } else if (entry.metadata?.['observacao']) {
+      const entryObs = entry.metadata['observacao'];
+      if (!entryObs.includes('Flags:') && 
+          !entryObs.includes('Liveness:') && 
+          !entryObs.includes('Face Match:') &&
+          !entryObs.startsWith('🚨') &&
+          !entryObs.startsWith('✔')) {
+        observacao = entryObs;
+        isUserObservation = true;
+      } else {
+        observacao = entryObs;
       }
     }
     
-    // Se ainda não tem observação mas foi rejeitado, tentar construir uma baseada nos metadados
+    // Prioridade 2: Observação do backend (se não tiver observação do usuário)
+    if (!isUserObservation) {
+      if (entry.summary.backendAnalysis?.observacao) {
+        observacao = entry.summary.backendAnalysis.observacao;
+      } else if (entry.summary.backendAnalysis?.message) {
+        // Se message começa com "Documento rejeitado:", usar diretamente
+        if (entry.summary.backendAnalysis.message.includes('Documento rejeitado') || 
+            entry.summary.backendAnalysis.message.includes('não é RG ou CNH')) {
+          observacao = entry.summary.backendAnalysis.message;
+        } else {
+          observacao = entry.summary.backendAnalysis.message;
+        }
+      }
+    }
+    
+    // Prioridade 3: Se ainda não tem observação mas foi rejeitado, tentar construir uma baseada nos metadados
     if (!observacao && entry.summary.status === 'Rejeitado') {
       const awsDetectedFake = entry.summary.metadata?.['awsDetectedFake'] === 'true';
       const awsDecision = entry.summary.metadata?.['awsDecision'];
@@ -379,7 +405,12 @@ export class HistoryComponent {
       return null;
     }
     
-    // Buscar flags em diferentes fontes
+    // Se for observação do usuário, retornar sem adicionar flags
+    if (isUserObservation) {
+      return observacao;
+    }
+    
+    // Buscar flags em diferentes fontes (apenas para observações automáticas)
     let flags: string[] = [];
     
     // Tentar obter flags do backendAnalysis
@@ -399,8 +430,8 @@ export class HistoryComponent {
       }
     }
     
-    // Se houver flags, adicionar à observação
-    if (flags.length > 0) {
+    // Se houver flags, adicionar à observação (apenas se não for observação do usuário)
+    if (flags.length > 0 && !isUserObservation) {
       const flagsStr = flags.join(', ');
       // Verificar se a observação já não contém os flags
       if (!observacao.includes('Flags:') && !observacao.includes(flagsStr)) {

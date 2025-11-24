@@ -9,6 +9,12 @@ import { CustomReviewStepComponent, LivenessResult } from '../../components/cust
 import { LivenessSummary } from '../../core/models/liveness-result.model';
 import { firstValueFrom, from } from 'rxjs';
 import { environment } from '../../../environments/environment';
+import {
+  startVideoRecording,
+  MediaRecorderController,
+  RecordedMedia,
+  stopMediaStream
+} from '../../core/utils/media-recorder.util';
 
 declare var AwsLiveness: any;
 declare const FaceLiveness: any;
@@ -52,6 +58,10 @@ export class CaptureOfficialComponent {
   private widgetInstance: any = null;
   private ovalObserverInterval: any = null;
   private sessionId: string = '';
+  private videoRecorder: MediaRecorderController | null = null;
+  private videoStream: MediaStream | null = null;
+  private recordedVideo: RecordedMedia | null = null;
+  readonly isRecordingVideo = signal<boolean>(false);
   readonly awsRegion: string = environment.aws?.region || 'us-east-1';
   readonly createSessionUrl: string = `${environment.apiUrl}/liveness/start`;
   readonly resultsUrl: string = `${environment.apiUrl}/liveness/results`;
@@ -189,6 +199,9 @@ export class CaptureOfficialComponent {
     this.errorMessage.set(null);
     this.isModalOpen.set(true);
     this.showReviewStep.set(false);
+    this.isRecordingVideo.set(false);
+    this.recordedVideo = null;
+    (this as any)._videoKey = null;
     setTimeout(() => this.startSession(), 150);
   }
 
@@ -307,10 +320,13 @@ export class CaptureOfficialComponent {
       throw new Error('Widget AWS não disponível');
     }
 
-    // Aguardar widget renderizar e aplicar estilos forçados
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    this.applyWidgetStyles();
-    this.startOvalObserver();
+      // Aguardar widget renderizar e aplicar estilos forçados
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      this.applyWidgetStyles();
+      this.startOvalObserver();
+      
+      // Iniciar gravação de vídeo quando widget começar
+      this.startVideoRecordingFromWidget();
   }
 
   private startOvalObserver(): void {
@@ -683,6 +699,9 @@ export class CaptureOfficialComponent {
     console.log('[Capture Official] Widget completo:', result);
     this.statusMessage.set('Verificação concluída. Processando resultados...');
 
+    // Parar gravação de vídeo
+    await this.stopVideoRecording();
+
     try {
       // Obter resultados completos do backend
       const results = await firstValueFrom(
@@ -718,6 +737,26 @@ export class CaptureOfficialComponent {
                   };
 
                   this.livenessResult.set(livenessResult);
+
+                  // Upload do vídeo gravado ANTES de fazer análise completa (para ter videoKey disponível)
+                  if (this.recordedVideo && this.recordedVideo.blob.size > 0) {
+                    try {
+                      this.statusMessage.set('📤 Enviando vídeo ao S3...');
+                      const uploadResult = await firstValueFrom(
+                        from(this.s3Service.uploadLivenessVideo(this.sessionId, this.recordedVideo.blob, this.recordedVideo.mimeType))
+                      );
+                      console.log('[Capture Official] ✅ Vídeo enviado ao S3 com sucesso!', {
+                        key: uploadResult.key,
+                        size: `${(this.recordedVideo.blob.size / 1024 / 1024).toFixed(2)} MB`
+                      });
+                      // Salvar chave do vídeo para usar depois
+                      (this as any)._videoKey = uploadResult.key;
+                    } catch (videoError) {
+                      console.error('[Capture Official] ❌ Erro ao enviar vídeo:', videoError);
+                    }
+                  } else {
+                    console.warn('[Capture Official] ⚠️ Nenhum vídeo gravado para enviar');
+                  }
 
                   // Se temos documento, fazer análise completa (validação + match)
                   if (this.documentKey() && auditImages.length > 0) {
@@ -757,7 +796,8 @@ export class CaptureOfficialComponent {
           sessionId: this.sessionId,
           documentKey: this.documentKey()!,
           selfieKey: firstAuditImage.key,
-          localLivenessScore: livenessResult.confidenceScore
+          localLivenessScore: livenessResult.confidenceScore,
+          videoKey: (this as any)._videoKey  // Enviar chave do vídeo gravado
         })
       );
 
@@ -814,13 +854,35 @@ export class CaptureOfficialComponent {
     this.statusMessage.set('Erro na verificação');
   }
 
-  handleReviewFinished(): void {
+  async handleReviewFinished(userObservation: string | null): Promise<void> {
     // Salvar no histórico e fechar
     const result = this.livenessResult();
     if (result) {
       const backendAnalysis = result.raw?.backendAnalysis;
       const documentScore = this.documentScore() || backendAnalysis?.documentScore || null;
       
+      // Preparar informações do vídeo para o histórico
+      let videoSummary: LivenessSummary['video'] | undefined;
+      if (this.recordedVideo && (this as any)._videoKey) {
+        try {
+          const videoUrl = await firstValueFrom(
+            from(this.s3Service.getSignedUrl((this as any)._videoKey))
+          );
+          videoSummary = {
+            s3Key: (this as any)._videoKey,
+            url: videoUrl,
+            mimeType: this.recordedVideo.mimeType,
+            size: this.recordedVideo.blob.size,
+            durationMs: this.recordedVideo.durationMs
+          };
+        } catch (error) {
+          console.warn('[Capture Official] Erro ao gerar URL do vídeo:', error);
+        }
+      }
+
+      // Priorizar observação do usuário sobre observação do backend
+      const finalObservacao = userObservation?.trim() || backendAnalysis?.observacao || backendAnalysis?.message || null;
+
       const summary: LivenessSummary = {
         sessionId: result.sessionId,
         createdAt: new Date().toISOString(),
@@ -829,6 +891,7 @@ export class CaptureOfficialComponent {
         faceMatchScore: result.raw?.matchResult?.bestMatchScore,
         status: this.determineStatus(result),
         documentKey: this.documentKey() || undefined, // Salvar documentKey para histórico
+        video: videoSummary, // Adicionar vídeo ao histórico
         captures: result.auditImages?.map((img, idx) => ({
           position: `audit_${idx}`,
           confidence: result.confidenceScore,
@@ -841,13 +904,14 @@ export class CaptureOfficialComponent {
           documentUrl: this.documentUrl() || '', // Salvar URL assinada
           ...(documentScore ? { documentScore: String(documentScore) } : {}), // Salvar score do documento apenas se existir
           matchResult: JSON.stringify(result.raw?.matchResult || {}),
-          ...(backendAnalysis ? { backendAnalysis: JSON.stringify(backendAnalysis) } : {}) // Salvar análise apenas se existir
+          ...(backendAnalysis ? { backendAnalysis: JSON.stringify(backendAnalysis) } : {}), // Salvar análise apenas se existir
+          ...(finalObservacao ? { observacao: finalObservacao } : {}) // Salvar observação do usuário ou backend
         },
         backendAnalysis: backendAnalysis ? {
           documentScore: documentScore || undefined,
           matchScore: backendAnalysis.matchScore || undefined,
           identityScore: backendAnalysis.identityScore || undefined,
-          observacao: backendAnalysis.observacao || undefined,
+          observacao: finalObservacao || undefined, // Usar observação final (usuário ou backend)
           message: backendAnalysis.message || undefined,
           status: backendAnalysis.status || undefined
         } : undefined
@@ -874,9 +938,87 @@ export class CaptureOfficialComponent {
     }
   }
 
+  private async startVideoRecordingFromWidget(): Promise<void> {
+    // Aguardar widget iniciar e encontrar elemento de vídeo
+    const maxAttempts = 30;
+    let attempts = 0;
+    
+    const findAndRecordVideo = async (): Promise<void> => {
+      const container = document.getElementById('liveness-container-official');
+      if (!container) {
+        if (attempts < maxAttempts) {
+          attempts++;
+          setTimeout(findAndRecordVideo, 500);
+        }
+        return;
+      }
+
+      const videoElements = container.querySelectorAll('video');
+      for (const videoEl of Array.from(videoElements)) {
+        const video = videoEl as HTMLVideoElement;
+        if (video.srcObject && video.srcObject instanceof MediaStream) {
+          const stream = video.srcObject as MediaStream;
+          const videoTracks = stream.getVideoTracks();
+          
+          if (videoTracks.length > 0 && videoTracks[0].readyState === 'live') {
+            console.log('[Capture Official] 🎥 Stream de vídeo encontrado, iniciando gravação...');
+            this.videoStream = stream;
+            try {
+              this.videoRecorder = startVideoRecording(stream);
+              this.isRecordingVideo.set(true);
+              console.log('[Capture Official] ✅ Gravação de vídeo INICIADA com sucesso!');
+              this.statusMessage.set('🎥 Gravando vídeo da sessão...');
+              return;
+            } catch (error) {
+              console.error('[Capture Official] ❌ Erro ao iniciar gravação:', error);
+              this.isRecordingVideo.set(false);
+            }
+          }
+        }
+      }
+
+      // Tentar novamente se não encontrou
+      if (attempts < maxAttempts) {
+        attempts++;
+        setTimeout(findAndRecordVideo, 500);
+      }
+    };
+
+    // Aguardar um pouco antes de começar a procurar
+    setTimeout(findAndRecordVideo, 1000);
+  }
+
+  private async stopVideoRecording(): Promise<void> {
+    if (this.videoRecorder) {
+      try {
+        console.log('[Capture Official] 🛑 Parando gravação de vídeo...');
+        this.isRecordingVideo.set(false);
+        this.recordedVideo = await this.videoRecorder.stopRecording();
+        this.videoRecorder = null;
+        console.log('[Capture Official] ✅ Vídeo gravado com sucesso!', {
+          size: `${(this.recordedVideo.blob.size / 1024 / 1024).toFixed(2)} MB`,
+          duration: `${(this.recordedVideo.durationMs / 1000).toFixed(2)} segundos`,
+          mimeType: this.recordedVideo.mimeType
+        });
+      } catch (error) {
+        console.error('[Capture Official] ❌ Erro ao parar gravação:', error);
+        this.recordedVideo = null;
+        this.isRecordingVideo.set(false);
+      }
+    }
+
+    if (this.videoStream) {
+      stopMediaStream(this.videoStream);
+      this.videoStream = null;
+    }
+  }
+
   private destroyWidget(): void {
     // Parar observer da elipse
     this.stopOvalObserver();
+
+    // Parar gravação de vídeo se ainda estiver ativa (sem await - não bloquear)
+    void this.stopVideoRecording();
 
     if (this.widgetInstance) {
       try {
@@ -902,6 +1044,10 @@ export class CaptureOfficialComponent {
     if (container) {
       container.innerHTML = '';
     }
+
+    // Limpar variáveis de vídeo
+    (this as any)._videoKey = null;
+    this.recordedVideo = null;
   }
 }
 

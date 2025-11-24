@@ -115,6 +115,12 @@
         <div class="status-message" *ngIf="statusMessage() && !errorMessage() && !showCountdown()">
           <p>{{ statusMessage() }}</p>
         </div>
+        
+        <!-- Indicador de gravação de vídeo -->
+        <div class="recording-indicator" *ngIf="isRecordingVideo()">
+          <div class="recording-dot"></div>
+          <span>🎥 Gravando vídeo...</span>
+        </div>
         <div class="error-message" *ngIf="errorMessage()">
           <p>{{ errorMessage() }}</p>
         </div>
@@ -130,7 +136,7 @@
           [livenessResult]="livenessResult()!"
           [documentImageS3Path]="documentS3Path()!"
           [documentImageUrl]="documentUrl() || undefined"
-          (finished)="handleReviewFinished()">
+          (finished)="handleReviewFinished($event)">
         </app-custom-review-step>
       </div>
     </div>

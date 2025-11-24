@@ -94,6 +94,7 @@ export interface GetLivenessResultRequest {
   documentKey?: string;  // Chave S3 do documento (opcional, para análise completa)
   selfieKey?: string;    // Chave S3 da selfie de referência (opcional)
   localLivenessScore?: number;  // Score de liveness calculado localmente pelo frontend (0-100)
+  videoKey?: string;     // Chave S3 do vídeo gravado durante a captura (opcional)
 }
 
 export interface LivenessResultResponse {
