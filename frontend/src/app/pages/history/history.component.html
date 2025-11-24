@@ -97,6 +97,39 @@
         </div>
       </div>
 
+      <!-- Detalhes do Match (Captura Oficial) -->
+      <div class="match-section" *ngIf="getMatchResult(entry) as matchResult">
+        <h3>🔍 Análise de Match com Documento</h3>
+        <div class="match-details">
+          <div class="match-metric">
+            <span class="match-label">Melhor Match</span>
+            <span class="match-value">{{ matchResult.bestMatchScore | number: '1.0-2' }}%</span>
+          </div>
+          <div class="match-metric" *ngIf="matchResult.finalScore">
+            <span class="match-label">Score Final</span>
+            <span class="match-value match-value--final">{{ matchResult.finalScore | number: '1.0-2' }}%</span>
+          </div>
+          <div class="match-metric">
+            <span class="match-label">Imagens Comparadas</span>
+            <span class="match-value">{{ matchResult.matches?.length || 0 }}</span>
+          </div>
+        </div>
+        <div class="match-list" *ngIf="matchResult.matches && matchResult.matches.length > 0">
+          <h4>Detalhes por Imagem</h4>
+          <div class="match-items">
+            <div class="match-item" *ngFor="let match of matchResult.matches">
+              <div class="match-item-info">
+                <code class="match-key">{{ match.imageKey.split('/').pop() }}</code>
+                <div class="match-scores">
+                  <span>Similaridade: <strong>{{ match.similarity | number: '1.0-2' }}%</strong></span>
+                  <span>Confiança: <strong>{{ match.confidence | number: '1.0-2' }}%</strong></span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div class="captures-section" *ngIf="entry.summary.captures.length; else noCaptures">
         <h3>Capturas</h3>
         <div class="carousel-container">

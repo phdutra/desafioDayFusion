@@ -1,0 +1,139 @@
+<div class="capture-official-page fade-in-up">
+  <section class="intro-card">
+    <div class="intro-icon">🛡️</div>
+    <div class="intro-content">
+      <h2 class="intro-title gradient-text">Captura Oficial</h2>
+      <p class="intro-description">
+        Verificação facial completa usando o Widget AWS Face Liveness oficial.
+        Captura 100% do widget AWS com match automático com documento.
+      </p>
+      <ul class="intro-benefits">
+        <li>✅ Widget AWS oficial (100% captura do widget)</li>
+        <li>✅ Match automático com documento</li>
+        <li>✅ Análise completa de liveness e identidade</li>
+      </ul>
+    </div>
+    <div class="intro-actions">
+      <button class="btn-dashboard" (click)="openModal()" [disabled]="!documentFile() || isLoading()">
+        <span class="btn-icon">▶</span>
+        <span>Iniciar Verificação Oficial</span>
+      </button>
+      <p class="intro-hint">Necessário navegador com HTTPS e permissão de câmera.</p>
+    </div>
+  </section>
+
+  <!-- 1️⃣ PRIMEIRO: Documento de Referência -->
+  <section class="document-upload-card">
+    <div class="document-content">
+      <div class="step-badge">
+        <span class="step-number">1</span>
+        <h3>Documento de Referência</h3>
+      </div>
+      <p>Primeiro, faça upload de um documento (RG/CNH) para comparação facial.</p>
+      <div class="document-input">
+        <label class="upload-button">
+          <input type="file" accept="image/*" (change)="onDocumentSelected($event)" hidden [disabled]="isLoading()" />
+          <span>📄 Selecionar documento</span>
+        </label>
+        <div class="document-info" *ngIf="documentInfo() as info; else noDocument">
+          <div>
+            <strong>{{ info.name }}</strong>
+            <p>{{ info.sizeKb | number:'1.0-0' }} KB</p>
+          </div>
+          <button class="btn-ghost" type="button" (click)="clearDocument()" [disabled]="isLoading()">Remover</button>
+        </div>
+        <ng-template #noDocument>
+          <p class="document-placeholder">Nenhum documento selecionado.</p>
+        </ng-template>
+      </div>
+    </div>
+  </section>
+
+  <!-- Resultado -->
+  <section class="result-section" *ngIf="statusSummary() as summary">
+    <div class="result-card" 
+         [class.approved]="summary.status === 'Aprovado'" 
+         [class.rejected]="summary.status === 'Rejeitado'" 
+         [class.review]="summary.status === 'Revisar'">
+      <div class="result-header">
+        <div class="result-status">
+          <span class="status-icon">
+            {{ summary.status === 'Aprovado' ? '✅' : summary.status === 'Rejeitado' ? '❌' : '🔍' }}
+          </span>
+          <div>
+            <h4>Status: {{ summary.status }}</h4>
+            <p>Sessão {{ summary.sessionId }}</p>
+          </div>
+        </div>
+        <div class="result-score">
+          <div>
+            <span class="score-label">Score Liveness</span>
+            <span class="score-value">{{ summary.livenessScore | number:'1.0-0' }}%</span>
+          </div>
+          <div>
+            <span class="score-label">Match Documento</span>
+            <span class="score-value">{{ summary.faceMatchScore !== null ? (summary.faceMatchScore | number:'1.0-0') + '%' : 'N/A' }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="status-banner error" *ngIf="errorMessage()">
+    <span>⚠️ {{ errorMessage() }}</span>
+  </div>
+
+  <!-- Modal de Captura -->
+  <div class="modal-overlay" *ngIf="isModalOpen()">
+    <div class="modal-wrapper">
+      <button class="modal-close" (click)="closeModal()">✕</button>
+      
+      <!-- Etapa 1: Widget AWS -->
+      <div *ngIf="!showReviewStep()" class="widget-container">
+        <!-- Contagem Regressiva -->
+        <div class="countdown-overlay" *ngIf="showCountdown()">
+          <div class="countdown-content">
+            <div class="countdown-number">{{ countdown() }}</div>
+            <p>Preparando verificação...</p>
+          </div>
+        </div>
+
+        <!-- Tooltip de Aviso de Fotossensibilidade -->
+        <div class="photosensitivity-tooltip" *ngIf="!showCountdown() && !errorMessage()">
+          <div class="tooltip-icon" title="Aviso de fotossensibilidade">ℹ️</div>
+          <div class="tooltip-content">
+            <strong>Aviso de fotossensibilidade</strong>
+            <p>Este teste de liveness usa luz estroboscópica que pode afetar pessoas com epilepsia fotossensível.</p>
+          </div>
+        </div>
+
+        <div id="liveness-container-official" 
+             [class.countdown-active]="showCountdown()"
+             style="margin-top: -3rem; transform: translateY(-30px);">
+        </div>
+        
+        <div class="status-message" *ngIf="statusMessage() && !errorMessage() && !showCountdown()">
+          <p>{{ statusMessage() }}</p>
+        </div>
+        <div class="error-message" *ngIf="errorMessage()">
+          <p>{{ errorMessage() }}</p>
+        </div>
+        <div class="loading-spinner" *ngIf="isLoading() && !errorMessage() && !showCountdown()">
+          <div class="spinner"></div>
+          <p>Aguardando widget carregar...</p>
+        </div>
+      </div>
+
+      <!-- Etapa 2: Review com Match -->
+      <div *ngIf="showReviewStep() && livenessResult() && documentS3Path()" class="review-container">
+        <app-custom-review-step
+          [livenessResult]="livenessResult()!"
+          [documentImageS3Path]="documentS3Path()!"
+          [documentImageUrl]="documentUrl() || undefined"
+          (finished)="handleReviewFinished()">
+        </app-custom-review-step>
+      </div>
+    </div>
+  </div>
+</div>
+

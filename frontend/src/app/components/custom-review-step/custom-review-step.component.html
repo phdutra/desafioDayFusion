@@ -1,0 +1,111 @@
+<div class="review" *ngIf="livenessResult">
+  <section class="review__left">
+    <h3>Resumo da Verificação</h3>
+
+    <div class="review__metrics">
+      <div class="metric">
+        <span class="metric__label">Session ID</span>
+        <code>{{ livenessResult.sessionId }}</code>
+      </div>
+
+      <div class="metric">
+        <span class="metric__label">Liveness Score</span>
+        <span class="metric__value">
+          {{ livenessResult.confidenceScore | number : '1.0-2' }}%
+        </span>
+      </div>
+
+      <div class="metric" *ngIf="matchResult">
+        <span class="metric__label">Match Documento</span>
+        <span class="metric__value">
+          {{ matchResult.bestMatchScore | number : '1.0-2' }}%
+        </span>
+      </div>
+
+      <div class="metric" *ngIf="matchResult">
+        <span class="metric__label">Score Final DayFusion</span>
+        <span class="metric__value metric__value--final">
+          {{ matchResult.finalScore | number : '1.0-2' }}%
+        </span>
+      </div>
+    </div>
+
+    <div class="review__obs">
+      <label>Observações</label>
+      <textarea
+        [(ngModel)]="observation"
+        rows="4"
+        placeholder="Ex.: Liveness alto, match com documento consistente, sem sinais de deepfake...">
+      </textarea>
+    </div>
+  </section>
+
+  <section class="review__right">
+    <h3>Imagens utilizadas</h3>
+
+    <div class="review__thumbs-wrapper" *ngIf="livenessResult.auditImages?.length">
+      <div class="review__thumbs">
+        <div
+          class="thumb"
+          *ngFor="let img of livenessResult.auditImages">
+          <!-- Se tiver URL assinado direto -->
+          <img *ngIf="img.url" [src]="img.url" alt="Frame liveness" />
+
+          <!-- Se estiver usando rota interna para servir imagens do S3 -->
+          <img *ngIf="!img.url"
+               [src]="'/api/media/liveness-frame?bucket=' + img.bucket + '&key=' + img.key"
+               alt="Frame liveness" />
+        </div>
+      </div>
+
+      <div class="review__doc">
+        <h4>Documento</h4>
+        <div *ngIf="resolvedDocumentUrl; else noDocumentImage" class="document-image-wrapper">
+          <img
+            [src]="resolvedDocumentUrl"
+            alt="Documento"
+            (error)="onDocumentImageError($event)"
+            loading="lazy"
+          />
+        </div>
+        <ng-template #noDocumentImage>
+          <div class="document-placeholder">
+            <span class="placeholder-icon">📄</span>
+            <p>Documento não disponível</p>
+            <code *ngIf="documentImageS3Path" class="document-path">{{ documentImageS3Path }}</code>
+          </div>
+        </ng-template>
+      </div>
+    </div>
+
+    <div class="review__loading" *ngIf="isLoadingMatch">
+      <span class="spinner"></span>
+      <p>Calculando match do rosto com o documento...</p>
+    </div>
+
+    <!-- Status Final -->
+    <div class="review__status" [class.approved]="status === 'Aprovado'" 
+         [class.rejected]="status === 'Rejeitado'" 
+         [class.review]="status === 'Revisar'">
+      <div class="status-content">
+        <span class="status-icon">
+          {{ status === 'Aprovado' ? '✅' : status === 'Rejeitado' ? '❌' : '🔍' }}
+        </span>
+        <div class="status-text">
+          <h3>Status Final: {{ status }}</h3>
+          <p *ngIf="status === 'Aprovado'">Verificação aprovada com sucesso!</p>
+          <p *ngIf="status === 'Rejeitado'">Verificação rejeitada. Verifique os critérios.</p>
+          <p *ngIf="status === 'Revisar'">Verificação requer análise manual.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="review__actions">
+      <button class="btn-secondary" (click)="cancel()">Cancelar</button>
+      <button class="btn-primary" (click)="confirm()" [disabled]="isSaving">
+        {{ isSaving ? 'Salvando...' : 'Confirmar Verificação' }}
+      </button>
+    </div>
+  </section>
+</div>
+

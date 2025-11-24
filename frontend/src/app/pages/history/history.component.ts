@@ -111,7 +111,23 @@ export class HistoryComponent {
       return cached;
     }
     const entry = this.historyEntries().find(item => item.id === entryId);
-    return entry?.summary.metadata?.['documentUrl'];
+    if (!entry) {
+      return undefined;
+    }
+    
+    // Prioridade 1: URL assinada no metadata
+    if (entry.summary.metadata?.['documentUrl']) {
+      return entry.summary.metadata['documentUrl'];
+    }
+    
+    // Prioridade 2: Tentar gerar URL do documentKey
+    const documentKey = entry.summary.documentKey || entry.summary.metadata?.['documentKey'];
+    if (documentKey) {
+      // Retornar undefined para que ensureMediaUrls gere a URL
+      return undefined;
+    }
+    
+    return undefined;
   }
 
   async selectEntry(entryId: string, refresh = true): Promise<void> {
@@ -309,6 +325,19 @@ export class HistoryComponent {
     return false;
   }
 
+  getMatchResult(entry: LivenessHistoryEntry): any | null {
+    // Tentar obter matchResult do metadata
+    const matchResultStr = entry.summary.metadata?.['matchResult'];
+    if (matchResultStr) {
+      try {
+        return JSON.parse(matchResultStr);
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  }
+
   getObservacao(entry: LivenessHistoryEntry): string | null {
     let observacao: string | null = null;
     
@@ -412,8 +441,32 @@ export class HistoryComponent {
         videoUrl = await this.s3Service.getSignedUrl(entry.summary.video.s3Key);
       }
 
-      if (entry.summary.documentKey) {
-        documentUrl = await this.s3Service.getSignedUrl(entry.summary.documentKey);
+      // Tentar obter documentKey de diferentes fontes
+      let documentKey = entry.summary.documentKey;
+      
+      // Fallback: tentar obter do metadata
+      if (!documentKey && entry.summary.metadata?.['documentKey']) {
+        documentKey = entry.summary.metadata['documentKey'];
+      }
+      
+      // Se ainda não tiver, tentar extrair do documentS3Path
+      if (!documentKey && entry.summary.metadata?.['documentS3Path']) {
+        const s3Path = entry.summary.metadata['documentS3Path'];
+        // Extrair key do path s3://bucket/key
+        const match = s3Path.match(/^s3:\/\/[^\/]+\/(.+)$/);
+        if (match) {
+          documentKey = match[1];
+        }
+      }
+      
+      // Se tiver documentUrl no metadata, usar diretamente (URL assinada)
+      if (!documentUrl && entry.summary.metadata?.['documentUrl']) {
+        documentUrl = entry.summary.metadata['documentUrl'];
+      }
+      
+      // Se não tiver URL mas tiver key, gerar URL assinada
+      if (!documentUrl && documentKey) {
+        documentUrl = await this.s3Service.getSignedUrl(documentKey);
       }
 
       this.mediaCacheSignal.update((state) => ({

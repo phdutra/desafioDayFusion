@@ -181,6 +181,7 @@ builder.Services.AddScoped<IUserProfileService, UserProfileService>();
 builder.Services.AddScoped<IAntiDeepfakeService, AntiDeepfakeService>();
 builder.Services.AddScoped<IDocumentAnalyzerService, DocumentAnalyzerService>();
 builder.Services.AddScoped<IValidationService, ValidationService>();
+builder.Services.AddScoped<DayFusion.API.Services.IFaceMatchService, DayFusion.API.Services.FaceMatchService>();
 
 // Configure JWT Authentication (placeholder - in production, use AWS Cognito)
 var jwtSecret = builder.Configuration["JWT:Secret"] ?? builder.Configuration["JWT_SECRET"] ?? "your-secret-key-here";

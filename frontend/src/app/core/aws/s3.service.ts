@@ -3,6 +3,7 @@ import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { CognitoService } from './cognito.service';
 import { environment } from '../../../environments/environment';
+import { Observable, from } from 'rxjs';
 
 interface UploadResult {
   key: string;
@@ -67,6 +68,14 @@ export class S3Service {
     const extension = this.resolveExtension(mimeType || blob.type, 'webm');
     const key = `liveness/${sessionId}/session-video.${extension}`;
     return this.uploadBlobToS3(key, blob, { resourceType: 'video' });
+  }
+
+  uploadDocument(file: File): Observable<UploadResult> {
+    const extension = this.resolveExtension(file.type, 'jpg');
+    const timestamp = Date.now();
+    const key = `documents/${timestamp}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}.${extension}`;
+    const blob = new Blob([file], { type: file.type });
+    return from(this.uploadBlobToS3(key, blob, { resourceType: 'document' }));
   }
 
   async getSignedUrl(key: string, expiresInSeconds = 900): Promise<string> {

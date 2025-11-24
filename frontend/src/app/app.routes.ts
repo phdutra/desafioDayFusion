@@ -81,6 +81,11 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/aws-widget/aws-widget.component').then(m => m.AwsWidgetComponent)
   },
   {
+    path: 'capture-official',
+    canActivate: [authGuard],
+    loadComponent: () => import('./pages/capture-official/capture-official.component').then(m => m.CaptureOfficialComponent)
+  },
+  {
     path: '**',
     redirectTo: '/login'
   }
