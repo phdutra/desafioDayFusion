@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, ElementRef, EventEmitter, Input, OnDestroy, Output, ViewChild, CUSTOM_ELEMENTS_SCHEMA } from '@angular/core';
+import { Component, ElementRef, EventEmitter, Input, OnDestroy, Output, ViewChild, CUSTOM_ELEMENTS_SCHEMA, ChangeDetectorRef } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { CognitoService } from '../../core/aws/cognito.service';
 import { RekognitionService } from '../../core/aws/rekognition.service';
@@ -58,6 +58,7 @@ export class LivenessModalComponent implements OnDestroy {
   resultScore: number | null = null;
   resultDocumentScore: number | null = null;
   resultObservation: string | null = null;
+  isVerifying = false; // Flag para fase de verificação
 
   private stream?: MediaStream;
   private videoRecorder: MediaRecorderController | null = null;
@@ -83,7 +84,8 @@ export class LivenessModalComponent implements OnDestroy {
     private readonly rekognitionService: RekognitionService,
     private readonly s3Service: S3Service,
     private readonly faceService: FaceRecognitionService,
-    private readonly livenessService: LivenessService
+    private readonly livenessService: LivenessService,
+    private readonly cdr: ChangeDetectorRef
   ) {}
 
   async startSession(): Promise<void> {
@@ -238,6 +240,8 @@ export class LivenessModalComponent implements OnDestroy {
       
       // Processar análise com progresso incremental
       this.statusMessage = 'Analisando resultados...';
+      this.isVerifying = true; // Iniciar fase de verificação
+      this.cdr.detectChanges(); // Forçar detecção de mudanças
       this.updateProgress(92);
 
       // Calcular score local ANTES do merge (para enviar ao backend)
@@ -297,6 +301,9 @@ export class LivenessModalComponent implements OnDestroy {
     if (!awsResult && this.awsSessionId) {
       // Tentar obter resultado do polling se ainda não tiver
       try {
+        this.statusMessage = 'Verificando...';
+        this.isVerifying = true;
+        this.cdr.detectChanges(); // Forçar detecção de mudanças
         awsResult = await this.checkAwsResultInBackground(this.awsSessionId);
       } catch (pollError) {
         console.error('[Liveness] Erro ao obter resultado AWS:', pollError);
@@ -398,6 +405,8 @@ export class LivenessModalComponent implements OnDestroy {
       if (documentUpload?.key && referenceFaceBytes) {
         try {
           this.statusMessage = 'Analisando documento no servidor...';
+          this.isVerifying = true; // Garantir que loading está ativo
+          this.cdr.detectChanges(); // Forçar detecção de mudanças
           
           // Obter chave S3 da selfie de referência (frente)
           const frontCapture = captures.find(c => c.position.toLowerCase() === 'frente');
@@ -476,35 +485,67 @@ export class LivenessModalComponent implements OnDestroy {
       // Prioridade: AWS Liveness > status do backend > identityScore > observação > scores locais
       let finalStatus: 'Aprovado' | 'Rejeitado' | 'Revisar' = 'Revisar';
       
-      // REGRA ANTI-FRAUDE CRÍTICA: Só aprovar se AWS confirmou LIVE explicitamente
-      // Se AWS não completou ou não confirmou LIVE → SEMPRE rejeitar/revisar (não aprovar)
+      // REGRA ANTI-FRAUDE CRÍTICA: Se AWS detectou fraude, SEMPRE rejeitar
+      // Se AWS não completou MAS backend aprovou ambos → pode aprovar baseado no backend
       
       // Se AWS detectou fraude, rejeitar imediatamente
       if (awsDetectedFake) {
         finalStatus = 'Rejeitado';
         console.log('[Liveness] ❌ Rejeitado: AWS detectou fraude (FAKE/SPOOF)');
-      }
-      // Se AWS não completou validação (timeout, UNKNOWN, CREATED) → REJEITAR/REVISAR
-      else if (mergedResult.source === 'fallback' || !mergedResult.isLive) {
-        // AWS não validou → não aprovar automaticamente (pode ser spoofing)
-        finalStatus = 'Rejeitado';
-        console.log('[Liveness] ❌ Rejeitado: AWS não completou validação 3D. Sem validação AWS, não é possível confirmar que não é spoofing.');
       } else if (documentRejected) {
         finalStatus = 'Rejeitado';
         console.log('[Liveness] ❌ Rejeitado: documento rejeitado');
       } else if (backendAnalysis) {
-        // Se backend retornou análise E AWS confirmou LIVE, usar decisão do backend
-        // IMPORTANTE: Só aprovar se AWS também confirmou LIVE (não apenas se backend aprovou)
-        if (backendAnalysis.status) {
+        // Verificar primeiro se backend tem ambos aprovados na observação
+        const hasLivenessApproved = backendAnalysis.observacao?.includes('Validação automática aprovada') || false;
+        const hasDocumentApproved = backendAnalysis.observacao?.includes('Documento visualmente autêntico') || 
+                                    backendAnalysis.observacao?.includes('Documento autêntico') || false;
+        const bothApprovedInObservation = hasLivenessApproved && hasDocumentApproved;
+        
+        // Se backend tem ambos aprovados na observação, pode aprovar mesmo sem AWS completo
+        // (mas ainda precisa verificar se AWS não detectou fraude - já verificado acima)
+        if (bothApprovedInObservation) {
+          // Verificar se AWS confirmou LIVE (ideal) ou se não completou mas não detectou fraude
+          const awsConfirmedLive = mergedResult.isLive && mergedResult.aws?.decision === 'LIVE';
+          const awsNotCompleted = mergedResult.source === 'fallback' || !mergedResult.isLive;
+          
+          if (awsConfirmedLive) {
+            finalStatus = 'Aprovado';
+            console.log('[Liveness] ✅ Aprovado: Backend aprovou ambos (observação) E AWS confirmou LIVE');
+          } else if (awsNotCompleted && !awsDetectedFake) {
+            // AWS não completou mas não detectou fraude E backend aprovou ambos → aprovar baseado no backend
+            finalStatus = 'Aprovado';
+            console.log('[Liveness] ✅ Aprovado: Backend aprovou ambos (observação) - AWS não completou mas não detectou fraude');
+          } else {
+            finalStatus = 'Rejeitado';
+            console.log('[Liveness] ❌ Rejeitado: Backend aprovou ambos mas AWS não confirmou LIVE');
+          }
+        }
+        // Se ainda não aprovou, verificar status do backend
+        // IMPORTANTE: Só aprovar se AWS também confirmou LIVE E documento aprovado
+        if (finalStatus === 'Revisar' && backendAnalysis.status) {
           const backendStatus = backendAnalysis.status.toUpperCase();
           if (backendStatus === 'APPROVED' || backendStatus === 'APROVADO') {
-            // Só aprovar se AWS também confirmou LIVE
-            if (mergedResult.isLive && mergedResult.aws?.decision === 'LIVE') {
+            // Verificar se documento está aprovado (score >= 85 ou na observação)
+            const documentScore = backendAnalysis.documentScore ?? 0;
+            const hasDocumentApproved = documentScore >= 85 || 
+                                       (backendAnalysis.observacao && (
+                                         backendAnalysis.observacao.includes('Documento visualmente autêntico') ||
+                                         backendAnalysis.observacao.includes('Documento autêntico')
+                                       ));
+            
+            // Só aprovar se AWS confirmou LIVE E documento aprovado
+            if (mergedResult.isLive && mergedResult.aws?.decision === 'LIVE' && hasDocumentApproved) {
               finalStatus = 'Aprovado';
-              console.log('[Liveness] ✅ Aprovado: Backend APPROVED E AWS confirmou LIVE');
+              console.log('[Liveness] ✅ Aprovado: Backend APPROVED E AWS confirmou LIVE E Documento aprovado');
             } else {
-              finalStatus = 'Rejeitado';
-              console.log('[Liveness] ❌ Rejeitado: Backend aprovou mas AWS não confirmou LIVE');
+              if (!mergedResult.isLive || mergedResult.aws?.decision !== 'LIVE') {
+                finalStatus = 'Rejeitado';
+                console.log('[Liveness] ❌ Rejeitado: Backend aprovou mas AWS não confirmou LIVE');
+              } else if (!hasDocumentApproved) {
+                finalStatus = 'Rejeitado';
+                console.log('[Liveness] ❌ Rejeitado: Backend aprovou mas Documento não aprovado');
+              }
             }
           } else if (backendStatus === 'REJECTED' || backendStatus === 'REJEITADO') {
             finalStatus = 'Rejeitado';
@@ -515,40 +556,76 @@ export class LivenessModalComponent implements OnDestroy {
           }
         }
         
-        // Se não há status explícito, usar identityScore (mas só aprovar se AWS confirmou LIVE)
+        // Se não há status explícito, usar identityScore (mas só aprovar se AWS confirmou LIVE E documento aprovado)
         if (finalStatus === 'Revisar' && backendAnalysis.identityScore !== undefined && backendAnalysis.identityScore !== null) {
           const identityScoreValue = backendAnalysis.identityScore;
-          // Só aprovar se IdentityScore alto E AWS confirmou LIVE
-          if (identityScoreValue >= 0.85 && mergedResult.isLive && mergedResult.aws?.decision === 'LIVE') {
+          // Verificar se documento está aprovado
+          const documentScore = backendAnalysis.documentScore ?? 0;
+          const hasDocumentApproved = documentScore >= 85 || 
+                                     (backendAnalysis.observacao && (
+                                       backendAnalysis.observacao.includes('Documento visualmente autêntico') ||
+                                       backendAnalysis.observacao.includes('Documento autêntico')
+                                     ));
+          
+          // Só aprovar se IdentityScore >= 90% E AWS confirmou LIVE E documento aprovado
+          if (identityScoreValue >= 0.90 && mergedResult.isLive && mergedResult.aws?.decision === 'LIVE' && hasDocumentApproved) {
             finalStatus = 'Aprovado';
-            console.log('[Liveness] ✅ Aprovado: IdentityScore alto E AWS confirmou LIVE');
+            console.log('[Liveness] ✅ Aprovado: IdentityScore >= 90% E AWS confirmou LIVE E Documento aprovado');
           } else if (identityScoreValue >= 0.70) {
             finalStatus = 'Revisar';
-            console.log('[Liveness] 🔍 Revisar: IdentityScore médio ou AWS não confirmou LIVE');
+            if (!hasDocumentApproved) {
+              console.log('[Liveness] 🔍 Revisar: Documento não aprovado');
+            } else {
+              console.log('[Liveness] 🔍 Revisar: IdentityScore médio ou AWS não confirmou LIVE');
+            }
           } else {
             finalStatus = 'Rejeitado';
             console.log('[Liveness] ❌ Rejeitado: IdentityScore baixo');
           }
         }
         
-        // Se ainda não definiu, verificar observação (mas só aprovar se AWS confirmou LIVE)
-        if (finalStatus === 'Revisar' && backendAnalysis.observacao) {
-          if (backendAnalysis.observacao.includes('Validação automática aprovada') && 
-              mergedResult.isLive && mergedResult.aws?.decision === 'LIVE') {
-            finalStatus = 'Aprovado';
-            console.log('[Liveness] ✅ Aprovado: Backend aprovou via observação E AWS confirmou LIVE');
+        // Se ainda não definiu e não aprovou via observação acima, verificar outras condições da observação
+        if (finalStatus === 'Revisar' && backendAnalysis.observacao && !bothApprovedInObservation) {
+          const hasLivenessApproved = backendAnalysis.observacao.includes('Validação automática aprovada');
+          const hasDocumentApproved = backendAnalysis.observacao.includes('Documento visualmente autêntico') || 
+                                      backendAnalysis.observacao.includes('Documento autêntico');
+          
+          // Se tem ambos mas não passou na verificação anterior, verificar novamente
+          if (hasLivenessApproved && hasDocumentApproved) {
+            // Se AWS confirmou LIVE, aprovar
+            if (mergedResult.isLive && mergedResult.aws?.decision === 'LIVE') {
+              finalStatus = 'Aprovado';
+              console.log('[Liveness] ✅ Aprovado: Liveness aprovado E Documento aprovado E AWS confirmou LIVE');
+            } else {
+              finalStatus = 'Rejeitado';
+              console.log('[Liveness] ❌ Rejeitado: Backend aprovou ambos mas AWS não confirmou LIVE');
+            }
           } else if (backendAnalysis.observacao.includes('rejeitado') || backendAnalysis.observacao.includes('fraude')) {
             finalStatus = 'Rejeitado';
             console.log('[Liveness] ❌ Rejeitado: Backend rejeitou via observação');
           } else {
             finalStatus = 'Rejeitado';
-            console.log('[Liveness] ❌ Rejeitado: Backend aprovou mas AWS não confirmou LIVE');
+            if (!hasLivenessApproved) {
+              console.log('[Liveness] ❌ Rejeitado: Liveness não aprovado');
+            } else if (!hasDocumentApproved) {
+              console.log('[Liveness] ❌ Rejeitado: Documento não aprovado');
+            } else {
+              console.log('[Liveness] ❌ Rejeitado: Condições não atendidas');
+            }
           }
         }
-      } else if (hasStrongMatch && livenessScore >= 80 && mergedResult.isLive && mergedResult.aws?.decision === 'LIVE') {
-        // Sem backendAnalysis mas com scores altos E AWS confirmou LIVE → aprovar
-        finalStatus = 'Aprovado';
-        console.log('[Liveness] ✅ Aprovado: scores locais altos E AWS confirmou LIVE');
+      } else if (hasStrongMatch && livenessScore >= 90 && mergedResult.isLive && mergedResult.aws?.decision === 'LIVE') {
+        // Sem backendAnalysis mas com scores >= 90% E AWS confirmou LIVE
+        // NOTA: Sem backendAnalysis não temos validação de documento, então não aprovar automaticamente
+        // Se não tem documento, pode aprovar apenas com liveness
+        if (this.documentFile === null) {
+          finalStatus = 'Aprovado';
+          console.log('[Liveness] ✅ Aprovado: scores locais >= 90% E AWS confirmou LIVE (sem documento)');
+        } else {
+          // Se tem documento mas não tem backendAnalysis, não aprovar (precisa validação de documento)
+          finalStatus = 'Rejeitado';
+          console.log('[Liveness] ❌ Rejeitado: Documento enviado mas sem validação do backend');
+        }
       } else {
         // Qualquer outra situação → rejeitar/revisar
         finalStatus = 'Rejeitado';
@@ -645,6 +722,9 @@ export class LivenessModalComponent implements OnDestroy {
       this.statusMessage = 'Finalizando...';
       this.updateProgress(100);
       
+      // Finalizar fase de verificação antes de mostrar resultado
+      this.isVerifying = false;
+      
       // Quando aprovado, mostrar apenas um score consolidado
       if (isApproved) {
         // Calcular score consolidado: média ponderada ou usar o melhor score disponível
@@ -668,8 +748,8 @@ export class LivenessModalComponent implements OnDestroy {
           );
         }
         
-        // Garantir que o score consolidado seja pelo menos 85% quando aprovado
-        this.resultScore = Math.max(consolidatedScore, 85);
+        // Garantir que o score consolidado seja pelo menos 90% quando aprovado
+        this.resultScore = Math.max(consolidatedScore, 90);
         this.resultDocumentScore = null; // Não mostrar score separado quando aprovado
       } else {
         // Quando rejeitado ou em revisão, mostrar scores separados para diagnóstico
@@ -856,10 +936,20 @@ export class LivenessModalComponent implements OnDestroy {
         },
         onComplete: (result: any) => {
           console.log('[Liveness] Resultado parcial (frontend):', result);
-          this.statusMessage = 'Processando resultado...';
-          if (this.awsSessionId) {
-            this.fetchFinalResult(this.awsSessionId);
-          }
+          // Quando widget completa, mostrar "Check complete" e depois "Verificando..."
+          this.statusMessage = 'Check complete';
+          this.isVerifying = true;
+          this.cdr.detectChanges();
+          
+          // Após um breve delay, mudar para "Verificando..."
+          setTimeout(() => {
+            this.statusMessage = 'Verificando...';
+            this.isVerifying = true;
+            this.cdr.detectChanges();
+            if (this.awsSessionId) {
+              this.fetchFinalResult(this.awsSessionId);
+            }
+          }, 500);
         }
       });
 
@@ -876,11 +966,13 @@ export class LivenessModalComponent implements OnDestroy {
    * Busca resultado final do backend (conforme guia)
    */
   private fetchFinalResult(sessionId: string): void {
+    this.isVerifying = true; // Ativar loading ao buscar resultado
     this.livenessService.getResult(sessionId).subscribe({
       next: (result) => {
         console.log('[Liveness] Resultado final (backend):', result);
         const confidence = result.confidence ?? 0;
         this.statusMessage = `Verificação concluída. Confiança: ${(confidence * 100).toFixed(2)}%`;
+        this.isVerifying = false; // Desativar loading quando concluir
         
         // Processar resultado e integrar com lógica existente
         this.processAwsResult(result);
@@ -889,6 +981,7 @@ export class LivenessModalComponent implements OnDestroy {
         console.error('[Liveness] Erro ao buscar resultado:', err);
         this.statusMessage = 'Erro ao obter resultado da verificação.';
         this.errorMessage = 'Erro ao obter resultado do backend';
+        this.isVerifying = false; // Desativar loading em caso de erro
       }
     });
   }
@@ -1260,6 +1353,7 @@ export class LivenessModalComponent implements OnDestroy {
     this.resultScore = null;
     this.resultDocumentScore = null;
     this.resultObservation = null;
+    this.isVerifying = false;
   }
 
   private updateDirection(posicao: string): void {
@@ -1294,6 +1388,31 @@ export class LivenessModalComponent implements OnDestroy {
       rotation: `rotate(${index * angle}deg)`,
       active: index < activeSegments
     }));
+  }
+
+  // Getter para verificar se deve mostrar loading baseado na mensagem
+  get shouldShowVerifyingSpinner(): boolean {
+    // Sempre mostrar se flag estiver ativa
+    if (this.isVerifying) {
+      return true;
+    }
+    
+    // Verificar se a mensagem contém palavras-chave de verificação
+    const verifyingKeywords = ['verificando', 'verifying', 'analisando', 'processando', 'check complete'];
+    const messageLower = (this.statusMessage || '').toLowerCase();
+    const hasKeyword = verifyingKeywords.some(keyword => messageLower.includes(keyword));
+    
+    // Se tem keyword e não está em erro, mostrar spinner
+    if (hasKeyword && !this.errorMessage && !this.resultStatus) {
+      // Se a mensagem é "Check complete", ativar flag também
+      if (messageLower.includes('check complete')) {
+        this.isVerifying = true;
+        this.cdr.detectChanges();
+      }
+      return true;
+    }
+    
+    return false;
   }
 }
 

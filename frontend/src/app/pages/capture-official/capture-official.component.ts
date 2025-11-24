@@ -40,6 +40,7 @@ export class CaptureOfficialComponent {
   // Estados
   readonly isModalOpen = signal<boolean>(false);
   readonly isLoading = signal<boolean>(false);
+  readonly isUploadingDocument = signal<boolean>(false); // Flag específica para upload de documento
   readonly errorMessage = signal<string | null>(null);
   readonly statusMessage = signal<string>('');
   readonly documentFile = signal<File | null>(null);
@@ -53,10 +54,12 @@ export class CaptureOfficialComponent {
   readonly lastSummary = signal<LivenessSummary | null>(null);
   readonly countdown = signal<number | null>(null);
   readonly showCountdown = signal<boolean>(false);
+  readonly isVerifying = signal<boolean>(false); // Flag para fase de verificação
 
   // AWS Widget
   private widgetInstance: any = null;
   private ovalObserverInterval: any = null;
+  private verifyingObserverInterval: any = null;
   private sessionId: string = '';
   private videoRecorder: MediaRecorderController | null = null;
   private videoStream: MediaStream | null = null;
@@ -105,6 +108,7 @@ export class CaptureOfficialComponent {
 
     // Upload do documento para S3
     try {
+      this.isUploadingDocument.set(true);
       this.isLoading.set(true);
       this.statusMessage.set('Enviando documento...');
       
@@ -146,6 +150,7 @@ export class CaptureOfficialComponent {
       console.error('Erro ao enviar documento:', error);
       this.errorMessage.set('Erro ao enviar documento. Tente novamente.');
     } finally {
+      this.isUploadingDocument.set(false);
       this.isLoading.set(false);
     }
   }
@@ -325,6 +330,9 @@ export class CaptureOfficialComponent {
       this.applyWidgetStyles();
       this.startOvalObserver();
       
+      // Iniciar observador para detectar "Verifying..." e mostrar loading
+      this.startVerifyingObserver();
+      
       // Iniciar gravação de vídeo quando widget começar
       this.startVideoRecordingFromWidget();
   }
@@ -339,6 +347,52 @@ export class CaptureOfficialComponent {
     this.ovalObserverInterval = setInterval(() => {
       this.hideOvalElements();
     }, 50); // Verificar a cada 50ms para remoção mais rápida
+  }
+
+  private startVerifyingObserver(): void {
+    // Limpar intervalo anterior se existir
+    if (this.verifyingObserverInterval) {
+      clearInterval(this.verifyingObserverInterval);
+    }
+
+    // Monitorar DOM do widget para detectar "Verifying..." ou "Check complete"
+    this.verifyingObserverInterval = setInterval(() => {
+      this.checkForVerifyingMessage();
+    }, 200); // Verificar a cada 200ms
+  }
+
+  private checkForVerifyingMessage(): void {
+    const container = document.getElementById('liveness-container-official');
+    if (!container) return;
+
+    // Buscar por texto "Verifying", "Verificando", "Check complete" em qualquer elemento
+    const allText = container.innerText || container.textContent || '';
+    const textLower = allText.toLowerCase();
+    
+    const verifyingKeywords = ['verifying', 'verificando', 'check complete'];
+    const hasVerifying = verifyingKeywords.some(keyword => textLower.includes(keyword));
+    
+    if (hasVerifying && !this.isVerifying()) {
+      console.log('[Capture Official] Detectado "Verifying..." - ativando loading');
+      this.isVerifying.set(true);
+    } else if (!hasVerifying && this.isVerifying() && !this.showReviewStep()) {
+      // Desativar apenas se não estiver na etapa de review
+      // O loading será desativado quando entrar na etapa de review ou quando houver erro
+      const isProcessing = textLower.includes('processando') || 
+                          textLower.includes('processing') ||
+                          textLower.includes('analisando') ||
+                          textLower.includes('analyzing');
+      if (!isProcessing) {
+        this.isVerifying.set(false);
+      }
+    }
+  }
+
+  private stopVerifyingObserver(): void {
+    if (this.verifyingObserverInterval) {
+      clearInterval(this.verifyingObserverInterval);
+      this.verifyingObserverInterval = null;
+    }
   }
 
   private hideOvalElements(): void {
@@ -697,6 +751,7 @@ export class CaptureOfficialComponent {
 
   private async handleWidgetComplete(result: any): Promise<void> {
     console.log('[Capture Official] Widget completo:', result);
+    this.isVerifying.set(false); // Desativar loading quando widget completa
     this.statusMessage.set('Verificação concluída. Processando resultados...');
 
     // Parar gravação de vídeo
@@ -1016,6 +1071,9 @@ export class CaptureOfficialComponent {
   private destroyWidget(): void {
     // Parar observer da elipse
     this.stopOvalObserver();
+    // Parar observer de verificação
+    this.stopVerifyingObserver();
+    this.isVerifying.set(false);
 
     // Parar gravação de vídeo se ainda estiver ativa (sem await - não bloquear)
     void this.stopVideoRecording();

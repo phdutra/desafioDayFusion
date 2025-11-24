@@ -14,9 +14,10 @@
       </ul>
     </div>
     <div class="intro-actions">
-      <button class="btn-dashboard" (click)="openModal()" [disabled]="!documentFile() || isLoading()">
-        <span class="btn-icon">▶</span>
-        <span>Iniciar Verificação Oficial</span>
+      <button class="btn-dashboard" (click)="openModal()" [disabled]="!documentFile() || isLoading() || isUploadingDocument()">
+        <span class="btn-icon" *ngIf="!isUploadingDocument()">▶</span>
+        <span class="btn-loading-spinner" *ngIf="isUploadingDocument()"></span>
+        <span>{{ isUploadingDocument() ? 'Enviando documento...' : 'Iniciar Verificação Oficial' }}</span>
       </button>
       <p class="intro-hint">Necessário navegador com HTTPS e permissão de câmera.</p>
     </div>
@@ -113,7 +114,18 @@
         </div>
         
         <div class="status-message" *ngIf="statusMessage() && !errorMessage() && !showCountdown()">
-          <p>{{ statusMessage() }}</p>
+          <p>
+            <span *ngIf="isVerifying()" class="verifying-spinner-custom"></span>
+            {{ statusMessage() }}
+          </p>
+        </div>
+        
+        <!-- Loading customizado quando "Verifying..." -->
+        <div class="verifying-loading-overlay" *ngIf="isVerifying() && !errorMessage() && !showCountdown()">
+          <div class="verifying-loading-content">
+            <div class="verifying-spinner-large"></div>
+            <p>Verificando...</p>
+          </div>
         </div>
         
         <!-- Indicador de gravação de vídeo -->

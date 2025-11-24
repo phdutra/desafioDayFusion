@@ -29,7 +29,6 @@ export class CustomReviewStepComponent implements OnInit {
   isLoadingMatch = false;
   isSaving = false;
   matchResult?: MatchWithDocumentResponse;
-  observation = '';
   resolvedDocumentUrl?: string;
 
   get status(): 'Aprovado' | 'Rejeitado' | 'Revisar' {
@@ -126,11 +125,10 @@ export class CustomReviewStepComponent implements OnInit {
       // TODO: chamar API para salvar auditoria
       console.log('Salvar auditoria', {
         liveness: this.livenessResult,
-        match: this.matchResult,
-        observation: this.observation
+        match: this.matchResult
       });
-      // Emitir observação quando confirmar
-      this.finished.emit(this.observation.trim() || null);
+      // Emitir null (sem observação, pois campo foi removido)
+      this.finished.emit(null);
     } finally {
       this.isSaving = false;
     }

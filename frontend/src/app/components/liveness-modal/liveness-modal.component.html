@@ -1,12 +1,6 @@
 <div class="liveness-container">
   <!-- Container onde o widget AWS será renderizado (conforme guia) -->
-  <div id="liveness-widget-container" class="aws-wrapper" *ngIf="isRunning && awsSessionId">
-    <!-- Overlay AWS Liveness Widget - DEVE estar DENTRO do mesmo container -->
-    <div class="aws-overlay" *ngIf="isRunning && awsSessionId">
-      <div class="left-grad"></div>
-      <div class="right-grad"></div>
-    </div>
-  </div>
+
   
   <!-- Widget AWS invisível mas funcional (fallback para widget custom) -->
   <div class="aws-widget-container" *ngIf="isRunning && awsSessionId && useCustomWidget">
@@ -27,7 +21,10 @@
 
   <!-- Legenda acima do vídeo -->
   <div class="instruction-label" *ngIf="(statusMessage || errorMessage) && !resultStatus">
-    <p [class.error]="errorMessage">{{ errorMessage ?? statusMessage }}</p>
+    <p [class.error]="errorMessage">
+      <span *ngIf="shouldShowVerifyingSpinner" class="verifying-spinner" aria-label="Carregando"></span>
+      {{ errorMessage ?? statusMessage }}
+    </p>
   </div>
 
 <section class="video-section">
