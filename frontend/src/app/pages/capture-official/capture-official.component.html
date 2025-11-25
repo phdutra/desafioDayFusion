@@ -119,12 +119,64 @@
     <div class="modal-wrapper" (click)="$event.stopPropagation()">
       <button class="modal-close" (click)="closeModal()" aria-label="Fechar modal">✕</button>
       
+      <!-- Tela de Preparação com Instruções de Iluminação -->
+      <div *ngIf="showPreparationScreen()" class="preparation-screen" (click)="$event.stopPropagation()">
+        <div class="preparation-content">
+          <div class="preparation-icon">💡</div>
+          <h2 class="preparation-title">Prepare-se para a Verificação</h2>
+          <p class="preparation-subtitle">Siga estas instruções para garantir o melhor resultado:</p>
+          
+          <div class="preparation-instructions">
+            <div class="instruction-item">
+              <div class="instruction-icon">💡</div>
+              <div class="instruction-text">
+                <strong>Ligue a luz frontal</strong>
+                <p>Garanta iluminação adequada (mínimo 500 lux) para melhor detecção</p>
+              </div>
+            </div>
+            
+            <div class="instruction-item">
+              <div class="instruction-icon">🚫</div>
+              <div class="instruction-text">
+                <strong>Evite ficar contra a luz</strong>
+                <p>Não fique de costas para janelas ou fontes de luz intensa</p>
+              </div>
+            </div>
+            
+            <div class="instruction-item">
+              <div class="instruction-icon">📏</div>
+              <div class="instruction-text">
+                <strong>Mantenha distância adequada</strong>
+                <p>Fique a 40-70 cm da câmera para melhor captura</p>
+              </div>
+            </div>
+            
+            <div class="instruction-item">
+              <div class="instruction-icon">👤</div>
+              <div class="instruction-text">
+                <strong>Centralize o rosto</strong>
+                <p>Mantenha o rosto totalmente visível e centralizado no círculo</p>
+              </div>
+            </div>
+          </div>
+          
+          <div class="preparation-actions">
+            <div class="preparation-countdown">
+              <div class="countdown-circle">
+                <span class="countdown-number">{{ preparationCountdown() }}</span>
+              </div>
+              <p class="preparation-auto-start">A verificação iniciará automaticamente...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      
       <!-- Etapa 1: Widget AWS -->
-      <div *ngIf="!showReviewStep()" class="widget-container">
+      <div *ngIf="!showReviewStep() && !showPreparationScreen()" class="widget-container">
         <!-- Contagem Regressiva -->
         <div class="countdown-overlay" *ngIf="showCountdown()">
           <div class="countdown-content">
-            <div class="countdown-number">{{ countdown() }}</div>
+            <div class="countdown-number" [attr.data-number]="countdown()">{{ countdown() }}</div>
             <p>Preparando verificação...</p>
           </div>
         </div>
@@ -138,9 +190,13 @@
           </div>
         </div>
 
-        <div id="liveness-container-official" 
-             [class.countdown-active]="showCountdown()"
-             style="margin-top: -3rem; transform: translateY(-30px);">
+        <!-- Wrapper AWS conforme configuração recomendada -->
+        <div class="dayfusion-modal">
+          <div class="aws-widget-wrapper">
+            <div id="liveness-container-official" 
+                 [class.countdown-active]="showCountdown()">
+            </div>
+          </div>
         </div>
         
         <div class="status-message" *ngIf="statusMessage() && !errorMessage() && !showCountdown()">

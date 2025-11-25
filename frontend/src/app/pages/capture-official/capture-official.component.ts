@@ -63,6 +63,8 @@ export class CaptureOfficialComponent {
   readonly countdown = signal<number | null>(null);
   readonly showCountdown = signal<boolean>(false);
   readonly isVerifying = signal<boolean>(false); // Flag para fase de verificação
+  readonly showPreparationScreen = signal<boolean>(false); // Tela de preparação com instruções
+  readonly preparationCountdown = signal<number>(5); // Contador para início automático
 
   // AWS Widget
   private widgetInstance: any = null;
@@ -295,16 +297,51 @@ export class CaptureOfficialComponent {
     this.errorMessage.set(null);
     this.isModalOpen.set(true);
     this.showReviewStep.set(false);
+    this.showPreparationScreen.set(true); // Mostrar tela de preparação primeiro
     this.isRecordingVideo.set(false);
     this.recordedVideo = null;
     (this as any)._videoKey = null;
-    setTimeout(() => this.startSession(), 150);
+    
+    // Iniciar contagem regressiva na tela de preparação (5 segundos)
+    this.preparationCountdown.set(5);
+    const countdownInterval = setInterval(() => {
+      const current = this.preparationCountdown();
+      if (current > 1) {
+        this.preparationCountdown.set(current - 1);
+      } else {
+        clearInterval(countdownInterval);
+        this.startVerificationAfterPreparation();
+      }
+    }, 1000);
+    
+    // Limpar intervalo se modal for fechado
+    (this as any)._preparationCountdownInterval = countdownInterval;
+  }
+
+  startVerificationAfterPreparation(): void {
+    console.log('[Capture Official] Iniciando verificação após preparação...');
+    // Fechar tela de preparação e iniciar sessão
+    this.showPreparationScreen.set(false);
+    this.errorMessage.set(null);
+    this.statusMessage.set('Preparando verificação...');
+    setTimeout(() => {
+      console.log('[Capture Official] Chamando startSession...');
+      this.startSession();
+    }, 150);
   }
 
   closeModal(): void {
+    // Limpar intervalo de contagem regressiva da preparação
+    if ((this as any)._preparationCountdownInterval) {
+      clearInterval((this as any)._preparationCountdownInterval);
+      (this as any)._preparationCountdownInterval = null;
+    }
+    
     this.destroyWidget();
     this.isModalOpen.set(false);
     this.showReviewStep.set(false);
+    this.showPreparationScreen.set(false);
+    this.preparationCountdown.set(5);
     this.livenessResult.set(null);
     this.sessionId = '';
   }
@@ -434,10 +471,11 @@ export class CaptureOfficialComponent {
       clearInterval(this.ovalObserverInterval);
     }
 
-    // Monitorar e remover elipse continuamente (mais agressivo durante gravação)
+    // Garantir que a elipse está visível, funcionando corretamente e removida do escopo do flex
     this.ovalObserverInterval = setInterval(() => {
-      this.hideOvalElements();
-    }, 50); // Verificar a cada 50ms para remoção mais rápida
+      this.removeOvalFromFlexScope();
+      this.ensureOvalVisible();
+    }, 100); // Verificar a cada 100ms para garantir visibilidade e posicionamento
   }
 
   private startVerifyingObserver(): void {
@@ -486,35 +524,124 @@ export class CaptureOfficialComponent {
     }
   }
 
-  private hideOvalElements(): void {
+  /**
+   * Remove o elemento da elipse do escopo do flex e posiciona de forma independente
+   */
+  private removeOvalFromFlexScope(): void {
     const container = document.getElementById('liveness-container-official');
     if (!container) return;
 
-    // Remover completamente todos os elementos relacionados à elipse do DOM
+    // Encontrar o elemento específico: div.amplify-liveness-oval-canvas
+    const ovalCanvasDiv = container.querySelector('.amplify-liveness-oval-canvas') as HTMLElement;
+    if (!ovalCanvasDiv) return;
+
+    // Remover do escopo do flex - posicionar de forma absoluta
+    ovalCanvasDiv.style.position = 'absolute';
+    ovalCanvasDiv.style.top = '50%';
+    ovalCanvasDiv.style.left = '50%';
+    ovalCanvasDiv.style.transform = 'translate(-50%, -50%)';
+    ovalCanvasDiv.style.zIndex = '1000';
+    ovalCanvasDiv.style.margin = '0';
+    ovalCanvasDiv.style.padding = '0';
+    ovalCanvasDiv.style.display = 'block';
+    ovalCanvasDiv.style.visibility = 'visible';
+    ovalCanvasDiv.style.opacity = '1';
+    ovalCanvasDiv.style.pointerEvents = 'auto';
+    
+    // Remover classes do Amplify que podem interferir no posicionamento
+    // Não remover completamente, mas sobrescrever comportamentos
+    ovalCanvasDiv.style.flex = 'none';
+    ovalCanvasDiv.style.alignSelf = 'auto';
+    ovalCanvasDiv.style.justifySelf = 'auto';
+
+    // Se estiver dentro de um container flex, remover da hierarquia do flex
+    const parent = ovalCanvasDiv.parentElement;
+    if (parent && parent.classList.contains('amplify-liveness-video-anchor')) {
+      // Garantir que o parent não force posicionamento relativo na elipse
+      parent.style.position = 'relative';
+    }
+
+    // Ajustar o canvas dentro do div
+    const canvas = ovalCanvasDiv.querySelector('canvas');
+    if (canvas) {
+      const canvasEl = canvas as HTMLElement;
+      canvasEl.style.position = 'absolute';
+      canvasEl.style.top = '50%';
+      canvasEl.style.left = '50%';
+      canvasEl.style.transform = 'translate(-50%, -50%)';
+      canvasEl.style.margin = '0';
+      canvasEl.style.padding = '0';
+      canvasEl.style.display = 'block';
+      canvasEl.style.visibility = 'visible';
+      canvasEl.style.opacity = '1';
+    }
+
+    console.log('[Capture Official] Elipse removida do escopo do flex e posicionada independentemente');
+  }
+
+  private ensureOvalVisible(): void {
+    const container = document.getElementById('liveness-container-official');
+    if (!container) return;
+
+    // Garantir que todos os elementos relacionados à elipse estão visíveis e CENTRALIZADOS VERTICALMENTE
     const selectors = [
       '[class*="amplify-liveness-oval"]',
       '[class*="amplify-liveness-oval-canvas"]',
       '[class*="liveness-oval"]',
       '[class*="liveness-oval-canvas"]',
       'canvas[class*="oval"]',
-      'canvas[class*="canvas"]'
+      'canvas[aria-label*="oval"]',
+      'canvas[aria-label*="Oval"]',
+      'canvas[aria-label*="ellipse"]',
+      'canvas[aria-label*="Ellipse"]',
+      '[class*="ellipse"]',
+      '[class*="Ellipse"]',
+      '[class*="oval"]:not([class*="video"]):not([class*="Video"])',
+      '[class*="Oval"]:not([class*="video"]):not([class*="Video"])'
     ];
 
     selectors.forEach(selector => {
       const elements = container.querySelectorAll(selector);
       elements.forEach(el => {
-        // Remover do DOM completamente
-        try {
-          el.remove();
-        } catch (error) {
-          // Se não conseguir remover, ocultar como fallback
-          const htmlEl = el as HTMLElement;
-          htmlEl.style.display = 'none';
-          htmlEl.style.visibility = 'hidden';
-          htmlEl.style.opacity = '0';
-          htmlEl.style.pointerEvents = 'none';
-        }
+        const htmlEl = el as HTMLElement;
+        // Garantir que a elipse está visível E CENTRALIZADA VERTICALMENTE
+        htmlEl.style.display = 'block';
+        htmlEl.style.visibility = 'visible';
+        htmlEl.style.opacity = '1';
+        htmlEl.style.pointerEvents = 'auto';
+        htmlEl.style.position = 'absolute';
+        htmlEl.style.top = '50%';
+        htmlEl.style.left = '50%';
+        htmlEl.style.transform = 'translate(-50%, -50%)';
+        htmlEl.style.zIndex = '1000';
+        htmlEl.style.margin = '0';
+        htmlEl.style.padding = '0';
+        // Não remover width e height para manter tamanho correto
       });
+    });
+
+    // Também garantir que SVGs da elipse estão centralizados
+    const svgs = container.querySelectorAll('svg');
+    svgs.forEach(svg => {
+      const htmlEl = svg as unknown as HTMLElement;
+      // Verificar se é uma elipse/oval pelo contexto ou atributos
+      const parentClass = svg.parentElement?.className || '';
+      const svgClass = svg.className?.baseVal || '';
+      if (parentClass.includes('oval') || parentClass.includes('ellipse') || 
+          svgClass.includes('oval') || svgClass.includes('ellipse') ||
+          svg.getAttribute('aria-label')?.toLowerCase().includes('oval') ||
+          svg.getAttribute('aria-label')?.toLowerCase().includes('ellipse')) {
+        htmlEl.style.position = 'absolute';
+        htmlEl.style.top = '50%';
+        htmlEl.style.left = '50%';
+        htmlEl.style.transform = 'translate(-50%, -50%)';
+        htmlEl.style.zIndex = '1000';
+        htmlEl.style.display = 'block';
+        htmlEl.style.visibility = 'visible';
+        htmlEl.style.opacity = '1';
+        htmlEl.style.margin = '0';
+        htmlEl.style.padding = '0';
+      }
     });
   }
 
@@ -529,28 +656,54 @@ export class CaptureOfficialComponent {
     const container = document.getElementById('liveness-container-official');
     if (!container) return;
 
-    // Aplicar estilos diretamente via JavaScript para garantir
+    // Aplicar estilos conforme configuração recomendada (DayFusion-AWS-Liveness-Config-Completa.md)
     const style = document.createElement('style');
     style.id = 'capture-official-widget-override';
     style.textContent = `
+      /* Wrapper AWS - garantir layout correto */
+      .aws-widget-wrapper {
+        width: 100% !important;
+        max-width: 420px !important;
+        height: 580px !important;
+        margin: 0 auto !important;
+        position: relative !important;
+        display: flex !important;
+        justify-content: center !important;
+        align-items: center !important;
+        overflow: hidden !important;
+        background: #14163e !important;
+        border-radius: 20px !important;
+      }
+
       #liveness-container-official {
-        margin-top: -2rem !important;
-        transform: translateY(-20px) !important;
+        width: 100% !important;
+        height: 100% !important;
+        margin-top: 0 !important;
+        transform: none !important;
+        padding: 0 !important;
+        background: transparent !important;
       }
       
+      /* Vídeo centralizado e alinhado */
       #liveness-container-official video {
-        margin-top: -2rem !important;
-        transform: translateY(-20px) scaleX(-1) !important;
+        width: 100% !important;
+        height: auto !important;
+        max-width: 100% !important;
+        object-fit: contain !important;
         object-position: center center !important;
+        margin-top: 0 !important;
+        transform: scaleX(-1) !important; /* Espelhar horizontalmente */
+        position: relative !important;
       }
       
+      /* Canvas centralizado */
       #liveness-container-official canvas {
-        margin-top: -2rem !important;
-        transform: translateY(-20px) !important;
+        margin-top: 0 !important;
+        transform: none !important;
         object-position: center center !important;
       }
       
-      /* Container do vídeo - garantir posicionamento relativo */
+      /* Container do vídeo - garantir posicionamento relativo, mas não afetar elipse */
       #liveness-container-official [class*="amplify-liveness-video-anchor"],
       #liveness-container-official [class*="liveness-video-anchor"] {
         position: relative !important;
@@ -559,54 +712,127 @@ export class CaptureOfficialComponent {
         justify-content: center !important;
       }
 
-      /* Remover elipse/oval - específico para amplify */
-      #liveness-container-official [class*="amplify-liveness-oval"],
-      #liveness-container-official [class*="amplify-liveness-oval-canvas"],
-      #liveness-container-official [class*="liveness-oval"],
-      #liveness-container-official [class*="liveness-oval-canvas"] {
-        display: none !important;
-        visibility: hidden !important;
-        opacity: 0 !important;
-        pointer-events: none !important;
+      /* Garantir que elipse dentro do video-anchor não é afetada pelo flex */
+      #liveness-container-official [class*="amplify-liveness-video-anchor"] .amplify-liveness-oval-canvas,
+      #liveness-container-official [class*="liveness-video-anchor"] .amplify-liveness-oval-canvas {
         position: absolute !important;
-        left: -9999px !important;
-        width: 0 !important;
-        height: 0 !important;
-      }
-      
-      /* Remover canvas dentro do container da elipse */
-      #liveness-container-official [class*="amplify-liveness-oval-canvas"] canvas,
-      #liveness-container-official [class*="liveness-oval-canvas"] canvas,
-      #liveness-container-official canvas[class*="oval"],
-      #liveness-container-official canvas[class*="canvas"] {
-        display: none !important;
-        visibility: hidden !important;
-        opacity: 0 !important;
-        pointer-events: none !important;
-        position: absolute !important;
-        left: -9999px !important;
-        width: 0 !important;
-        height: 0 !important;
+        top: 50% !important;
+        left: 50% !important;
+        transform: translate(-50%, -50%) !important;
+        flex: none !important;
+        align-self: auto !important;
+        order: 9999 !important;
       }
 
-      /* Outros elementos de elipse */
-      #liveness-container-official svg,
-      #liveness-container-official [class*="ellipse"],
-      #liveness-container-official [class*="Ellipse"],
-      #liveness-container-official [class*="oval"]:not([class*="amplify"]):not([class*="liveness"]),
-      #liveness-container-official [class*="Oval"],
-      #liveness-container-official [class*="guide"],
-      #liveness-container-official [class*="Guide"] {
+      /* REMOVER ELIPSE DO ESCOPO DO FLEX - posicionamento independente */
+      #liveness-container-official .amplify-liveness-oval-canvas,
+      #liveness-container-official [class*="amplify-liveness-oval-canvas"] {
         position: absolute !important;
         top: 50% !important;
         left: 50% !important;
         transform: translate(-50%, -50%) !important;
         z-index: 1000 !important;
-        pointer-events: none !important;
         margin: 0 !important;
+        padding: 0 !important;
+        display: block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        pointer-events: auto !important;
+        flex: none !important;
+        align-self: auto !important;
+        justify-self: auto !important;
+      }
+
+      /* Garantir que a elipse está visível e centralizada VERTICALMENTE */
+      #liveness-container-official [class*="amplify-liveness-oval"],
+      #liveness-container-official [class*="liveness-oval"],
+      #liveness-container-official [class*="liveness-oval-canvas"],
+      #liveness-container-official [class*="amplify-liveness-oval-canvas"] > * {
+        display: block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        pointer-events: auto !important;
+        position: absolute !important;
+        top: 50% !important;
+        left: 50% !important;
+        transform: translate(-50%, -50%) !important;
+        z-index: 1000 !important;
+        margin: 0 !important;
+        padding: 0 !important;
       }
       
-      /* Centralizar e destacar textos */
+      /* Garantir que canvas da elipse está visível e centralizado VERTICALMENTE */
+      #liveness-container-official [class*="amplify-liveness-oval-canvas"] canvas,
+      #liveness-container-official [class*="liveness-oval-canvas"] canvas,
+      #liveness-container-official canvas[class*="oval"],
+      #liveness-container-official canvas[aria-label*="oval"],
+      #liveness-container-official canvas[aria-label*="Oval"],
+      #liveness-container-official canvas[aria-label*="ellipse"],
+      #liveness-container-official canvas[aria-label*="Ellipse"] {
+        display: block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        pointer-events: auto !important;
+        position: absolute !important;
+        top: 50% !important;
+        left: 50% !important;
+        transform: translate(-50%, -50%) !important;
+        margin: 0 !important;
+        padding: 0 !important;
+      }
+
+      /* SVG da elipse - centralizar verticalmente */
+      #liveness-container-official svg[class*="oval"],
+      #liveness-container-official svg[class*="Oval"],
+      #liveness-container-official svg[class*="ellipse"],
+      #liveness-container-official svg[class*="Ellipse"],
+      #liveness-container-official [class*="amplify-liveness-oval"] svg,
+      #liveness-container-official [class*="liveness-oval"] svg {
+        position: absolute !important;
+        top: 50% !important;
+        left: 50% !important;
+        transform: translate(-50%, -50%) !important;
+        z-index: 1000 !important;
+        display: block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+      }
+
+      /* Garantir que elementos de guia (elipse) estão visíveis e centralizados VERTICALMENTE */
+      #liveness-container-official [class*="ellipse"],
+      #liveness-container-official [class*="Ellipse"],
+      #liveness-container-official [class*="oval"]:not([class*="amplify"]):not([class*="liveness"]),
+      #liveness-container-official [class*="Oval"],
+      #liveness-container-official [class*="guide"],
+      #liveness-container-official [class*="Guide"],
+      #liveness-container-official div[class*="oval-canvas"],
+      #liveness-container-official div[class*="Oval-canvas"] {
+        position: absolute !important;
+        top: 50% !important;
+        left: 50% !important;
+        transform: translate(-50%, -50%) !important;
+        z-index: 1000 !important;
+        pointer-events: auto !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        display: block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+      }
+
+      /* Forçar centralização vertical de qualquer elemento relacionado à elipse */
+      #liveness-container-official *[class*="oval"]:not([class*="video"]),
+      #liveness-container-official *[class*="Oval"]:not([class*="video"]),
+      #liveness-container-official *[class*="ellipse"]:not([class*="video"]),
+      #liveness-container-official *[class*="Ellipse"]:not([class*="video"]) {
+        position: absolute !important;
+        top: 50% !important;
+        left: 50% !important;
+        transform: translate(-50%, -50%) !important;
+        z-index: 1000 !important;
+      }
+      
+      /* Centralizar e destacar textos de orientação facial */
       #liveness-container-official p,
       #liveness-container-official span,
       #liveness-container-official div:not(video):not(canvas):not(svg):not([class*="ellipse"]):not([class*="oval"]):not([class*="guide"]) {
@@ -615,17 +841,96 @@ export class CaptureOfficialComponent {
         top: 5% !important;
         left: 50% !important;
         transform: translateX(-50%) !important;
-        background: rgba(0, 0, 0, 0.85) !important;
-        padding: 1.2rem 2rem !important;
-        border-radius: 16px !important;
-        backdrop-filter: blur(12px) !important;
+        background: rgba(0, 0, 0, 0.9) !important;
+        padding: 1.4rem 2.5rem !important;
+        border-radius: 18px !important;
+        backdrop-filter: blur(16px) !important;
         z-index: 10000 !important;
-        font-size: 1.4rem !important;
-        font-weight: 800 !important;
+        font-size: 1.5rem !important;
+        font-weight: 900 !important;
         color: #ffffff !important;
-        border: 2px solid rgba(99, 102, 241, 0.6) !important;
-        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6) !important;
-        max-width: 85% !important;
+        border: 3px solid rgba(99, 102, 241, 0.8) !important;
+        box-shadow: 
+          0 10px 30px rgba(0, 0, 0, 0.8),
+          0 0 40px rgba(99, 102, 241, 0.5),
+          inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
+        max-width: 90% !important;
+        text-shadow: 
+          0 2px 8px rgba(0, 0, 0, 0.9),
+          0 0 20px rgba(99, 102, 241, 0.6) !important;
+        letter-spacing: 0.8px !important;
+        line-height: 1.4 !important;
+        animation: fadeInText 0.3s ease-in-out !important;
+      }
+      
+      /* Mensagens específicas de orientação facial - mais destacadas */
+      #liveness-container-official [class*="instruction"],
+      #liveness-container-official [class*="Instruction"],
+      #liveness-container-official [class*="message"],
+      #liveness-container-official [class*="Message"],
+      #liveness-container-official [class*="prompt"],
+      #liveness-container-official [class*="Prompt"],
+      #liveness-container-official [class*="guidance"],
+      #liveness-container-official [class*="Guidance"] {
+        position: absolute !important;
+        top: 8% !important;
+        left: 50% !important;
+        transform: translateX(-50%) !important;
+        background: linear-gradient(135deg, rgba(99, 102, 241, 0.95), rgba(34, 211, 238, 0.9)) !important;
+        padding: 1.5rem 2.5rem !important;
+        border-radius: 20px !important;
+        backdrop-filter: blur(20px) !important;
+        z-index: 10001 !important;
+        max-width: 90% !important;
+        text-align: center !important;
+        font-size: 1.6rem !important;
+        font-weight: 900 !important;
+        color: #ffffff !important;
+        border: 3px solid rgba(255, 255, 255, 0.3) !important;
+        box-shadow: 
+          0 12px 40px rgba(0, 0, 0, 0.9),
+          0 0 50px rgba(99, 102, 241, 0.7),
+          inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
+        text-shadow: 
+          0 3px 10px rgba(0, 0, 0, 1),
+          0 0 25px rgba(255, 255, 255, 0.3) !important;
+        letter-spacing: 1px !important;
+        line-height: 1.5 !important;
+        animation: pulseText 2s ease-in-out infinite !important;
+      }
+      
+      @keyframes fadeInText {
+        from {
+          opacity: 0;
+          transform: translateX(-50%) translateY(-10px);
+        }
+        to {
+          opacity: 1;
+          transform: translateX(-50%) translateY(0);
+        }
+      }
+      
+      @keyframes pulseText {
+        0%, 100% {
+          transform: translateX(-50%) scale(1);
+          box-shadow: 
+            0 12px 40px rgba(0, 0, 0, 0.9),
+            0 0 50px rgba(99, 102, 241, 0.7);
+        }
+        50% {
+          transform: translateX(-50%) scale(1.02);
+          box-shadow: 
+            0 15px 50px rgba(0, 0, 0, 1),
+            0 0 60px rgba(99, 102, 241, 0.9);
+        }
+      }
+
+      /* Ajustes para mobile */
+      @media (max-width: 480px) {
+        .aws-widget-wrapper {
+          max-width: 100% !important;
+          height: calc(100vh - 40px) !important;
+        }
       }
     `;
     
@@ -646,11 +951,32 @@ export class CaptureOfficialComponent {
         (video as HTMLElement).style.objectPosition = 'center center';
       });
 
+      // Ajustar canvas - mas NÃO aplicar margens negativas se for elipse
       const canvases = container.querySelectorAll('canvas');
       canvases.forEach(canvas => {
-        (canvas as HTMLElement).style.marginTop = '-2rem';
-        (canvas as HTMLElement).style.transform = 'translateY(-20px)';
-        (canvas as HTMLElement).style.objectPosition = 'center center';
+        const htmlEl = canvas as HTMLElement;
+        const isOval = htmlEl.className?.includes('oval') || 
+                      htmlEl.className?.includes('Oval') ||
+                      htmlEl.className?.includes('ellipse') ||
+                      htmlEl.className?.includes('Ellipse') ||
+                      htmlEl.getAttribute('aria-label')?.toLowerCase().includes('oval') ||
+                      htmlEl.getAttribute('aria-label')?.toLowerCase().includes('ellipse');
+        
+        if (isOval) {
+          // Elipse: centralizar verticalmente SEM margens negativas
+          htmlEl.style.position = 'absolute';
+          htmlEl.style.top = '50%';
+          htmlEl.style.left = '50%';
+          htmlEl.style.transform = 'translate(-50%, -50%)';
+          htmlEl.style.zIndex = '1000';
+          htmlEl.style.margin = '0';
+          htmlEl.style.padding = '0';
+        } else {
+          // Outros canvas: manter comportamento anterior
+          htmlEl.style.marginTop = '-2rem';
+          htmlEl.style.transform = 'translateY(-20px)';
+          htmlEl.style.objectPosition = 'center center';
+        }
       });
 
       // Ajustar container do vídeo para posicionamento relativo
@@ -663,15 +989,19 @@ export class CaptureOfficialComponent {
         htmlEl.style.justifyContent = 'center';
       });
 
-      // Remover elipse/oval do amplify (chamada inicial)
-      this.hideOvalElements();
+      // Remover elipse do escopo do flex e posicionar de forma independente
+      this.removeOvalFromFlexScope();
       
-      // Também remover após um delay para garantir
+      // Garantir que a elipse está visível (chamada inicial)
+      this.ensureOvalVisible();
+      
+      // Também garantir após um delay para garantir
       setTimeout(() => {
-        this.hideOvalElements();
-      }, 2000);
+        this.removeOvalFromFlexScope();
+        this.ensureOvalVisible();
+      }, 1000);
 
-      // Centralizar elipse/oval/SVG com a câmera
+      // Centralizar SVG (guia) com a câmera e garantir visibilidade
       const svgs = container.querySelectorAll('svg');
       svgs.forEach(svg => {
         const htmlEl = svg as unknown as HTMLElement;
@@ -680,11 +1010,14 @@ export class CaptureOfficialComponent {
         htmlEl.style.left = '50%';
         htmlEl.style.transform = 'translate(-50%, -50%)';
         htmlEl.style.zIndex = '1000';
-        htmlEl.style.pointerEvents = 'none';
+        htmlEl.style.pointerEvents = 'auto';
         htmlEl.style.margin = '0';
+        htmlEl.style.display = 'block';
+        htmlEl.style.visibility = 'visible';
+        htmlEl.style.opacity = '1';
       });
 
-      // Centralizar elementos com classes relacionadas a elipse/oval
+      // Centralizar elementos com classes relacionadas a elipse/oval e garantir visibilidade
       const ellipseElements = container.querySelectorAll('[class*="ellipse"], [class*="Ellipse"], [class*="oval"], [class*="Oval"], [class*="guide"], [class*="Guide"]');
       ellipseElements.forEach(el => {
         const htmlEl = el as HTMLElement;
@@ -693,11 +1026,14 @@ export class CaptureOfficialComponent {
         htmlEl.style.left = '50%';
         htmlEl.style.transform = 'translate(-50%, -50%)';
         htmlEl.style.zIndex = '1000';
-        htmlEl.style.pointerEvents = 'none';
+        htmlEl.style.pointerEvents = 'auto';
         htmlEl.style.margin = '0';
+        htmlEl.style.display = 'block';
+        htmlEl.style.visibility = 'visible';
+        htmlEl.style.opacity = '1';
       });
 
-      // Centralizar textos
+      // Centralizar e destacar textos de orientação facial
       const textElements = container.querySelectorAll('p, span, div');
       textElements.forEach(el => {
         if (el.tagName !== 'VIDEO' && el.tagName !== 'CANVAS' && el.tagName !== 'SVG' && 
@@ -705,24 +1041,216 @@ export class CaptureOfficialComponent {
             !el.classList.toString().includes('oval') &&
             !el.classList.toString().includes('guide')) {
           const htmlEl = el as HTMLElement;
-          if (htmlEl.textContent && htmlEl.textContent.trim().length > 0) {
-            htmlEl.style.textAlign = 'center';
-            htmlEl.style.position = 'absolute';
-            htmlEl.style.top = '5%';
-            htmlEl.style.left = '50%';
-            htmlEl.style.transform = 'translateX(-50%)';
-            htmlEl.style.background = 'rgba(0, 0, 0, 0.85)';
-            htmlEl.style.padding = '1.2rem 2rem';
-            htmlEl.style.borderRadius = '16px';
-            htmlEl.style.zIndex = '10000';
-            htmlEl.style.fontSize = '1.4rem';
-            htmlEl.style.fontWeight = '800';
-            htmlEl.style.color = '#ffffff';
-            htmlEl.style.maxWidth = '85%';
+          const textContent = htmlEl.textContent?.trim() || '';
+          
+          if (textContent.length > 0) {
+            // Verificar se é mensagem de orientação facial
+            const isFaceGuidance = this.isFaceGuidanceMessage(textContent);
+            
+            if (isFaceGuidance) {
+              // Estilo especial para mensagens de orientação facial
+              htmlEl.style.textAlign = 'center';
+              htmlEl.style.position = 'absolute';
+              htmlEl.style.top = '8%';
+              htmlEl.style.left = '50%';
+              htmlEl.style.transform = 'translateX(-50%)';
+              htmlEl.style.background = 'linear-gradient(135deg, rgba(99, 102, 241, 0.95), rgba(34, 211, 238, 0.9))';
+              htmlEl.style.padding = '1.5rem 2.5rem';
+              htmlEl.style.borderRadius = '20px';
+              htmlEl.style.zIndex = '10001';
+              htmlEl.style.fontSize = '1.6rem';
+              htmlEl.style.fontWeight = '900';
+              htmlEl.style.color = '#ffffff';
+              htmlEl.style.maxWidth = '90%';
+              htmlEl.style.border = '3px solid rgba(255, 255, 255, 0.3)';
+              htmlEl.style.boxShadow = '0 12px 40px rgba(0, 0, 0, 0.9), 0 0 50px rgba(99, 102, 241, 0.7)';
+              htmlEl.style.textShadow = '0 3px 10px rgba(0, 0, 0, 1), 0 0 25px rgba(255, 255, 255, 0.3)';
+              htmlEl.style.letterSpacing = '1px';
+              htmlEl.style.lineHeight = '1.5';
+              htmlEl.style.backdropFilter = 'blur(20px)';
+            } else {
+              // Estilo padrão para outros textos
+              htmlEl.style.textAlign = 'center';
+              htmlEl.style.position = 'absolute';
+              htmlEl.style.top = '5%';
+              htmlEl.style.left = '50%';
+              htmlEl.style.transform = 'translateX(-50%)';
+              htmlEl.style.background = 'rgba(0, 0, 0, 0.9)';
+              htmlEl.style.padding = '1.4rem 2.5rem';
+              htmlEl.style.borderRadius = '18px';
+              htmlEl.style.zIndex = '10000';
+              htmlEl.style.fontSize = '1.5rem';
+              htmlEl.style.fontWeight = '900';
+              htmlEl.style.color = '#ffffff';
+              htmlEl.style.maxWidth = '90%';
+              htmlEl.style.border = '3px solid rgba(99, 102, 241, 0.8)';
+              htmlEl.style.boxShadow = '0 10px 30px rgba(0, 0, 0, 0.8), 0 0 40px rgba(99, 102, 241, 0.5)';
+              htmlEl.style.textShadow = '0 2px 8px rgba(0, 0, 0, 0.9), 0 0 20px rgba(99, 102, 241, 0.6)';
+              htmlEl.style.letterSpacing = '0.8px';
+              htmlEl.style.lineHeight = '1.4';
+              htmlEl.style.backdropFilter = 'blur(16px)';
+            }
           }
         }
       });
+      
+      // Iniciar observer para mensagens de orientação facial
+      this.startFaceGuidanceObserver();
     }, 500);
+  }
+
+  /**
+   * Verifica se o texto é uma mensagem de orientação facial
+   */
+  private isFaceGuidanceMessage(text: string): boolean {
+    const guidanceKeywords = [
+      'aproxim', 'muito longe', 'muito perto', 'too far', 'too close', 'move closer',
+      'move away', 'afaste', 'perto', 'longe', 'centralize', 'center', 'centro',
+      'esquerda', 'direita', 'left', 'right', 'cima', 'baixo', 'up', 'down',
+      'olhe', 'look', 'face', 'rosto', 'posição', 'position', 'ajuste', 'adjust',
+      'mantenha', 'keep', 'segure', 'hold', 'aguarde', 'wait', 'pronto', 'ready',
+      'closer', 'further', 'back', 'forward', 'turn', 'gire', 'vire', 'rotate',
+      'straight', 'reto', 'alinh', 'align', 'level', 'nível', 'tilt', 'inclin'
+    ];
+    
+    const textLower = text.toLowerCase().trim();
+    
+    // Se o texto tem mais de 3 caracteres e menos de 100, pode ser uma mensagem de orientação
+    if (textLower.length < 3 || textLower.length > 100) {
+      return false;
+    }
+    
+    // Verificar se contém palavras-chave
+    if (guidanceKeywords.some(keyword => textLower.includes(keyword))) {
+      return true;
+    }
+    
+    // Se não contém palavras comuns de interface (botões, etc), pode ser orientação
+    const uiKeywords = ['button', 'click', 'start', 'begin', 'iniciar', 'começar', 'ok', 'cancel', 'close'];
+    if (!uiKeywords.some(keyword => textLower.includes(keyword))) {
+      // Se é um texto curto e não é um comando de UI, pode ser orientação
+      return textLower.length < 50;
+    }
+    
+    return false;
+  }
+
+  /**
+   * Aplica estilos destacados em mensagens de orientação facial
+   */
+  private applyFaceGuidanceStyles(element: HTMLElement): void {
+    element.style.textAlign = 'center';
+    element.style.position = 'absolute';
+    element.style.top = '8%';
+    element.style.left = '50%';
+    element.style.transform = 'translateX(-50%)';
+    element.style.background = 'linear-gradient(135deg, rgba(99, 102, 241, 0.95), rgba(34, 211, 238, 0.9))';
+    element.style.padding = '1.5rem 2.5rem';
+    element.style.borderRadius = '20px';
+    element.style.zIndex = '10001';
+    element.style.fontSize = '1.6rem';
+    element.style.fontWeight = '900';
+    element.style.color = '#ffffff';
+    element.style.maxWidth = '90%';
+    element.style.border = '3px solid rgba(255, 255, 255, 0.3)';
+    element.style.boxShadow = '0 12px 40px rgba(0, 0, 0, 0.9), 0 0 50px rgba(99, 102, 241, 0.7)';
+    element.style.textShadow = '0 3px 10px rgba(0, 0, 0, 1), 0 0 25px rgba(255, 255, 255, 0.3)';
+    element.style.letterSpacing = '1px';
+    element.style.lineHeight = '1.5';
+    element.style.backdropFilter = 'blur(20px)';
+    element.style.display = 'block';
+    element.style.visibility = 'visible';
+    element.style.opacity = '1';
+    element.style.pointerEvents = 'none';
+  }
+
+  /**
+   * Verifica e destaca mensagens de orientação facial no container
+   */
+  private checkAndHighlightFaceGuidance(): void {
+    const container = document.getElementById('liveness-container-official');
+    if (!container) return;
+
+    // Buscar todos os elementos de texto
+    const allElements = container.querySelectorAll('*');
+    
+    allElements.forEach(el => {
+      // Ignorar elementos específicos
+      if (el.tagName === 'VIDEO' || el.tagName === 'CANVAS' || el.tagName === 'SVG') {
+        return;
+      }
+      
+      const htmlEl = el as HTMLElement;
+      const classList = htmlEl.classList.toString();
+      
+      // Ignorar elementos relacionados à elipse
+      if (classList.includes('ellipse') || 
+          classList.includes('oval') || 
+          classList.includes('guide') ||
+          classList.includes('amplify-liveness-oval')) {
+        return;
+      }
+      
+      // Verificar se tem texto visível
+      const textContent = htmlEl.textContent?.trim() || '';
+      const innerText = htmlEl.innerText?.trim() || '';
+      const finalText = textContent || innerText;
+      
+      if (finalText.length > 0 && this.isFaceGuidanceMessage(finalText)) {
+        // Verificar se já foi estilizado (evitar reaplicar)
+        if (!htmlEl.hasAttribute('data-face-guidance-styled')) {
+          console.log('[Capture Official] 📢 Mensagem de orientação detectada:', finalText);
+          this.applyFaceGuidanceStyles(htmlEl);
+          htmlEl.setAttribute('data-face-guidance-styled', 'true');
+        }
+      }
+    });
+  }
+
+  /**
+   * Observer para destacar mensagens de orientação facial em tempo real
+   */
+  private startFaceGuidanceObserver(): void {
+    const container = document.getElementById('liveness-container-official');
+    if (!container) return;
+
+    // Verificar imediatamente
+    this.checkAndHighlightFaceGuidance();
+
+    // Observer para mudanças no DOM
+    const observer = new MutationObserver(() => {
+      this.checkAndHighlightFaceGuidance();
+    });
+
+    // Observar mudanças no container
+    observer.observe(container, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+      attributes: false
+    });
+
+    // Guardar observer para limpeza
+    (this as any)._faceGuidanceObserver = observer;
+
+    // Também verificar periodicamente (backup caso o observer não capture)
+    const intervalId = setInterval(() => {
+      this.checkAndHighlightFaceGuidance();
+    }, 500);
+
+    // Guardar intervalo para limpeza
+    (this as any)._faceGuidanceInterval = intervalId;
+  }
+
+  private stopFaceGuidanceObserver(): void {
+    if ((this as any)._faceGuidanceObserver) {
+      (this as any)._faceGuidanceObserver.disconnect();
+      (this as any)._faceGuidanceObserver = null;
+    }
+    if ((this as any)._faceGuidanceInterval) {
+      clearInterval((this as any)._faceGuidanceInterval);
+      (this as any)._faceGuidanceInterval = null;
+    }
   }
 
   private async initLocalWidget(sessionId: string): Promise<void> {
@@ -734,12 +1262,20 @@ export class CaptureOfficialComponent {
     // Limpar container
     container.innerHTML = '';
 
-    // Criar elemento do widget local
+    // Criar elemento do widget local com atributos obrigatórios conforme guia
+    // DayFusion-AWS-Lighting-and-Stability-Guide.md
     const widgetElement = document.createElement('face-liveness-widget');
     widgetElement.setAttribute('session-id', sessionId);
     widgetElement.setAttribute('region', this.awsRegion);
     widgetElement.setAttribute('create-session-url', this.createSessionUrl);
     widgetElement.setAttribute('results-url', this.resultsUrl);
+    
+    // Atributos obrigatórios conforme guia para evitar fallback e desalinhamento
+    widgetElement.setAttribute('preset', 'face-liveness');
+    widgetElement.setAttribute('challenge-versions', '1.5.0');
+    widgetElement.setAttribute('video-normalization', 'on');
+    widgetElement.setAttribute('dark-environment-boost', 'on');
+    widgetElement.setAttribute('max-video-duration', '8000');
     
     if (environment.aws?.identityPoolId) {
       widgetElement.setAttribute('identity-pool-id', environment.aws.identityPoolId);
@@ -1348,6 +1884,8 @@ export class CaptureOfficialComponent {
     this.stopOvalObserver();
     // Parar observer de verificação
     this.stopVerifyingObserver();
+    // Parar observer de orientação facial
+    this.stopFaceGuidanceObserver();
     this.isVerifying.set(false);
 
     // Parar gravação de vídeo se ainda estiver ativa (sem await - não bloquear)
