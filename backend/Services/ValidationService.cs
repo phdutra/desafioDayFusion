@@ -74,10 +74,11 @@ public class ValidationService : IValidationService
 
     public TransactionStatus DetermineFinalStatus(double identityScore, double? liveness, double? match, double? document)
     {
-        // CRÍTICO: Se documento tem score 0, rejeita imediatamente (não é RG/CNH)
-        if ((document ?? 0) <= 0)
+        // CRÍTICO: Se documento tem score 0 ou negativo, rejeita imediatamente (não é RG/CNH)
+        var documentValue = document ?? 0;
+        if (documentValue <= 0)
         {
-            _logger.LogWarning("🚨 Documento rejeitado: score 0 (não é RG/CNH válido)");
+            _logger.LogWarning("🚨 Documento rejeitado: score {DocumentScore} (não é RG/CNH válido). Rejeitando independente de outros scores.", documentValue);
             return TransactionStatus.Rejected;
         }
 
@@ -102,10 +103,11 @@ public class ValidationService : IValidationService
             return TransactionStatus.Rejected;
         }
 
-        // Documento deve ter pelo menos 30 pontos para ser válido
-        if ((document ?? 0) < 30)
+        // Documento deve ter pelo menos 50 pontos para ser válido (RG/CNH autêntico)
+        // Score < 50 indica documento suspeito ou de baixa qualidade
+        if (documentValue < 50)
         {
-            _logger.LogWarning("🚨 Documento rejeitado: score muito baixo ({DocumentScore})", document);
+            _logger.LogWarning("🚨 Documento rejeitado: score muito baixo ({DocumentScore}). Mínimo necessário: 50. Rejeitando.", documentValue);
             return TransactionStatus.Rejected;
         }
 
@@ -114,18 +116,25 @@ public class ValidationService : IValidationService
         _logger.LogInformation("📊 DetermineFinalStatus: IdentityScore={IdentityScore}, Liveness={Liveness} ({LivenessNorm}), Match={Match}, Document={Document}",
             identityScore, liveness, livenessNorm, match, document);
         
-        // AJUSTE: Se Match e Documento são muito altos, aprovar mesmo com IdentityScore ligeiramente menor
-        // Isso garante que casos com FaceMatch 99+ e Documento válido sejam aprovados
+        // CRÍTICO: Garantir que documento válido é obrigatório para aprovação
+        // Mesmo com scores altos, se documento não for válido (RG/CNH), não aprovar
         var matchValue = match ?? 0;
-        var documentValue = document ?? 0;
         var hasHighMatch = matchValue >= 95;
-        var hasValidDocument = documentValue >= 85;
+        var hasValidDocument = documentValue >= 85; // Documento deve ter score >= 85 para ser considerado "válido" para aprovação
         
         TransactionStatus status;
         
-        if (identityScore >= 0.85)
+        // REGRA CRÍTICA: Documento válido (RG/CNH) é OBRIGATÓRIO para aprovação
+        if (!hasValidDocument && documentValue < 85)
         {
-            // Score alto → aprovar
+            _logger.LogWarning("🚨 Documento com score {DocumentScore} abaixo do mínimo (85) necessário para aprovação - REJEITANDO",
+                documentValue);
+            return TransactionStatus.Rejected;
+        }
+        
+        if (identityScore >= 0.85 && hasValidDocument)
+        {
+            // Score alto + Documento válido → aprovar
             status = TransactionStatus.Approved;
         }
         else if (identityScore >= 0.80 && hasHighMatch && hasValidDocument && livenessNorm >= 0.70)
@@ -135,16 +144,21 @@ public class ValidationService : IValidationService
                 identityScore, matchValue, documentValue, livenessNorm);
             status = TransactionStatus.Approved;
         }
-        else if (identityScore >= 0.70)
+        else if (identityScore >= 0.70 && hasValidDocument)
         {
             status = TransactionStatus.ManualReview;
         }
-        else if (identityScore >= 0.50)
+        else if (identityScore >= 0.50 && hasValidDocument)
         {
             status = TransactionStatus.ManualReview;
         }
         else
         {
+            // Sem documento válido ou score muito baixo → rejeitar
+            if (!hasValidDocument)
+            {
+                _logger.LogWarning("🚨 Rejeitando: Documento não é válido (score {DocumentScore} < 85)", documentValue);
+            }
             status = TransactionStatus.Rejected;
         }
         

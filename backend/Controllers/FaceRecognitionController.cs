@@ -323,15 +323,20 @@ public class FaceRecognitionController : ControllerBase
                             response = new LivenessResultResponse
                             {
                                 SessionId = request.SessionId,
-                                Confidence = 1.0f,
-                                LivenessDecision = "LIVE",
-                                Status = "SUCCEEDED"
+                                Confidence = livenessScore / 100f,
+                                LivenessDecision = livenessDecision,
+                                Status = "REJECTED" // CRÍTICO: Status REJECTED quando documento inválido
                             };
                         }
                         response.Message = $"Documento rejeitado: {docAnalysis.Observacao}";
                         response.Observacao = docAnalysis.Observacao;
                         response.DocumentScore = (float)docAnalysis.DocumentScore;
                         response.IdentityScore = 0;
+                        response.Status = "REJECTED"; // CRÍTICO: Garantir status REJECTED
+                        
+                        _logger.LogWarning("🚨 Retornando resposta REJEITADA. Liveness: {Liveness}%, DocumentScore: {DocScore}, Status: REJECTED",
+                            livenessScore, docAnalysis.DocumentScore);
+                        
                         return Ok(response);
                     }
 
@@ -383,14 +388,59 @@ public class FaceRecognitionController : ControllerBase
             // Determinar status final ANTES de persistir e preencher resposta
             TransactionStatus finalStatus;
             
-            // Se AWS detectou fraude, rejeitar imediatamente
-            if (awsDetectedFake)
+            // ============================================================
+            // REGRA CRÍTICA: Validação do documento APÓS liveness
+            // Se documento não for válido (RG/CNH), SEMPRE rejeitar
+            // ============================================================
+            bool documentIsValid = false;
+            if (docAnalysis != null && !string.IsNullOrEmpty(request.DocumentKey))
             {
+                // Documento é válido se:
+                // 1. Score > 50 (mínimo necessário)
+                // 2. Não tem flags de invalidez
+                // 3. Não é flag como "nao_e_documento" ou "fraude_nao_e_documento"
+                documentIsValid = docAnalysis.DocumentScore > 50 &&
+                                  !docAnalysis.Flags.Contains("nao_e_documento") &&
+                                  !docAnalysis.Flags.Contains("fraude_nao_e_documento") &&
+                                  !docAnalysis.Flags.Contains("sem_indicador_rg_cnh");
+                
+                _logger.LogInformation("📄 Validação final do documento: Score={DocScore}, IsValid={IsValid}, Flags=[{Flags}]",
+                    docAnalysis.DocumentScore, documentIsValid, string.Join(", ", docAnalysis.Flags));
+                
+                if (!documentIsValid)
+                {
+                    _logger.LogWarning("🚨 CRÍTICO: Documento inválido detectado após liveness. DocumentScore: {DocScore}, Flags: [{Flags}] - REJEITANDO independente de liveness",
+                        docAnalysis.DocumentScore, string.Join(", ", docAnalysis.Flags));
+                    finalStatus = TransactionStatus.Rejected;
+                    observacao = docAnalysis.Observacao ?? "🚨 Documento rejeitado: não é RG ou CNH válido";
+                    identityScore = 0;
+                }
+            }
+            // Se documento foi fornecido mas não foi analisado, rejeitar por segurança
+            else if (!string.IsNullOrEmpty(request.DocumentKey) && docAnalysis == null)
+            {
+                _logger.LogWarning("⚠️ Documento fornecido mas não foi analisado corretamente - REJEITANDO por segurança");
+                finalStatus = TransactionStatus.Rejected;
+                observacao = "🚨 Erro ao validar documento - rejeitado por segurança";
+                documentIsValid = false;
+            }
+            
+            // Se documento é inválido, já definimos finalStatus = Rejected acima, não precisa continuar
+            if (!documentIsValid && !string.IsNullOrEmpty(request.DocumentKey))
+            {
+                // Já está rejeitado, não precisa fazer mais nada
+                // Mas vamos garantir que os valores estão corretos
                 finalStatus = TransactionStatus.Rejected;
             }
-            else if (identityScore.HasValue && docAnalysis != null)
+            // Se documento válido ou não foi fornecido, continuar com validação normal
+            else if (awsDetectedFake)
             {
-                // Se análise completa foi feita E AWS não detectou fraude, usar status baseado no IdentityScore
+                // Se AWS detectou fraude, rejeitar imediatamente
+                finalStatus = TransactionStatus.Rejected;
+            }
+            else if (identityScore.HasValue && docAnalysis != null && documentIsValid)
+            {
+                // Se análise completa foi feita E AWS não detectou fraude E documento válido, usar status baseado no IdentityScore
                 finalStatus = _validator.DetermineFinalStatus(
                     identityScore.Value,
                     livenessScore,
@@ -399,10 +449,20 @@ public class FaceRecognitionController : ControllerBase
             }
             else
             {
-                // Fallback: se AWS disse LIVE, aprovar; caso contrário, rejeitar
-                finalStatus = awsLivenessDecision == "LIVE" 
-                    ? TransactionStatus.Approved 
-                    : TransactionStatus.Rejected;
+                // Sem documento fornecido, verificar apenas liveness (mas isso não deveria acontecer na captura oficial)
+                if (string.IsNullOrEmpty(request.DocumentKey))
+                {
+                    _logger.LogWarning("⚠️ Sem documento fornecido - verificando apenas liveness");
+                    finalStatus = awsLivenessDecision == "LIVE" 
+                        ? TransactionStatus.Approved 
+                        : TransactionStatus.Rejected;
+                }
+                else
+                {
+                    // Caso inesperado: tem documento mas não foi validado corretamente
+                    _logger.LogError("❌ Caso inesperado: documento fornecido mas validação não foi concluída - REJEITANDO");
+                    finalStatus = TransactionStatus.Rejected;
+                }
             }
 
             // Persist transaction com todos os scores

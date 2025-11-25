@@ -14,10 +14,15 @@
       </ul>
     </div>
     <div class="intro-actions">
-      <button class="btn-dashboard" (click)="openModal()" [disabled]="!documentFile() || isLoading() || isUploadingDocument()">
+      <button class="btn-dashboard" (click)="openModal()" 
+              [disabled]="!documentFile() || isUploadingDocument() || isDocumentValid() === false">
         <span class="btn-icon" *ngIf="!isUploadingDocument()">▶</span>
         <span class="btn-loading-spinner" *ngIf="isUploadingDocument()"></span>
-        <span>{{ isUploadingDocument() ? 'Enviando documento...' : 'Iniciar Verificação Oficial' }}</span>
+        <span>
+          <span *ngIf="isUploadingDocument()">Enviando documento...</span>
+          <span *ngIf="!isUploadingDocument() && isDocumentValid() === false">Documento inválido</span>
+          <span *ngIf="!isUploadingDocument() && (isDocumentValid() === true || isDocumentValid() === null)">Iniciar Verificação Oficial</span>
+        </span>
       </button>
       <p class="intro-hint">Necessário navegador com HTTPS e permissão de câmera.</p>
     </div>
@@ -46,6 +51,26 @@
         <ng-template #noDocument>
           <p class="document-placeholder">Nenhum documento selecionado.</p>
         </ng-template>
+        <!-- Informação de compressão -->
+        <div class="compression-info" *ngIf="compressionInfo() as compInfo">
+          <div class="compression-badge">
+            <span>📦</span>
+            <span>Comprimido: {{ compInfo.original }} KB → {{ compInfo.compressed }} KB ({{ compInfo.reduction }}% menor)</span>
+          </div>
+        </div>
+        <!-- Mensagem de validação do documento - Só mostrar se documento for INVÁLIDO -->
+        <div class="document-validation-message" *ngIf="documentValidationMessage() && isDocumentValid() === false">
+          <div [ngClass]="{
+            'validation-badge': true,
+            'invalid': true
+          }">
+            <span>❌</span>
+            {{ documentValidationMessage() }}
+          </div>
+          <div *ngIf="documentScore() !== null" class="document-score">
+            Score: {{ documentScore() | number:'1.0-0' }}%
+          </div>
+        </div>
       </div>
     </div>
   </section>
@@ -77,6 +102,11 @@
           </div>
         </div>
       </div>
+      <div class="result-actions" *ngIf="summary.status === 'Rejeitado'">
+        <button class="btn-history" (click)="goToHistory()">
+          📋 Ver no Histórico
+        </button>
+      </div>
     </div>
   </section>
 
@@ -85,9 +115,9 @@
   </div>
 
   <!-- Modal de Captura -->
-  <div class="modal-overlay" *ngIf="isModalOpen()">
-    <div class="modal-wrapper">
-      <button class="modal-close" (click)="closeModal()">✕</button>
+  <div class="modal-overlay" *ngIf="isModalOpen()" (click)="closeModal()">
+    <div class="modal-wrapper" (click)="$event.stopPropagation()">
+      <button class="modal-close" (click)="closeModal()" aria-label="Fechar modal">✕</button>
       
       <!-- Etapa 1: Widget AWS -->
       <div *ngIf="!showReviewStep()" class="widget-container">

@@ -243,3 +243,20 @@ public class IdentityResponse
     public string Observacao { get; set; } = string.Empty;
     public TransactionStatus Status { get; set; }
 }
+
+// Document Validation Request/Response
+public class DocumentValidateRequest
+{
+    [Required]
+    public string DocumentKey { get; set; } = string.Empty;
+    
+    public string? Bucket { get; set; }
+}
+
+public class DocumentValidateResponse
+{
+    public double DocumentScore { get; set; }
+    public string Observacao { get; set; } = string.Empty;
+    public List<string> Flags { get; set; } = new();
+    public bool IsValid { get; set; }
+}

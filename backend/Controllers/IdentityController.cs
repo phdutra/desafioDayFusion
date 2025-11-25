@@ -13,17 +13,20 @@ public class IdentityController : ControllerBase
     private readonly IDocumentAnalyzerService _docAnalyzer;
     private readonly IValidationService _validator;
     private readonly IDynamoDBService _dynamoService;
+    private readonly IConfiguration _configuration;
     private readonly ILogger<IdentityController> _logger;
 
     public IdentityController(
         IDocumentAnalyzerService docAnalyzer,
         IValidationService validator,
         IDynamoDBService dynamoService,
+        IConfiguration configuration,
         ILogger<IdentityController> logger)
     {
         _docAnalyzer = docAnalyzer;
         _validator = validator;
         _dynamoService = dynamoService;
+        _configuration = configuration;
         _logger = logger;
     }
 
@@ -108,6 +111,51 @@ public class IdentityController : ControllerBase
         {
             _logger.LogError(ex, "❌ Erro ao validar identidade. TransactionId: {TransactionId}", request.TransactionId);
             return StatusCode(500, new { message = "Erro ao processar validação de identidade", error = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Valida apenas o documento (RG/CNH) antes de iniciar liveness
+    /// </summary>
+    [HttpPost("document/validate")]
+    public async Task<IActionResult> ValidateDocument([FromBody] DocumentValidateRequest request)
+    {
+        try
+        {
+            _logger.LogInformation("🔍 Validando documento: {DocumentKey} no bucket {Bucket}", request.DocumentKey, request.Bucket);
+
+            var bucketName = request.Bucket;
+            if (string.IsNullOrEmpty(bucketName))
+            {
+                bucketName = _configuration["AWS:S3Bucket"] ?? _configuration["AWS_S3_BUCKET"] ?? "dayfusion-bucket";
+            }
+
+            // Analisar documento (valida se é RG/CNH)
+            var docAnalysis = await _docAnalyzer.AnalyzeAsync(bucketName, request.DocumentKey);
+
+            _logger.LogInformation("✅ Validação de documento concluída. DocumentScore: {DocScore}, Flags: {Flags}, IsValid: {IsValid}",
+                docAnalysis.DocumentScore, string.Join(", ", docAnalysis.Flags), 
+                docAnalysis.DocumentScore > 0 && !docAnalysis.Flags.Contains("nao_e_documento") && !docAnalysis.Flags.Contains("fraude_nao_e_documento"));
+
+            // Determinar se documento é válido (RG/CNH)
+            var isValid = docAnalysis.DocumentScore > 0 
+                && !docAnalysis.Flags.Contains("nao_e_documento") 
+                && !docAnalysis.Flags.Contains("fraude_nao_e_documento");
+
+            var response = new DocumentValidateResponse
+            {
+                DocumentScore = docAnalysis.DocumentScore,
+                Observacao = docAnalysis.Observacao,
+                Flags = docAnalysis.Flags,
+                IsValid = isValid
+            };
+
+            return Ok(response);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ Erro ao validar documento: {DocumentKey}", request.DocumentKey);
+            return StatusCode(500, new { message = "Erro ao processar validação do documento", error = ex.Message });
         }
     }
 

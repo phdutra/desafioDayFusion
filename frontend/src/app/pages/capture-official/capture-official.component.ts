@@ -1,13 +1,16 @@
 import { CommonModule } from '@angular/common';
 import { Component, computed, HostListener, inject, signal, ViewChild, CUSTOM_ELEMENTS_SCHEMA } from '@angular/core';
+import { Router } from '@angular/router';
 import { LivenessService } from '../../services/liveness.service';
 import { S3Service } from '../../core/aws/s3.service';
 import { LivenessHistoryService } from '../../core/services/liveness-history.service';
 import { FaceMatchService } from '../../core/services/face-match.service';
-import { FaceRecognitionService } from '../../core/services/face-recognition.service';
+import { FaceRecognitionService, DocumentValidateResponse } from '../../core/services/face-recognition.service';
+import { CompressionService } from '../../core/services/compression.service';
 import { CustomReviewStepComponent, LivenessResult } from '../../components/custom-review-step/custom-review-step.component';
 import { LivenessSummary } from '../../core/models/liveness-result.model';
 import { firstValueFrom, from } from 'rxjs';
+import { timeout } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
 import {
   startVideoRecording,
@@ -34,6 +37,8 @@ export class CaptureOfficialComponent {
   private readonly historyService = inject(LivenessHistoryService);
   private readonly faceMatchService = inject(FaceMatchService);
   private readonly faceService = inject(FaceRecognitionService);
+  private readonly router = inject(Router);
+  private readonly compressionService = inject(CompressionService);
 
   @ViewChild(CustomReviewStepComponent) reviewStep?: CustomReviewStepComponent;
 
@@ -49,6 +54,9 @@ export class CaptureOfficialComponent {
   readonly documentKey = signal<string | null>(null); // Chave S3 do documento (sem s3://)
   readonly documentScore = signal<number | null>(null); // Score de validação do documento
   readonly documentAnalysis = signal<any | null>(null); // Análise completa do documento
+  readonly isDocumentValid = signal<boolean | null>(null); // Flag: documento é RG/CNH válido
+  readonly documentValidationMessage = signal<string | null>(null); // Mensagem de validação
+  readonly compressionInfo = signal<{ original: string; compressed: string; reduction: string } | null>(null); // Info de compressão
   readonly showReviewStep = signal<boolean>(false);
   readonly livenessResult = signal<LivenessResult | null>(null);
   readonly lastSummary = signal<LivenessSummary | null>(null);
@@ -109,11 +117,52 @@ export class CaptureOfficialComponent {
     // Upload do documento para S3
     try {
       this.isUploadingDocument.set(true);
-      this.isLoading.set(true);
-      this.statusMessage.set('Enviando documento...');
+      this.errorMessage.set(null);
+      
+      // Comprimir documento antes do upload (apenas imagens)
+      let fileToUpload = file;
+      const originalSizeKB = (file.size / 1024).toFixed(2);
+      
+      if (file.type.startsWith('image/')) {
+        console.log(`[Capture Official] 📸 Comprimindo documento antes do upload...`);
+        console.log(`[Capture Official] Tamanho original: ${originalSizeKB} KB`);
+        console.log(`[Capture Official] Tipo: ${file.type}`);
+        
+        this.statusMessage.set(`Comprimindo documento... (${originalSizeKB} KB)`);
+        
+        try {
+          const compressedFile = await this.compressionService.compressImage(file);
+          fileToUpload = compressedFile;
+          
+          const compressedSizeKB = (compressedFile.size / 1024).toFixed(2);
+          const reduction = ((1 - compressedFile.size / file.size) * 100).toFixed(1);
+          
+          // Armazenar info de compressão para exibir na interface
+          this.compressionInfo.set({
+            original: originalSizeKB,
+            compressed: compressedSizeKB,
+            reduction: reduction
+          });
+          
+          console.log(`[Capture Official] ✅ Documento comprimido:`);
+          console.log(`[Capture Official] - Tamanho original: ${originalSizeKB} KB`);
+          console.log(`[Capture Official] - Tamanho comprimido: ${compressedSizeKB} KB`);
+          console.log(`[Capture Official] - Redução: ${reduction}%`);
+          
+          this.statusMessage.set(`Enviando documento comprimido...`);
+        } catch (compressionError) {
+          console.warn('[Capture Official] ⚠️ Erro ao comprimir documento, usando original:', compressionError);
+          this.compressionInfo.set(null);
+          // Continua com arquivo original se compressão falhar
+        }
+      } else {
+        console.log(`[Capture Official] ⚠️ Arquivo não é imagem, upload sem compressão`);
+        console.log(`[Capture Official] Tamanho: ${originalSizeKB} KB, Tipo: ${file.type}`);
+        this.compressionInfo.set(null);
+      }
       
       const uploadResult = await firstValueFrom(
-        this.s3Service.uploadDocument(file)
+        this.s3Service.uploadDocument(fileToUpload)
       );
       
       if (uploadResult?.key) {
@@ -126,32 +175,24 @@ export class CaptureOfficialComponent {
         // Guardar URL assinada no signal
         if (uploadResult.url) {
           this.documentUrl.set(uploadResult.url);
-          console.log('[Capture Official] URL assinada do documento salva:', uploadResult.url);
         } else {
-          // Se não tiver URL, tentar gerar uma
-          try {
-            const signedUrl = await firstValueFrom(
-              from(this.s3Service.getSignedUrl(uploadResult.key))
-            );
-            this.documentUrl.set(signedUrl);
-            console.log('[Capture Official] URL assinada gerada:', signedUrl);
-          } catch (error) {
-            console.warn('[Capture Official] Não foi possível gerar URL assinada:', error);
-          }
+          // Gerar URL assinada em background (não bloquear)
+          firstValueFrom(from(this.s3Service.getSignedUrl(uploadResult.key)))
+            .then(url => this.documentUrl.set(url))
+            .catch(() => console.warn('[Capture Official] Não foi possível gerar URL assinada'));
         }
         
-        // Validar documento após upload (igual captura 3D)
-        this.statusMessage.set('Validando documento...');
-        await this.validateDocument(uploadResult.key);
-        
-        this.statusMessage.set('Documento enviado com sucesso!');
+        // Validar documento em background (não bloqueia o botão)
+        this.validateDocument(uploadResult.key).catch(error => {
+          console.error('[Capture Official] Erro na validação do documento:', error);
+        });
       }
     } catch (error: any) {
       console.error('Erro ao enviar documento:', error);
       this.errorMessage.set('Erro ao enviar documento. Tente novamente.');
+      this.isDocumentValid.set(false);
     } finally {
       this.isUploadingDocument.set(false);
-      this.isLoading.set(false);
     }
   }
 
@@ -162,13 +203,16 @@ export class CaptureOfficialComponent {
     this.documentKey.set(null);
     this.documentScore.set(null);
     this.documentAnalysis.set(null);
+    this.isDocumentValid.set(null);
+    this.documentValidationMessage.set(null);
+    this.compressionInfo.set(null);
   }
 
   private async validateDocument(documentKey: string): Promise<void> {
     try {
-      // Chamar backend para análise completa do documento (igual captura 3D)
-      // Usar endpoint que faz análise de documento + match (se tiver selfie)
-      // Por enquanto, apenas validar documento
+      this.isDocumentValid.set(null);
+      this.documentValidationMessage.set(null);
+      
       const bucket = environment.aws?.bucket || 'dayfusion-docs';
       
       // Extrair apenas a key (sem prefixo s3://)
@@ -176,28 +220,75 @@ export class CaptureOfficialComponent {
       
       if (!keyOnly) {
         console.warn('[Capture Official] Não foi possível extrair key do documento');
+        this.isDocumentValid.set(false);
+        this.documentValidationMessage.set('Erro ao processar documento');
         return;
       }
 
-      // Chamar endpoint de análise de documento via face-recognition
-      // O backend vai analisar o documento e retornar documentScore
-      // Por enquanto, vamos fazer uma chamada simples para validar
-      // (a análise completa será feita quando tiver liveness + match)
+      console.log('[Capture Official] Validando documento como RG/CNH:', keyOnly);
       
-      console.log('[Capture Official] Validando documento:', keyOnly);
+      // Chamar endpoint de validação de documento (RG/CNH) - timeout mais curto para ser mais rápido
+      const validationResult = await firstValueFrom(
+        this.faceService.validateDocument(keyOnly, bucket).pipe(
+          // Timeout de 30 segundos (mais rápido que o padrão)
+          timeout(30000)
+        )
+      );
+
+      if (validationResult) {
+        this.documentScore.set(validationResult.documentScore);
+        this.isDocumentValid.set(validationResult.isValid);
       
-      // Nota: A validação completa do documento será feita quando chamar getLivenessResult
-      // após completar o liveness, similar ao que é feito na captura 3D
+        console.log('[Capture Official] Resultado da validação:', {
+          isValid: validationResult.isValid,
+          score: validationResult.documentScore,
+          observacao: validationResult.observacao,
+          flags: validationResult.flags
+        });
+
+        // Só mostrar mensagem se documento for INVÁLIDO
+        if (!validationResult.isValid) {
+          this.documentValidationMessage.set(validationResult.observacao || 'Documento inválido');
+          this.errorMessage.set('Documento não é um RG ou CNH válido. Por favor, envie um documento válido.');
+        } else {
+          // Documento válido: limpar mensagens
+          this.documentValidationMessage.set(null);
+          this.errorMessage.set(null);
+        }
+      } else {
+        this.isDocumentValid.set(false);
+        this.documentValidationMessage.set('Erro ao validar documento');
+        this.errorMessage.set('Erro ao validar documento. Tente novamente.');
+      }
       
     } catch (error: any) {
       console.error('[Capture Official] Erro ao validar documento:', error);
-      // Não bloquear o fluxo se validação falhar
+      this.isDocumentValid.set(false);
+      this.documentValidationMessage.set('Erro ao validar documento');
+      
+      if (error?.name === 'TimeoutError') {
+        this.errorMessage.set('Timeout ao validar documento. Verifique sua conexão e tente novamente.');
+      } else {
+        this.errorMessage.set(error?.message || 'Erro ao validar documento. Verifique sua conexão e tente novamente.');
+      }
     }
   }
 
   openModal(): void {
     if (!this.documentFile() || !this.documentS3Path()) {
       this.errorMessage.set('Por favor, anexe um documento antes de iniciar a verificação.');
+      return;
+    }
+
+    // Validar se documento é válido (RG/CNH) antes de permitir iniciar
+    if (this.isDocumentValid() === false) {
+      this.errorMessage.set('Documento inválido. Por favor, envie um RG ou CNH válido antes de iniciar a verificação.');
+      return;
+    }
+
+    // Se ainda não foi validado, bloquear
+    if (this.isDocumentValid() === null) {
+      this.errorMessage.set('Aguarde a validação do documento antes de iniciar a verificação.');
       return;
     }
 
@@ -449,7 +540,7 @@ export class CaptureOfficialComponent {
       
       #liveness-container-official video {
         margin-top: -2rem !important;
-        transform: translateY(-20px) !important;
+        transform: translateY(-20px) scaleX(-1) !important;
         object-position: center center !important;
       }
       
@@ -551,7 +642,7 @@ export class CaptureOfficialComponent {
       const videos = container.querySelectorAll('video');
       videos.forEach(video => {
         (video as HTMLElement).style.marginTop = '-2rem';
-        (video as HTMLElement).style.transform = 'translateY(-20px)';
+        (video as HTMLElement).style.transform = 'translateY(-20px) scaleX(-1)';
         (video as HTMLElement).style.objectPosition = 'center center';
       });
 
@@ -865,11 +956,45 @@ export class CaptureOfficialComponent {
           documentScore: backendAnalysis.documentScore,
           matchScore: backendAnalysis.matchScore,
           identityScore: backendAnalysis.identityScore,
-          observacao: backendAnalysis.observacao
+          observacao: backendAnalysis.observacao,
+          status: backendAnalysis.status
         });
+
+        // CRÍTICO: Se documento foi rejeitado após liveness, bloquear aprovação
+        const status = backendAnalysis.status?.toUpperCase();
+        const docScore = backendAnalysis.documentScore ?? 0;
+        const observacaoText = backendAnalysis.observacao || '';
+        const isDocumentInvalid = docScore <= 0 || 
+                                  docScore < 50 ||
+                                  observacaoText.includes('Documento rejeitado') ||
+                                  observacaoText.includes('não é RG') ||
+                                  observacaoText.includes('não é CNH') ||
+                                  observacaoText.includes('inválido') ||
+                                  status === 'REJECTED';
+        
+        if (isDocumentInvalid) {
+          console.warn('[Capture Official] 🚨 Documento rejeitado após liveness. Status:', status, 'Score:', docScore, 'Observação:', observacaoText);
+          
+          // Atualizar resultado com status rejeitado
+          const rejectedResult: LivenessResult = {
+            ...livenessResult,
+            raw: {
+              ...livenessResult.raw,
+              backendAnalysis,
+              documentScore: docScore,
+              documentAnalysis: this.documentAnalysis()
+            }
+          };
+          this.livenessResult.set(rejectedResult);
+          
+          // Mostrar tela de resumo mesmo quando rejeitado (igual aprovado)
+          this.showReviewStep.set(true);
+          this.statusMessage.set('Análise completa - Documento rejeitado');
+          return; // SAIR - não fazer match adicional se documento inválido
+        }
       }
 
-      // 3. Fazer match adicional com todas as audit images
+      // 3. Só fazer match adicional se documento for válido
       this.statusMessage.set('Comparando com todas as imagens de liveness...');
       
       const matchResult = await firstValueFrom(
@@ -979,14 +1104,164 @@ export class CaptureOfficialComponent {
     this.closeModal();
   }
 
+  private async saveRejectedToHistory(result: LivenessResult, observacao: string): Promise<void> {
+    try {
+      this.statusMessage.set('Salvando resultado rejeitado no histórico...');
+      
+      const backendAnalysis = result.raw?.backendAnalysis;
+      const documentScore = this.documentScore() ?? backendAnalysis?.documentScore ?? 0;
+      
+      // Preparar informações do vídeo para o histórico
+      let videoSummary: LivenessSummary['video'] | undefined;
+      if (this.recordedVideo && (this as any)._videoKey) {
+        try {
+          const videoUrl = await firstValueFrom(
+            from(this.s3Service.getSignedUrl((this as any)._videoKey))
+          );
+          videoSummary = {
+            s3Key: (this as any)._videoKey,
+            url: videoUrl,
+            mimeType: this.recordedVideo.mimeType,
+            size: this.recordedVideo.blob.size,
+            durationMs: this.recordedVideo.durationMs
+          };
+        } catch (error) {
+          console.warn('[Capture Official] Erro ao gerar URL do vídeo:', error);
+        }
+      }
+
+      const summary: LivenessSummary = {
+        sessionId: result.sessionId,
+        createdAt: new Date().toISOString(),
+        isLive: result.confidenceScore >= 70,
+        livenessScore: result.confidenceScore,
+        faceMatchScore: undefined, // Sem match porque documento foi rejeitado
+        status: 'Rejeitado', // Status fixo como REJEITADO
+        documentKey: this.documentKey() || undefined,
+        video: videoSummary,
+        captures: result.auditImages?.map((img, idx) => ({
+          position: `audit_${idx}`,
+          confidence: result.confidenceScore,
+          s3Key: img.key,
+          previewUrl: img.url || ''
+        })) || [],
+        metadata: {
+          documentS3Path: this.documentS3Path() || '',
+          documentKey: this.documentKey() || '',
+          documentUrl: this.documentUrl() || '',
+          documentScore: String(documentScore),
+          ...(backendAnalysis ? { backendAnalysis: JSON.stringify(backendAnalysis) } : {}),
+          observacao: observacao || 'Documento rejeitado: não é RG ou CNH válido'
+        },
+        backendAnalysis: backendAnalysis ? {
+          documentScore: documentScore || undefined,
+          matchScore: backendAnalysis.matchScore || undefined,
+          identityScore: backendAnalysis.identityScore || undefined,
+          observacao: observacao || undefined,
+          message: backendAnalysis.message || undefined,
+          status: 'REJECTED'
+        } : {
+          documentScore: documentScore || undefined,
+          observacao: observacao || 'Documento rejeitado: não é RG ou CNH válido',
+          status: 'REJECTED'
+        }
+      };
+
+      this.lastSummary.set(summary);
+      this.historyService.addEntry(summary);
+      
+      console.log('[Capture Official] ✅ Resultado REJEITADO salvo no histórico:', summary);
+      this.statusMessage.set('Resultado salvo no histórico como Rejeitado');
+      
+      // Fechar modal após salvar
+      setTimeout(() => {
+        this.closeModal();
+      }, 1500);
+    } catch (error) {
+      console.error('[Capture Official] Erro ao salvar resultado rejeitado no histórico:', error);
+      this.errorMessage.set('Erro ao salvar no histórico. Tente novamente.');
+      setTimeout(() => {
+        this.closeModal();
+      }, 2000);
+    }
+  }
+
   private determineStatus(result: LivenessResult): 'Aprovado' | 'Rejeitado' | 'Revisar' {
+    // ============================================================
+    // REGRA CRÍTICA: Validar documento DEPOIS do liveness
+    // Se documento não for válido (RG/CNH), SEMPRE rejeitar
+    // ============================================================
+    
+    // CRÍTICO: Verificar documento primeiro - se inválido, rejeitar independente de tudo
+    const documentScore = this.documentScore() ?? result.raw?.backendAnalysis?.documentScore ?? 0;
+    const backendAnalysis = result.raw?.backendAnalysis;
+    
+    // Verificar flags do documento se disponíveis
+    const documentFlags = backendAnalysis?.observacao || '';
+    const hasInvalidFlags = documentFlags.includes('não é RG') || 
+                           documentFlags.includes('não é CNH') ||
+                           documentFlags.includes('Documento rejeitado') ||
+                           documentFlags.includes('inválido');
+    
+    // CRÍTICO: Se documento tem score 0 ou muito baixo (< 50), ou flags de invalidez, REJEITAR
+    if (documentScore <= 0 || documentScore < 50 || hasInvalidFlags) {
+      console.warn('[Capture Official] 🚨 Documento inválido detectado. Score:', documentScore, 'Flags:', hasInvalidFlags);
+      return 'Rejeitado';
+    }
+    
+    // Priorizar status do backend se disponível (decisão final após análise completa)
+    const backendStatus = backendAnalysis?.status;
+    if (backendStatus) {
+      const statusUpper = backendStatus.toUpperCase();
+      if (statusUpper === 'APPROVED' || statusUpper === 'APROVADO') {
+        // Mas verificar novamente se documento é válido antes de aprovar
+        if (documentScore >= 85 && !hasInvalidFlags) {
+          return 'Aprovado';
+        } else {
+          console.warn('[Capture Official] ⚠️ Backend aprovou, mas documento não é válido (score:', documentScore, ') - REJEITANDO');
+          return 'Rejeitado';
+        }
+      } else if (statusUpper === 'REJECTED' || statusUpper === 'REJEITADO') {
+        console.log('[Capture Official] 🚨 Status REJEITADO pelo backend:', backendAnalysis);
+        return 'Rejeitado';
+      } else if (statusUpper === 'REVIEW' || statusUpper === 'REVISAR') {
+        return 'Revisar';
+      }
+    }
+
+    // Fallback: determinar status baseado nos scores locais
     const livenessScore = result.confidenceScore;
     const matchScore = result.raw?.matchResult?.bestMatchScore || 0;
     const finalScore = result.raw?.matchResult?.finalScore || livenessScore;
+    const identityScore = result.raw?.backendAnalysis?.identityScore;
 
-    if (livenessScore >= 90 && matchScore >= 80 && finalScore >= 85) {
+    // Se tem identityScore do backend, usar ele como critério principal
+    // MAS SEMPRE verificar se documento é válido primeiro
+    if (identityScore !== undefined && identityScore !== null) {
+      // CRÍTICO: Documento válido é obrigatório para aprovação
+      if (documentScore < 85 || hasInvalidFlags) {
+        console.warn('[Capture Official] 🚨 Documento não é válido (score:', documentScore, ') - REJEITANDO mesmo com identityScore:', identityScore);
+        return 'Rejeitado';
+      }
+      
+      if (identityScore >= 0.85 && documentScore >= 85) {
       return 'Aprovado';
-    } else if (livenessScore < 70 || matchScore < 50 || finalScore < 60) {
+      } else if (identityScore < 0.50 || documentScore < 50) {
+        return 'Rejeitado';
+      } else {
+        return 'Revisar';
+      }
+    }
+
+    // Lógica antiga como fallback - MAS SEMPRE verificar documento primeiro
+    if (documentScore < 85 || hasInvalidFlags) {
+      console.warn('[Capture Official] 🚨 Documento não é válido (score:', documentScore, ') - REJEITANDO');
+      return 'Rejeitado';
+    }
+    
+    if (livenessScore >= 90 && matchScore >= 80 && finalScore >= 85 && documentScore >= 85) {
+      return 'Aprovado';
+    } else if (livenessScore < 70 || matchScore < 50 || finalScore < 60 || documentScore < 50) {
       return 'Rejeitado';
     } else {
       return 'Revisar';
@@ -1106,6 +1381,13 @@ export class CaptureOfficialComponent {
     // Limpar variáveis de vídeo
     (this as any)._videoKey = null;
     this.recordedVideo = null;
+  }
+
+  /**
+   * Navega para a página de histórico
+   */
+  goToHistory(): void {
+    this.router.navigate(['/history']);
   }
 }
 

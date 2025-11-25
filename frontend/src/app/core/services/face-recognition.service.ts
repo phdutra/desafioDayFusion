@@ -161,4 +161,22 @@ export class FaceRecognitionService {
   verifyWithAntiDeepfake(request: any): Observable<any> {
     return this.http.post(`${this.API_URL}/verification/verify`, request);
   }
+
+  /**
+   * Valida documento isoladamente (RG/CNH) antes de iniciar liveness
+   */
+  validateDocument(documentKey: string, bucket?: string): Observable<DocumentValidateResponse> {
+    return this.http.post<DocumentValidateResponse>(`${this.API_URL}/identity/document/validate`, {
+      documentKey,
+      bucket
+    });
+  }
+}
+
+// Interface para resposta de validação de documento
+export interface DocumentValidateResponse {
+  documentScore: number;
+  observacao: string;
+  flags: string[];
+  isValid: boolean;
 }

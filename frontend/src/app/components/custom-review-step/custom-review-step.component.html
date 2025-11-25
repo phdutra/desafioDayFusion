@@ -15,6 +15,13 @@
         </span>
       </div>
 
+      <div class="metric" *ngIf="livenessResult.raw?.backendAnalysis?.documentScore !== undefined || livenessResult.raw?.documentScore !== undefined">
+        <span class="metric__label">Document Score</span>
+        <span class="metric__value">
+          {{ (livenessResult.raw?.backendAnalysis?.documentScore ?? livenessResult.raw?.documentScore ?? 0) | number : '1.0-2' }}%
+        </span>
+      </div>
+
       <div class="metric" *ngIf="matchResult">
         <span class="metric__label">Match Documento</span>
         <span class="metric__value">
@@ -26,6 +33,13 @@
         <span class="metric__label">Score Final DayFusion</span>
         <span class="metric__value metric__value--final">
           {{ matchResult.finalScore | number : '1.0-2' }}%
+        </span>
+      </div>
+
+      <div class="metric" *ngIf="!matchResult && (livenessResult.raw?.backendAnalysis?.identityScore !== undefined)">
+        <span class="metric__label">Score Final DayFusion</span>
+        <span class="metric__value metric__value--final">
+          {{ livenessResult.raw?.backendAnalysis?.identityScore | number : '1.0-2' }}%
         </span>
       </div>
     </div>
@@ -85,7 +99,15 @@
         <div class="status-text">
           <h3>Status Final: {{ status }}</h3>
           <p *ngIf="status === 'Aprovado'">Verificação aprovada com sucesso!</p>
-          <p *ngIf="status === 'Rejeitado'">Verificação rejeitada. Verifique os critérios.</p>
+          <p *ngIf="status === 'Rejeitado'">
+            Verificação rejeitada. 
+            <span *ngIf="livenessResult.raw?.backendAnalysis?.observacao">
+              {{ livenessResult.raw?.backendAnalysis?.observacao }}
+            </span>
+            <span *ngIf="!livenessResult.raw?.backendAnalysis?.observacao">
+              Verifique os critérios.
+            </span>
+          </p>
           <p *ngIf="status === 'Revisar'">Verificação requer análise manual.</p>
         </div>
       </div>

@@ -37,6 +37,7 @@
     "@aws-sdk/types": "^3.922.0",
     "apexcharts": "^5.3.6",
     "aws-amplify": "^6.15.7",
+    "browser-image-compression": "^2.0.2",
     "chart.js": "^4.5.1",
     "medium-zoom": "^1.1.0",
     "ng-apexcharts": "^1.12.0",
