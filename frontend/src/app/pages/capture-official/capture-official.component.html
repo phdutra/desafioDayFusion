@@ -14,7 +14,7 @@
       </ul>
     </div>
     <div class="intro-actions">
-      <button class="btn-dashboard" (click)="openModal()" 
+      <button class="btn-dashboard" (click)="startLivenessVerification()" 
               [disabled]="!documentFile() || isUploadingDocument() || isDocumentValid() === false">
         <span class="btn-icon" *ngIf="!isUploadingDocument()">▶</span>
         <span class="btn-loading-spinner" *ngIf="isUploadingDocument()"></span>
@@ -38,7 +38,7 @@
       <p>Primeiro, faça upload de um documento (RG/CNH) para comparação facial.</p>
       <div class="document-input">
         <label class="upload-button">
-          <input type="file" accept="image/*" (change)="onDocumentSelected($event)" hidden [disabled]="isLoading()" />
+          <input type="file" accept="image/*" (change)="onDocumentSelected($event)" hidden [disabled]="isUploadingDocument()" />
           <span>📄 Selecionar documento</span>
         </label>
         <div class="document-info" *ngIf="documentInfo() as info; else noDocument">
@@ -46,7 +46,7 @@
             <strong>{{ info.name }}</strong>
             <p>{{ info.sizeKb | number:'1.0-0' }} KB</p>
           </div>
-          <button class="btn-ghost" type="button" (click)="clearDocument()" [disabled]="isLoading()">Remover</button>
+          <button class="btn-ghost" type="button" (click)="clearDocument()" [disabled]="isUploadingDocument()">Remover</button>
         </div>
         <ng-template #noDocument>
           <p class="document-placeholder">Nenhum documento selecionado.</p>
@@ -114,130 +114,18 @@
     <span>⚠️ {{ errorMessage() }}</span>
   </div>
 
-  <!-- Modal de Captura -->
-  <div class="modal-overlay" *ngIf="isModalOpen()" (click)="closeModal()">
-    <div class="modal-wrapper" (click)="$event.stopPropagation()">
-      <button class="modal-close" (click)="closeModal()" aria-label="Fechar modal">✕</button>
-      
-      <!-- Tela de Preparação com Instruções de Iluminação -->
-      <div *ngIf="showPreparationScreen()" class="preparation-screen" (click)="$event.stopPropagation()">
-        <div class="preparation-content">
-          <div class="preparation-icon">💡</div>
-          <h2 class="preparation-title">Prepare-se para a Verificação</h2>
-          <p class="preparation-subtitle">Siga estas instruções para garantir o melhor resultado:</p>
-          
-          <div class="preparation-instructions">
-            <div class="instruction-item">
-              <div class="instruction-icon">💡</div>
-              <div class="instruction-text">
-                <strong>Ligue a luz frontal</strong>
-                <p>Garanta iluminação adequada (mínimo 500 lux) para melhor detecção</p>
-              </div>
-            </div>
-            
-            <div class="instruction-item">
-              <div class="instruction-icon">🚫</div>
-              <div class="instruction-text">
-                <strong>Evite ficar contra a luz</strong>
-                <p>Não fique de costas para janelas ou fontes de luz intensa</p>
-              </div>
-            </div>
-            
-            <div class="instruction-item">
-              <div class="instruction-icon">📏</div>
-              <div class="instruction-text">
-                <strong>Mantenha distância adequada</strong>
-                <p>Fique a 40-70 cm da câmera para melhor captura</p>
-              </div>
-            </div>
-            
-            <div class="instruction-item">
-              <div class="instruction-icon">👤</div>
-              <div class="instruction-text">
-                <strong>Centralize o rosto</strong>
-                <p>Mantenha o rosto totalmente visível e centralizado no círculo</p>
-              </div>
-            </div>
-          </div>
-          
-          <div class="preparation-actions">
-            <div class="preparation-countdown">
-              <div class="countdown-circle">
-                <span class="countdown-number">{{ preparationCountdown() }}</span>
-              </div>
-              <p class="preparation-auto-start">A verificação iniciará automaticamente...</p>
-            </div>
-          </div>
-        </div>
-      </div>
-      
-      <!-- Etapa 1: Widget AWS -->
-      <div *ngIf="!showReviewStep() && !showPreparationScreen()" class="widget-container">
-        <!-- Contagem Regressiva -->
-        <div class="countdown-overlay" *ngIf="showCountdown()">
-          <div class="countdown-content">
-            <div class="countdown-number" [attr.data-number]="countdown()">{{ countdown() }}</div>
-            <p>Preparando verificação...</p>
-          </div>
-        </div>
-
-        <!-- Tooltip de Aviso de Fotossensibilidade -->
-        <div class="photosensitivity-tooltip" *ngIf="!showCountdown() && !errorMessage()">
-          <div class="tooltip-icon" title="Aviso de fotossensibilidade">ℹ️</div>
-          <div class="tooltip-content">
-            <strong>Aviso de fotossensibilidade</strong>
-            <p>Este teste de liveness usa luz estroboscópica que pode afetar pessoas com epilepsia fotossensível.</p>
-          </div>
-        </div>
-
-        <!-- Wrapper AWS conforme configuração recomendada -->
-        <div class="dayfusion-modal">
-          <div class="aws-widget-wrapper">
-            <div id="liveness-container-official" 
-                 [class.countdown-active]="showCountdown()">
-            </div>
-          </div>
-        </div>
-        
-        <div class="status-message" *ngIf="statusMessage() && !errorMessage() && !showCountdown()">
-          <p>
-            <span *ngIf="isVerifying()" class="verifying-spinner-custom"></span>
-            {{ statusMessage() }}
-          </p>
-        </div>
-        
-        <!-- Loading customizado quando "Verifying..." -->
-        <div class="verifying-loading-overlay" *ngIf="isVerifying() && !errorMessage() && !showCountdown()">
-          <div class="verifying-loading-content">
-            <div class="verifying-spinner-large"></div>
-            <p>Verificando...</p>
-          </div>
-        </div>
-        
-        <!-- Indicador de gravação de vídeo -->
-        <div class="recording-indicator" *ngIf="isRecordingVideo()">
-          <div class="recording-dot"></div>
-          <span>🎥 Gravando vídeo...</span>
-        </div>
-        <div class="error-message" *ngIf="errorMessage()">
-          <p>{{ errorMessage() }}</p>
-        </div>
-        <div class="loading-spinner" *ngIf="isLoading() && !errorMessage() && !showCountdown()">
-          <div class="spinner"></div>
-          <p>Aguardando widget carregar...</p>
-        </div>
-      </div>
-
-      <!-- Etapa 2: Review com Match -->
-      <div *ngIf="showReviewStep() && livenessResult() && documentS3Path()" class="review-container">
-        <app-custom-review-step
-          [livenessResult]="livenessResult()!"
-          [documentImageS3Path]="documentS3Path()!"
-          [documentImageUrl]="documentUrl() || undefined"
-          (finished)="handleReviewFinished($event)">
-        </app-custom-review-step>
-      </div>
-    </div>
-  </div>
+  <app-capture-official-liveness
+    #livenessComponent
+    [documentFileSignal]="documentFile"
+    [documentS3PathSignal]="documentS3Path"
+    [documentUrlSignal]="documentUrl"
+    [documentKeySignal]="documentKey"
+    [documentScoreSignal]="documentScore"
+    [documentAnalysisSignal]="documentAnalysis"
+    [isDocumentValidSignal]="isDocumentValid"
+    [documentValidationMessageSignal]="documentValidationMessage"
+    [lastSummarySignal]="lastSummary"
+    [errorMessageSignal]="errorMessage">
+  </app-capture-official-liveness>
 </div>
 
