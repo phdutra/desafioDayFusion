@@ -128,7 +128,14 @@ export class CaptureOfficialComponent {
       }
     } catch (error: any) {
       console.error('Erro ao enviar documento:', error);
-      this.errorMessage.set('Erro ao enviar documento. Tente novamente.');
+      
+      // Verificar se é erro de conexão (backend não está rodando)
+      if (error?.status === 0 || error?.message?.includes('ERR_CONNECTION_REFUSED')) {
+        this.errorMessage.set('Backend não está disponível. Verifique se o servidor está rodando na porta 7197.');
+      } else {
+        this.errorMessage.set('Erro ao enviar documento. Tente novamente.');
+      }
+      
       this.isDocumentValid.set(false);
     } finally {
       this.isUploadingDocument.set(false);
@@ -191,7 +198,10 @@ export class CaptureOfficialComponent {
       this.isDocumentValid.set(false);
       this.documentValidationMessage.set('Erro ao validar documento');
 
-      if (error?.name === 'TimeoutError') {
+      // Verificar se é erro de conexão (backend não está rodando)
+      if (error?.status === 0 || error?.message?.includes('ERR_CONNECTION_REFUSED')) {
+        this.errorMessage.set('Backend não está disponível. Verifique se o servidor está rodando na porta 7197.');
+      } else if (error?.name === 'TimeoutError') {
         this.errorMessage.set('Timeout ao validar documento. Verifique sua conexão e tente novamente.');
       } else {
         this.errorMessage.set(error?.message || 'Erro ao validar documento. Verifique sua conexão e tente novamente.');
@@ -205,5 +215,21 @@ export class CaptureOfficialComponent {
 
   goToHistory(): void {
     this.router.navigate(['/history']);
+  }
+
+  onDocumentImageError(event: Event): void {
+    const img = event.target as HTMLImageElement;
+    console.warn('[Capture Official] Erro ao carregar imagem do documento:', img.src);
+    // Tentar usar o S3 path se disponível
+    if (this.documentS3Path()) {
+      img.src = `/api/media/document?path=${encodeURIComponent(this.documentS3Path()!)}`;
+    }
+  }
+
+  onThumbImageError(event: Event, s3Key: string): void {
+    const img = event.target as HTMLImageElement;
+    if (img && s3Key) {
+      img.src = `/api/media/liveness-frame?bucket=dayfusion-docs&key=${encodeURIComponent(s3Key)}`;
+    }
   }
 }

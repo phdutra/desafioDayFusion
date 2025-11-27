@@ -12,8 +12,9 @@
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&family=Roboto:wght@300;400;500&display=swap" rel="stylesheet"/>
   <!-- Content Security Policy: permite blob/scripts necessários para AWS Face Liveness Widget -->
   <!-- Conforme AWS_FaceLiveness_WidgetAccessError.md: CSP restritiva pode bloquear scripts/blob do widget -->
+  <!-- Adicionado worker-src blob: para permitir web workers do widget AWS -->
   <meta http-equiv="Content-Security-Policy"
-        content="default-src * blob: data: gap:; style-src * 'unsafe-inline'; script-src * 'unsafe-inline' 'unsafe-eval' *">
+        content="default-src * blob: data: gap:; style-src * 'unsafe-inline'; script-src * 'unsafe-inline' 'unsafe-eval' * blob:; worker-src blob: *; child-src blob: *;">
   <!-- Polyfill para process.env (necessário para widget.js) -->
   <script>
     // Polyfill para process.env usado pelo widget AWS Face Liveness

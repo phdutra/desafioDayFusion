@@ -7,14 +7,16 @@ import {
   Signal,
   WritableSignal,
   inject,
-  signal
+  signal,
+  AfterViewInit,
+  OnDestroy
 } from '@angular/core';
 import { LivenessService } from '../../services/liveness.service';
 import { S3Service } from '../../core/aws/s3.service';
 import { LivenessHistoryService } from '../../core/services/liveness-history.service';
 import { FaceMatchService } from '../../core/services/face-match.service';
 import { FaceRecognitionService } from '../../core/services/face-recognition.service';
-import { CustomReviewStepComponent, LivenessResult } from '../../components/custom-review-step/custom-review-step.component';
+import { LivenessResult } from '../../components/custom-review-step/custom-review-step.component';
 import { LivenessSummary } from '../../core/models/liveness-result.model';
 import { firstValueFrom, from } from 'rxjs';
 import { environment } from '../../../environments/environment';
@@ -24,7 +26,19 @@ import {
   RecordedMedia,
   stopMediaStream
 } from '../../core/utils/media-recorder.util';
+import { Amplify } from 'aws-amplify';
+import awsExports from '../../../aws-exports';
 
+// Garantir que Amplify está configurado
+if (typeof Amplify !== 'undefined') {
+  try {
+    Amplify.configure(awsExports);
+  } catch (error) {
+    console.warn('[Liveness] Amplify já configurado ou erro na configuração:', error);
+  }
+}
+
+// Declaração do widget oficial AWS Face Liveness
 declare var AwsLiveness: any;
 declare const FaceLiveness: any;
 declare const customElements: CustomElementRegistry;
@@ -32,12 +46,12 @@ declare const customElements: CustomElementRegistry;
 @Component({
   selector: 'app-capture-official-liveness',
   standalone: true,
-  imports: [CommonModule, CustomReviewStepComponent],
+  imports: [CommonModule],
   templateUrl: './capture-official-liveness.component.html',
   styleUrls: ['./capture-official-liveness.component.scss'],
   schemas: [CUSTOM_ELEMENTS_SCHEMA]
 })
-export class CaptureOfficialLivenessComponent {
+export class CaptureOfficialLivenessComponent implements AfterViewInit, OnDestroy {
   private readonly livenessService = inject(LivenessService);
   private readonly s3Service = inject(S3Service);
   private readonly historyService = inject(LivenessHistoryService);
@@ -56,6 +70,7 @@ export class CaptureOfficialLivenessComponent {
   @Input({ required: true }) errorMessageSignal!: WritableSignal<string | null>;
 
   readonly isModalOpen = signal<boolean>(false);
+  readonly isClosing = signal<boolean>(false);
   readonly isLoading = signal<boolean>(false);
   readonly statusMessage = signal<string>('');
   readonly showReviewStep = signal<boolean>(false);
@@ -66,14 +81,14 @@ export class CaptureOfficialLivenessComponent {
   readonly showPreparationScreen = signal<boolean>(false);
   readonly preparationCountdown = signal<number>(5);
   readonly isRecordingVideo = signal<boolean>(false);
-  readonly showCustomFlash = signal<boolean>(false);
 
-  private widgetInstance: any = null;
+  private livenessDetector: any = null;
   private verifyingObserverInterval: any = null;
   private sessionId = '';
   private videoRecorder: MediaRecorderController | null = null;
   private videoStream: MediaStream | null = null;
   private recordedVideo: RecordedMedia | null = null;
+  private videoMirrorObserver: MutationObserver | null = null;
 
   readonly awsRegion: string = environment.aws?.region || 'us-east-1';
   readonly createSessionUrl: string = `${environment.apiUrl}/liveness/start`;
@@ -156,13 +171,41 @@ export class CaptureOfficialLivenessComponent {
       (this as any)._preparationCountdownInterval = null;
     }
 
-    this.destroyWidget();
-    this.isModalOpen.set(false);
-    this.showReviewStep.set(false);
-    this.showPreparationScreen.set(false);
-    this.preparationCountdown.set(5);
+    this.isClosing.set(true);
+    // Aguardar animação de fadeout antes de fechar completamente
+    setTimeout(() => {
+      this.isModalOpen.set(false);
+      this.isClosing.set(false);
+      this.destroyWidget();
+      this.showReviewStep.set(false);
+      this.showPreparationScreen.set(false);
+      this.preparationCountdown.set(5);
+    }, 400); // Tempo da animação CSS
     this.livenessResult.set(null);
     this.sessionId = '';
+  }
+
+  retry(): void {
+    this.errorMessageSignal.set(null);
+    this.preparationCountdown.set(5);
+    this.showPreparationScreen.set(true);
+    this.destroyWidget();
+    
+    const countdownInterval = setInterval(() => {
+      const current = this.preparationCountdown();
+      if (current > 1) {
+        this.preparationCountdown.set(current - 1);
+      } else {
+        clearInterval(countdownInterval);
+        this.startVerificationAfterPreparation();
+      }
+    }, 1000);
+
+    (this as any)._preparationCountdownInterval = countdownInterval;
+  }
+
+  ngAfterViewInit(): void {
+    // Não inicializar automaticamente - aguardar usuário abrir modal
   }
 
   private async startSession(): Promise<void> {
@@ -177,50 +220,16 @@ export class CaptureOfficialLivenessComponent {
       }
 
       this.sessionId = sessionResponse.sessionId;
-      this.statusMessage.set('Sessão criada. Carregando widget...');
+      this.statusMessage.set('Carregando widget...');
 
-      let attempts = 0;
-      const maxAttempts = 15;
-      const checkInterval = 200;
+      // Aguardar um pouco para garantir que o DOM está pronto
+      await new Promise(resolve => setTimeout(resolve, 300));
 
-      while ((typeof AwsLiveness === 'undefined' && typeof FaceLiveness === 'undefined') && attempts < maxAttempts) {
-        await new Promise(resolve => setTimeout(resolve, checkInterval));
-        attempts++;
-      }
-
-      let useLocalWidget = false;
-      if (typeof AwsLiveness === 'undefined' && typeof FaceLiveness === 'undefined') {
-        this.statusMessage.set('Widgets externos não disponíveis. Tentando widget local...');
-
-        const customWidgetAvailable = customElements.get('face-liveness-widget') !== undefined;
-        if (!customWidgetAvailable) {
-          await new Promise(resolve => setTimeout(resolve, 500));
-        }
-
-        if (customElements.get('face-liveness-widget')) {
-          useLocalWidget = true;
-          this.statusMessage.set('Usando widget local...');
-        } else {
-          throw new Error(
-            'Widget AWS não está disponível.\n\n' +
-            'Verifique:\n' +
-            '1. Conexão com internet (scripts externos não carregaram)\n' +
-            '2. Se o widget local está em /assets/liveness/widget.js\n' +
-            '3. Recarregue a página após verificar'
-          );
-        }
-      }
-
-      if (useLocalWidget) {
-        await this.initLocalWidget(this.sessionId);
-      } else {
-        await this.initWidget(this.sessionId);
-      }
-
+      await this.initAmplifyLiveness(this.sessionId);
       this.isLoading.set(false);
-      await this.startCountdown();
-      await this.autoStartWidget();
       this.setupWidgetListeners();
+      
+      // Status será atualizado pelo autoStartWidget quando a elipse aparecer
     } catch (error: any) {
       console.error('[Liveness] Erro ao iniciar sessão:', error);
       this.errorMessageSignal.set(error?.message || 'Erro ao iniciar verificação.');
@@ -229,36 +238,201 @@ export class CaptureOfficialLivenessComponent {
     }
   }
 
-  private async initWidget(sessionId: string): Promise<void> {
-    const container = document.getElementById('liveness-container-official');
+  private async initAmplifyLiveness(sessionId: string): Promise<void> {
+    const container = document.getElementById('aws-liveness-container');
     if (!container) {
       throw new Error('Container do widget não encontrado.');
     }
 
+    // Limpar container
     container.innerHTML = '';
 
-    if (typeof AwsLiveness !== 'undefined') {
-      this.widgetInstance = new AwsLiveness({
-        sessionId,
-        region: this.awsRegion,
-        containerId: 'liveness-container-official',
-        onComplete: (result: any) => this.handleWidgetComplete(result),
-        onError: (error: any) => this.handleWidgetError(error)
-      });
-    } else if (typeof FaceLiveness !== 'undefined') {
-      this.widgetInstance = FaceLiveness.create({
-        sessionId,
-        region: this.awsRegion,
-        onComplete: (result: any) => this.handleWidgetComplete(result),
-        onError: (error: any) => this.handleWidgetError(error)
-      });
-    } else {
-      throw new Error('Widget AWS não disponível');
+    try {
+      // Aguardar widget oficial AWS estar disponível
+      let attempts = 0;
+      const maxAttempts = 30;
+      const checkInterval = 200;
+
+      while ((typeof AwsLiveness === 'undefined' && typeof FaceLiveness === 'undefined') && attempts < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, checkInterval));
+        attempts++;
+      }
+
+      // Tentar usar widget oficial AWS primeiro
+      if (typeof AwsLiveness !== 'undefined') {
+        console.log('[Liveness] ✅ Usando widget oficial AwsLiveness');
+        this.livenessDetector = new AwsLiveness({
+          sessionId: sessionId,
+          region: this.awsRegion,
+          onComplete: (result: any) => {
+            console.log('[Liveness] Widget completo:', result);
+            this.handleWidgetComplete(result);
+          },
+          onError: (error: any) => {
+            console.error('[Liveness] Erro no widget:', error);
+            this.handleWidgetError(error);
+          }
+        });
+        
+        // Montar widget usando mount (seguindo guia)
+        if (this.livenessDetector && typeof this.livenessDetector.mount === 'function') {
+          console.log('[Liveness] Montando widget AwsLiveness usando mount()');
+          this.livenessDetector.mount('#aws-liveness-container');
+          
+          // Aplicar espelhamento no vídeo após widget montar
+          setTimeout(() => this.applyVideoMirror(), 500);
+        }
+      } else if (typeof FaceLiveness !== 'undefined') {
+        console.log('[Liveness] ✅ Usando widget oficial FaceLiveness V2');
+        
+        // Obter a classe do widget (seguindo padrão do aws-widget.component.ts)
+        const WidgetClass = (FaceLiveness as any).default || FaceLiveness;
+        
+        if (typeof WidgetClass !== 'function') {
+          throw new Error('FaceLiveness não é uma classe válida');
+        }
+        
+        // Configurar widget com preset faceMovementAndLight para elipse e flash colorido
+        this.livenessDetector = new WidgetClass({
+          sessionId: sessionId,
+          region: this.awsRegion,
+          preset: 'faceMovementAndLight', // ESSENCIAL: permite elipse e flash colorido
+          onComplete: (result: any) => {
+            console.log('[Liveness] Widget completo:', result);
+            this.handleWidgetComplete(result);
+          },
+          onError: (error: any) => {
+            console.error('[Liveness] Erro no widget:', error);
+            this.handleWidgetError(error);
+          },
+          onUserCancellation: () => {
+            console.log('[Liveness] Usuário cancelou verificação');
+            this.closeModal();
+          }
+        });
+        
+        // Renderizar widget no container (seguindo guia: usar mount)
+        if (this.livenessDetector) {
+          if (typeof this.livenessDetector.mount === 'function') {
+            console.log('[Liveness] Montando widget FaceLiveness V2 usando mount()');
+            this.livenessDetector.mount('#aws-liveness-container');
+          } else if (typeof this.livenessDetector.render === 'function') {
+            console.log('[Liveness] Renderizando widget FaceLiveness V2 usando render()');
+            this.livenessDetector.render(container);
+          } else {
+            console.warn('[Liveness] Widget não possui método mount ou render');
+          }
+          
+          // Aguardar widget renderizar completamente
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
+          // Aplicar espelhamento no vídeo após widget renderizar
+          setTimeout(() => this.applyVideoMirror(), 500);
+        }
+      } else {
+        // Fallback: usar widget local se oficial não estiver disponível
+        console.warn('[Liveness] ⚠️ Widget oficial AWS não disponível, usando widget local como fallback');
+        await this.initLocalWidget(sessionId);
+        return; // Retornar aqui pois initLocalWidget já configura tudo
+      }
+
+      // Aguardar widget oficial inicializar completamente
+      this.statusMessage.set('Widget carregado. Aguardando inicialização...');
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Verificar se widget está pronto antes de iniciar
+      const widgetReady = this.checkWidgetReady();
+      if (!widgetReady) {
+        console.warn('[Liveness] Widget pode não estar totalmente pronto, mas continuando...');
+      }
+      
+      // Iniciar captura automaticamente (clicar no botão Start do widget)
+      // Isso fará a elipse aparecer
+      this.statusMessage.set('Iniciando verificação...');
+      await this.autoStartWidget();
+      
+      // Configurar observadores após widget iniciar
+      this.startVerifyingObserver();
+      this.startVideoRecordingFromWidget();
+    } catch (error: any) {
+      console.error('[Liveness] Erro ao inicializar widget:', error);
+      throw new Error(`Erro ao inicializar verificação: ${error?.message || 'Erro desconhecido'}`);
+    }
+  }
+
+  private async initLocalWidget(sessionId: string): Promise<void> {
+    const container = document.getElementById('aws-liveness-container');
+    if (!container) {
+      throw new Error('Container do widget não encontrado.');
     }
 
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    this.startVerifyingObserver();
-    this.startVideoRecordingFromWidget();
+    // Limpar container
+    container.innerHTML = '';
+
+    try {
+      // Usar widget local (web component) como fallback
+      const widgetElement = document.createElement('face-liveness-widget');
+      widgetElement.setAttribute('session-id', sessionId);
+      widgetElement.setAttribute('region', this.awsRegion);
+      widgetElement.setAttribute('create-session-url', this.createSessionUrl);
+      widgetElement.setAttribute('results-url', this.resultsUrl);
+      widgetElement.setAttribute('preset', 'face-liveness');
+      widgetElement.setAttribute('challenge-versions', '1.5.0');
+      widgetElement.setAttribute('video-normalization', 'on');
+      widgetElement.setAttribute('dark-environment-boost', 'on');
+      widgetElement.setAttribute('max-video-duration', '8000');
+
+      if (environment.aws?.identityPoolId) {
+        widgetElement.setAttribute('identity-pool-id', environment.aws.identityPoolId);
+      }
+
+      container.appendChild(widgetElement);
+
+      // Aguardar widget estar disponível
+      let attempts = 0;
+      const maxAttempts = 20;
+      while (!customElements.get('face-liveness-widget') && attempts < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, 200));
+        attempts++;
+      }
+
+      if (!customElements.get('face-liveness-widget')) {
+        throw new Error('Widget local não está disponível. Verifique se o script está carregado.');
+      }
+
+      // Configurar listeners para eventos do widget
+      const onComplete = (event: Event) => {
+        const customEvent = event as CustomEvent;
+        console.log('[Liveness] Widget local completo:', customEvent.detail);
+        this.handleWidgetComplete(customEvent.detail);
+      };
+
+      const onError = (event: Event) => {
+        const customEvent = event as CustomEvent;
+        console.error('[Liveness] Erro no widget local:', customEvent.detail);
+        this.handleWidgetError(customEvent.detail);
+      };
+
+      document.addEventListener('liveness-complete', onComplete);
+      document.addEventListener('liveness-error', onError);
+
+      // Armazenar listeners para limpeza
+      (this as any)._localWidgetListeners = { onComplete, onError };
+
+      // Aguardar widget inicializar
+      this.statusMessage.set('Widget local carregado. Iniciando captura...');
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      // Iniciar captura automaticamente
+      await this.autoStartWidget();
+      
+      // Configurar observadores após widget iniciar
+      this.startVerifyingObserver();
+      this.startVideoRecordingFromWidget();
+    } catch (error: any) {
+      console.error('[Liveness] Erro ao inicializar widget local:', error);
+      throw new Error(`Erro ao inicializar verificação: ${error?.message || 'Erro desconhecido'}`);
+    }
   }
 
   private startVerifyingObserver(): void {
@@ -272,18 +446,17 @@ export class CaptureOfficialLivenessComponent {
   }
 
   private checkForVerifyingMessage(): void {
-    const container = document.getElementById('liveness-container-official');
+    const container = document.getElementById('aws-liveness-container');
     if (!container) return;
 
     const allText = container.innerText || container.textContent || '';
     const textLower = allText.toLowerCase();
-    const verifyingKeywords = ['verifying', 'verificando', 'check complete'];
+    const verifyingKeywords = ['verifying', 'verificando', 'check complete', 'complete'];
     const hasVerifying = verifyingKeywords.some(keyword => textLower.includes(keyword));
 
     if (hasVerifying && !this.isVerifying()) {
       this.isVerifying.set(true);
-      // Flash customizado ao iniciar verificação
-      this.triggerCustomFlash(250);
+      // Widget AWS gerencia flash colorido internamente - não interferir
     } else if (!hasVerifying && this.isVerifying() && !this.showReviewStep()) {
       const isProcessing = textLower.includes('processando') ||
         textLower.includes('processing') ||
@@ -302,120 +475,221 @@ export class CaptureOfficialLivenessComponent {
     }
   }
 
-  private async initLocalWidget(sessionId: string): Promise<void> {
-    const container = document.getElementById('liveness-container-official');
-    if (!container) {
-      throw new Error('Container do widget não encontrado.');
-    }
 
-    container.innerHTML = '';
-
-    const widgetElement = document.createElement('face-liveness-widget');
-    widgetElement.setAttribute('session-id', sessionId);
-    widgetElement.setAttribute('region', this.awsRegion);
-    widgetElement.setAttribute('create-session-url', this.createSessionUrl);
-    widgetElement.setAttribute('results-url', this.resultsUrl);
-    widgetElement.setAttribute('preset', 'face-liveness');
-    widgetElement.setAttribute('challenge-versions', '1.5.0');
-    widgetElement.setAttribute('video-normalization', 'on');
-    widgetElement.setAttribute('dark-environment-boost', 'on');
-    widgetElement.setAttribute('max-video-duration', '8000');
-
-    if (environment.aws?.identityPoolId) {
-      widgetElement.setAttribute('identity-pool-id', environment.aws.identityPoolId);
-    }
-
-    container.appendChild(widgetElement);
-
-    const onComplete = (event: Event) => {
-      const customEvent = event as CustomEvent;
-      this.handleWidgetComplete(customEvent.detail);
-    };
-
-    const onError = (event: Event) => {
-      const customEvent = event as CustomEvent;
-      this.handleWidgetError(customEvent.detail);
-    };
-
-    document.addEventListener('liveness-complete', onComplete);
-    document.addEventListener('liveness-error', onError);
-
-    (this as any)._localWidgetListeners = { onComplete, onError };
-  }
-
-  private async startCountdown(): Promise<void> {
-    this.showCountdown.set(true);
-    this.countdown.set(3);
-    this.statusMessage.set('');
-
-    for (let i = 3; i > 0; i--) {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      this.countdown.set(i - 1);
-    }
-
-    this.statusMessage.set('');
-    await new Promise(resolve => setTimeout(resolve, 500));
-    this.showCountdown.set(false);
-    this.countdown.set(null);
-    
-    // Flash customizado ao finalizar countdown
-    this.triggerCustomFlash();
-  }
 
   private async autoStartWidget(): Promise<void> {
-    const container = document.getElementById('liveness-container-official');
-    if (!container) return;
+    const container = document.getElementById('aws-liveness-container');
+    if (!container) {
+      console.warn('[Liveness] Container não encontrado para auto-start');
+      return;
+    }
 
-    await new Promise(resolve => setTimeout(resolve, 500));
+    // Aguardar widget estar totalmente carregado
+    await new Promise(resolve => setTimeout(resolve, 1000));
 
-    const buttonSelectors = [
-      'button[data-testid="start-button"]',
-      'button:contains("Iniciar")',
-      'button:contains("Start")',
-      'button:contains("Começar")',
-      '.start-button',
-      '[role="button"]',
-      'button'
-    ];
+    // Tentar múltiplas vezes (widget pode demorar para carregar)
+    const maxAttempts = 15;
+    let attempts = 0;
 
-    let button: HTMLElement | null = null;
-    for (const selector of buttonSelectors) {
-      try {
-        const elements = container.querySelectorAll(selector);
-        for (const el of Array.from(elements)) {
-          const text = el.textContent?.toLowerCase() || '';
-          if (text.includes('iniciar') || text.includes('start') || text.includes('começar') || text.includes('ok')) {
-            button = el as HTMLElement;
+    const tryStart = async (): Promise<void> => {
+      attempts++;
+      console.log(`[Liveness] Tentativa ${attempts}/${maxAttempts} de iniciar widget...`);
+
+      // Primeiro, verificar se é widget local (com Shadow DOM)
+      const widgetElement = container.querySelector('face-liveness-widget') as any;
+      if (widgetElement) {
+        const shadowRoot = widgetElement.shadowRoot;
+        if (shadowRoot) {
+          console.log('[Liveness] Widget local encontrado (Shadow DOM), procurando botão...');
+          const buttons = shadowRoot.querySelectorAll('button');
+          
+          for (const btn of Array.from(buttons) as HTMLElement[]) {
+            const buttonElement = btn as HTMLButtonElement;
+            const text = (buttonElement.textContent || buttonElement.innerText || '').toLowerCase().trim();
+            const ariaLabel = (buttonElement.getAttribute('aria-label') || '').toLowerCase();
+            
+            if (
+              (text.includes('start') || text.includes('iniciar') || text.includes('começar') || text === 'ok' || text === '') &&
+              !buttonElement.disabled &&
+              buttonElement.offsetParent !== null
+            ) {
+              console.log('[Liveness] ✅ Botão encontrado no widget local (Shadow DOM), clicando...');
+              // Widget AWS gerencia flash colorido internamente
+              buttonElement.click();
+              
+              const clickEvent = new MouseEvent('click', {
+                bubbles: true,
+                cancelable: true,
+                view: window
+              });
+              buttonElement.dispatchEvent(clickEvent);
+              
+              await new Promise(resolve => setTimeout(resolve, 1000));
+              await this.checkElipseVisible();
+              return;
+            }
+          }
+        }
+      }
+
+      // Widget oficial AWS renderiza diretamente no container (não usa Shadow DOM)
+      const buttonSelectors = [
+        'button[data-testid="start-button"]',
+        'button[aria-label*="Start"]',
+        'button[aria-label*="Iniciar"]',
+        'button[aria-label*="Começar"]',
+        '.amplify-button--primary',
+        'button'
+      ];
+
+      let button: HTMLElement | null = null;
+
+      // Procurar botão no container
+      for (const selector of buttonSelectors) {
+        try {
+          const elements = container.querySelectorAll(selector);
+          for (const el of Array.from(elements)) {
+            const text = (el.textContent || '').toLowerCase().trim();
+            const ariaLabel = (el.getAttribute('aria-label') || '').toLowerCase();
+            
+            console.log(`[Liveness] Verificando botão: text="${text}", aria-label="${ariaLabel}", disabled=${(el as HTMLButtonElement).disabled}, visible=${(el as HTMLElement).offsetParent !== null}`);
+            
+            // Verificar se é botão de início
+            if (
+              (text.includes('start') || text.includes('iniciar') || text.includes('começar') || text === 'ok' || text === '') &&
+              !(el as HTMLButtonElement).disabled &&
+              (el as HTMLElement).offsetParent !== null
+            ) {
+              button = el as HTMLElement;
+              console.log('[Liveness] ✅ Botão de início encontrado!');
+              break;
+            }
+          }
+          if (button) break;
+        } catch (e) {
+          // Ignorar erros de seletor
+        }
+      }
+
+      // Se não encontrou por texto, pegar primeiro botão visível e habilitado
+      if (!button) {
+        const buttons = container.querySelectorAll('button');
+        console.log(`[Liveness] Encontrados ${buttons.length} botões no container`);
+        for (const btn of Array.from(buttons)) {
+          const btnElement = btn as HTMLButtonElement;
+          if (
+            btnElement.offsetParent !== null &&
+            btnElement.style.display !== 'none' &&
+            !btnElement.disabled
+          ) {
+            button = btnElement;
+            console.log('[Liveness] Usando primeiro botão visível encontrado');
             break;
           }
         }
-        if (button) break;
-      } catch (e) {
-        // ignore
       }
-    }
 
-    if (!button) {
-      const buttons = container.querySelectorAll('button');
-      for (const btn of Array.from(buttons)) {
-        if (btn.offsetParent !== null) {
-          button = btn as HTMLElement;
-          break;
-        }
+      if (button) {
+        console.log('[Liveness] ✅ Clicando no botão para iniciar widget...');
+        // Widget AWS gerencia flash colorido internamente
+        
+        // Clicar no botão
+        (button as HTMLElement).click();
+        
+        // Também disparar evento de mouse para garantir
+        const clickEvent = new MouseEvent('click', {
+          bubbles: true,
+          cancelable: true,
+          view: window
+        });
+        (button as HTMLElement).dispatchEvent(clickEvent);
+        
+        // Aguardar widget iniciar e elipse aparecer
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        // Verificar se elipse apareceu
+        await this.checkElipseVisible();
+      } else if (attempts < maxAttempts) {
+        // Tentar novamente após um delay
+        console.log(`[Liveness] Botão não encontrado, tentando novamente em 500ms...`);
+        setTimeout(tryStart, 500);
+      } else {
+        console.warn('[Liveness] ❌ Não foi possível encontrar botão de início após múltiplas tentativas');
+        this.statusMessage.set('Clique no botão "Start" para iniciar a verificação');
       }
-    }
+    };
 
-    if (button) {
-      // Flash customizado ao iniciar widget
-      this.triggerCustomFlash(150);
-      button.click();
+    await tryStart();
+  }
+
+  private checkWidgetReady(): boolean {
+    const container = document.getElementById('aws-liveness-container');
+    if (!container) return false;
+    
+    // Verificar se há elementos do widget renderizados
+    const hasVideo = container.querySelectorAll('video').length > 0;
+    const hasCanvas = container.querySelectorAll('canvas').length > 0;
+    const hasIframe = container.querySelectorAll('iframe').length > 0;
+    const hasWidgetElements = container.children.length > 0;
+    
+    const isReady = hasVideo || hasCanvas || hasIframe || hasWidgetElements;
+    console.log('[Liveness] Widget pronto?', { hasVideo, hasCanvas, hasIframe, hasWidgetElements, isReady });
+    
+    return isReady;
+  }
+
+  private async checkElipseVisible(): Promise<void> {
+    const container = document.getElementById('aws-liveness-container');
+    if (!container) return;
+
+    const maxCheckAttempts = 8;
+    let checkAttempts = 0;
+    
+    while (checkAttempts < maxCheckAttempts) {
+      // Verificar no container principal (widget oficial AWS)
+      const videoElements = container.querySelectorAll('video');
+      const canvasElements = container.querySelectorAll('canvas');
+      const ovalElements = container.querySelectorAll('[class*="oval"], [class*="Oval"], [class*="liveness-oval"]');
+      
+      // Verificar também no Shadow DOM do widget local
+      const widgetElement = container.querySelector('face-liveness-widget') as any;
+      let shadowVideoElements: NodeListOf<HTMLVideoElement> | [] = [];
+      let shadowCanvasElements: NodeListOf<HTMLCanvasElement> | [] = [];
+      let shadowOvalElements: NodeListOf<HTMLElement> | [] = [];
+      
+      if (widgetElement?.shadowRoot) {
+        shadowVideoElements = widgetElement.shadowRoot.querySelectorAll('video');
+        shadowCanvasElements = widgetElement.shadowRoot.querySelectorAll('canvas');
+        shadowOvalElements = widgetElement.shadowRoot.querySelectorAll('[class*="oval"], [class*="Oval"], [class*="liveness-oval"]');
+      }
+      
+      const totalVideos = videoElements.length + shadowVideoElements.length;
+      const totalCanvases = canvasElements.length + shadowCanvasElements.length;
+      const totalOvals = ovalElements.length + shadowOvalElements.length;
+      
+      console.log(`[Liveness] Verificando elipse: Vídeos=${totalVideos}, Canvas=${totalCanvases}, Ovals=${totalOvals}`);
+      
+      if (totalVideos > 0 || totalCanvases > 0 || totalOvals > 0) {
+        console.log('[Liveness] ✅ Elipse visível! Vídeos:', totalVideos, 'Canvas:', totalCanvases, 'Ovals:', totalOvals);
+        this.statusMessage.set('Centralize seu rosto na elipse');
+        return;
+      }
+      
+      checkAttempts++;
+      await new Promise(resolve => setTimeout(resolve, 500));
     }
+    
+    console.warn('[Liveness] Elipse pode não estar visível ainda');
+    this.statusMessage.set('Aguardando câmera iniciar...');
   }
 
   private setupWidgetListeners(): void {
     // Observar mudanças no container para detectar eventos do widget
-    const container = document.getElementById('liveness-container-official');
+    const container = document.getElementById('aws-liveness-container');
     if (!container) return;
+
+    // Aplicar espelhamento no vídeo (sem afetar elipse e flash)
+    this.applyVideoMirror();
 
     // Observer para detectar quando o widget muda de estado
     const observer = new MutationObserver((mutations) => {
@@ -426,9 +700,13 @@ export class CaptureOfficialLivenessComponent {
           if (videoElements.length > 0) {
             const video = videoElements[0] as HTMLVideoElement;
             if (video.readyState >= 2 && !this.isRecordingVideo()) {
-              // Flash quando vídeo está pronto para reprodução
-              setTimeout(() => this.triggerCustomFlash(180), 300);
+              // Widget AWS gerencia flash colorido internamente
             }
+          }
+          
+          // Reaplicar espelhamento se novos vídeos forem adicionados
+          if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
+            this.applyVideoMirror();
           }
         }
       });
@@ -445,13 +723,67 @@ export class CaptureOfficialLivenessComponent {
     (this as any)._widgetMutationObserver = observer;
   }
 
+  /**
+   * Aplica espelhamento e posicionamento nos vídeos (seguindo padrão AWS Amplify)
+   * O CSS já aplica o espelhamento ANTES do vídeo carregar, mas este método
+   * garante que vídeos adicionados dinamicamente também sejam ajustados
+   */
+  private applyVideoMirror(): void {
+    const container = document.getElementById('aws-liveness-container');
+    if (!container) return;
+
+    const applyMirrorToVideos = () => {
+      // Encontrar APENAS elementos <video> (não canvas, não SVG)
+      const allVideos = container.querySelectorAll('video');
+      
+      allVideos.forEach((element) => {
+        const video = element as HTMLVideoElement;
+        if (video && video instanceof HTMLVideoElement && !video.hasAttribute('data-mirrored')) {
+          // Aplicar espelhamento e centralização seguindo padrão AWS Amplify
+          // O CSS já faz isso, mas garantimos via JS para vídeos dinâmicos
+          video.style.setProperty('position', 'absolute', 'important');
+          video.style.setProperty('top', '50%', 'important');
+          video.style.setProperty('left', '50%', 'important');
+          video.style.setProperty('transform', 'translate(-50%, -50%) scaleX(-1)', 'important');
+          video.style.setProperty('-webkit-transform', 'translate(-50%, -50%) scaleX(-1)', 'important');
+          video.style.setProperty('-moz-transform', 'translate(-50%, -50%) scaleX(-1)', 'important');
+          video.style.setProperty('-ms-transform', 'translate(-50%, -50%) scaleX(-1)', 'important');
+          video.style.setProperty('width', '100%', 'important');
+          video.style.setProperty('height', '100%', 'important');
+          video.style.setProperty('object-fit', 'cover', 'important');
+          video.style.setProperty('object-position', 'center', 'important');
+          video.style.setProperty('z-index', '1', 'important');
+          
+          video.setAttribute('data-mirrored', 'true');
+          console.log('[Liveness] ✅ Vídeo centralizado e espelhado (padrão AWS Amplify)');
+        }
+      });
+    };
+
+    // Aplicar imediatamente
+    applyMirrorToVideos();
+
+    // Observer para aplicar quando novos vídeos forem adicionados
+    if (this.videoMirrorObserver) {
+      this.videoMirrorObserver.disconnect();
+    }
+
+    this.videoMirrorObserver = new MutationObserver(() => {
+      applyMirrorToVideos();
+    });
+
+    this.videoMirrorObserver.observe(container, {
+      childList: true,
+      subtree: true
+    });
+  }
+
   private async handleWidgetComplete(result: any): Promise<void> {
     console.log('[Liveness] Widget completo:', result);
-    this.isVerifying.set(false);
-    this.statusMessage.set('Verificação concluída. Processando resultados...');
+    this.isVerifying.set(true); // Manter verifying ativo durante processamento
+    this.statusMessage.set('Verificando...');
 
-    // Flash customizado ao completar verificação
-    this.triggerCustomFlash(300);
+    // Widget AWS gerencia flash colorido internamente
 
     await this.stopVideoRecording();
 
@@ -495,10 +827,14 @@ export class CaptureOfficialLivenessComponent {
       }
 
       if (this.documentKey && auditImages.length > 0) {
-        this.statusMessage.set('Analisando documento e comparando faces...');
+        this.isVerifying.set(true); // Manter verifying ativo durante análise
+        this.statusMessage.set('Verificando...');
         await this.performCompleteAnalysis(livenessResult);
       } else {
-        this.showReviewStep.set(true);
+        this.isVerifying.set(false);
+        this.statusMessage.set(''); // Limpar status
+        // Não mostrar review step - resultados aparecerão na página principal
+        await this.finalizeAndClose();
       }
     } catch (error: any) {
       console.error('[Liveness] Erro ao processar resultados:', error);
@@ -583,11 +919,15 @@ export class CaptureOfficialLivenessComponent {
       };
 
       this.livenessResult.set(updatedResult);
-      this.showReviewStep.set(true);
-      this.statusMessage.set('Análise completa!');
+      this.isVerifying.set(false); // Desativar verifying após análise completa
+      this.statusMessage.set(''); // Limpar status
+      // Não mostrar review step - resultados aparecerão na página principal
+      await this.finalizeAndClose();
     } catch (error: any) {
       console.error('[Liveness] Erro ao fazer análise completa:', error);
-      this.showReviewStep.set(true);
+      this.statusMessage.set(''); // Limpar status mesmo em erro
+      // Mesmo em erro, finalizar e mostrar resultados na página principal
+      await this.finalizeAndClose();
     }
   }
 
@@ -661,7 +1001,114 @@ export class CaptureOfficialLivenessComponent {
 
     this.lastSummarySignal.set(summary);
     this.historyService.addEntry(summary);
+    
+    // Fechar modal com fadeout suave
     this.closeModal();
+    
+    // Aguardar fadeout e então scrollar para resultados
+    setTimeout(() => {
+      this.scrollToResults();
+    }, 500); // Aguardar fadeout + pequeno delay
+    
+    // Não mostrar review step - resultados aparecerão na página principal
+    this.showReviewStep.set(false);
+  }
+
+  /**
+   * Scrolla suavemente para a seção de resultados na página principal
+   */
+  private scrollToResults(): void {
+    // Aguardar um pouco para garantir que o DOM foi atualizado
+    setTimeout(() => {
+      const resultSection = document.querySelector('.result-section');
+      if (resultSection) {
+        resultSection.scrollIntoView({ 
+          behavior: 'smooth', 
+          block: 'start',
+          inline: 'nearest'
+        });
+      } else {
+        // Fallback: scrollar para o final da página
+        window.scrollTo({
+          top: document.body.scrollHeight,
+          behavior: 'smooth'
+        });
+      }
+    }, 100);
+  }
+
+  private async finalizeAndClose(): Promise<void> {
+    const result = this.livenessResult();
+    if (!result) {
+      this.closeModal();
+      return;
+    }
+
+    const backendAnalysis = result.raw?.backendAnalysis;
+    const documentScore = this.documentScoreSignal() || backendAnalysis?.documentScore || null;
+
+    let videoSummary: LivenessSummary['video'] | undefined;
+    if (this.recordedVideo && (this as any)._videoKey) {
+      try {
+        const videoUrl = await firstValueFrom(from(this.s3Service.getSignedUrl((this as any)._videoKey)));
+        videoSummary = {
+          s3Key: (this as any)._videoKey,
+          url: videoUrl,
+          mimeType: this.recordedVideo.mimeType,
+          size: this.recordedVideo.blob.size,
+          durationMs: this.recordedVideo.durationMs
+        };
+      } catch (error) {
+        console.warn('[Liveness] Erro ao gerar URL do vídeo:', error);
+      }
+    }
+
+    const finalObservacao = backendAnalysis?.observacao || backendAnalysis?.message || null;
+
+    const summary: LivenessSummary = {
+      sessionId: result.sessionId,
+      createdAt: new Date().toISOString(),
+      isLive: result.confidenceScore >= 70,
+      livenessScore: result.confidenceScore,
+      faceMatchScore: result.raw?.matchResult?.bestMatchScore,
+      status: this.determineStatus(result),
+      documentKey: this.documentKey || undefined,
+      video: videoSummary,
+      captures: result.auditImages?.map((img, idx) => ({
+        position: `audit_${idx}`,
+        confidence: result.confidenceScore,
+        s3Key: img.key,
+        previewUrl: img.url || ''
+      })) || [],
+      metadata: {
+        documentS3Path: this.documentS3Path || '',
+        documentKey: this.documentKey || '',
+        documentUrl: this.documentUrl || '',
+        ...(documentScore ? { documentScore: String(documentScore) } : {}),
+        matchResult: JSON.stringify(result.raw?.matchResult || {}),
+        ...(backendAnalysis ? { backendAnalysis: JSON.stringify(backendAnalysis) } : {}),
+        ...(finalObservacao ? { observacao: finalObservacao } : {})
+      },
+      backendAnalysis: backendAnalysis ? {
+        documentScore: documentScore || undefined,
+        matchScore: backendAnalysis.matchScore || undefined,
+        identityScore: backendAnalysis.identityScore || undefined,
+        observacao: finalObservacao || undefined,
+        message: backendAnalysis.message || undefined,
+        status: backendAnalysis.status || undefined
+      } : undefined
+    };
+
+    this.lastSummarySignal.set(summary);
+    this.historyService.addEntry(summary);
+    
+    // Fechar modal com fadeout suave
+    this.closeModal();
+    
+    // Aguardar fadeout e então scrollar para resultados
+    setTimeout(() => {
+      this.scrollToResults();
+    }, 500); // Aguardar fadeout + pequeno delay
   }
 
   private determineStatus(result: LivenessResult): 'Aprovado' | 'Rejeitado' | 'Revisar' {
@@ -728,7 +1175,7 @@ export class CaptureOfficialLivenessComponent {
     let attempts = 0;
 
     const findAndRecordVideo = async (): Promise<void> => {
-      const container = document.getElementById('liveness-container-official');
+      const container = document.getElementById('aws-liveness-container');
       if (!container) {
         if (attempts < maxAttempts) {
           attempts++;
@@ -751,8 +1198,7 @@ export class CaptureOfficialLivenessComponent {
               this.isRecordingVideo.set(true);
               this.statusMessage.set('🎥 Gravando vídeo da sessão...');
               
-              // Flash customizado ao iniciar gravação
-              this.triggerCustomFlash();
+              // Widget AWS gerencia flash colorido internamente
               return;
             } catch (error) {
               console.error('[Liveness] Erro ao iniciar gravação:', error);
@@ -791,10 +1237,15 @@ export class CaptureOfficialLivenessComponent {
   }
 
   private destroyWidget(): void {
+    // Limpar observer de espelhamento
+    if (this.videoMirrorObserver) {
+      this.videoMirrorObserver.disconnect();
+      this.videoMirrorObserver = null;
+    }
+    
     this.stopVerifyingObserver();
     this.isVerifying.set(false);
     this.statusMessage.set('');
-    this.showCustomFlash.set(false);
     void this.stopVideoRecording();
 
     // Limpar observer de mutação
@@ -804,17 +1255,8 @@ export class CaptureOfficialLivenessComponent {
       (this as any)._widgetMutationObserver = null;
     }
 
-    if (this.widgetInstance) {
-      try {
-        if (typeof this.widgetInstance.destroy === 'function') {
-          this.widgetInstance.destroy();
-        }
-      } catch (error) {
-        console.warn('[Liveness] Erro ao destruir widget:', error);
-      }
-      this.widgetInstance = null;
-    }
 
+    // Limpar listeners do widget local
     const listeners = (this as any)._localWidgetListeners;
     if (listeners) {
       document.removeEventListener('liveness-complete', listeners.onComplete);
@@ -822,7 +1264,18 @@ export class CaptureOfficialLivenessComponent {
       (this as any)._localWidgetListeners = null;
     }
 
-    const container = document.getElementById('liveness-container-official');
+    if (this.livenessDetector) {
+      try {
+        if (typeof this.livenessDetector.destroy === 'function') {
+          this.livenessDetector.destroy();
+        }
+      } catch (error) {
+        console.warn('[Liveness] Erro ao destruir detector:', error);
+      }
+      this.livenessDetector = null;
+    }
+
+    const container = document.getElementById('aws-liveness-container');
     if (container) {
       container.innerHTML = '';
     }
@@ -831,24 +1284,18 @@ export class CaptureOfficialLivenessComponent {
     this.recordedVideo = null;
   }
 
-  /**
-   * Dispara o flash customizado por um breve período
-   * 
-   * O flash customizado é um overlay branco translúcido que aparece em momentos
-   * específicos da verificação para fornecer feedback visual ao usuário, sem
-   * interferir no widget AWS. Ele segue as diretrizes do documento de correção
-   * que especifica usar apenas cores translúcidas (não cores berrantes).
-   * 
-   * @param duration Duração em milissegundos (padrão: 200ms)
-   */
-  triggerCustomFlash(duration: number = 200): void {
-    if (!this.isModalOpen()) {
-      return; // Não disparar flash se modal não estiver aberto
-    }
-    
-    this.showCustomFlash.set(true);
-    setTimeout(() => {
-      this.showCustomFlash.set(false);
-    }, duration);
+  ngOnDestroy(): void {
+    this.destroyWidget();
   }
+
+  /**
+   * REMOVIDO: triggerCustomFlash
+   * 
+   * O widget AWS Face Liveness gerencia o flash colorido internamente.
+   * Não devemos interferir com overlays customizados, pois isso pode
+   * quebrar a funcionalidade da elipse e do flash colorido do widget.
+   * 
+   * O flash colorido do widget AWS aparece automaticamente durante
+   * o liveness check (Face Movement and Light Challenge).
+   */
 }

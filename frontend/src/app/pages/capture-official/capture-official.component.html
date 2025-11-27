@@ -76,7 +76,7 @@
   </section>
 
   <!-- Resultado -->
-  <section class="result-section" *ngIf="statusSummary() as summary">
+  <section class="result-section fade-in-up" *ngIf="lastSummary() as summary">
     <div class="result-card" 
          [class.approved]="summary.status === 'Aprovado'" 
          [class.rejected]="summary.status === 'Rejeitado'" 
@@ -98,10 +98,38 @@
           </div>
           <div>
             <span class="score-label">Match Documento</span>
-            <span class="score-value">{{ summary.faceMatchScore !== null ? (summary.faceMatchScore | number:'1.0-0') + '%' : 'N/A' }}</span>
+            <span class="score-value">{{ summary.faceMatchScore !== null && summary.faceMatchScore !== undefined ? (summary.faceMatchScore | number:'1.0-0') + '%' : 'N/A' }}</span>
           </div>
         </div>
       </div>
+
+      <!-- Thumbs e Documento -->
+      <div class="result-images-section" *ngIf="summary.captures?.length || documentUrl()">
+        <div class="result-thumbs" *ngIf="summary.captures?.length">
+          <h4>Imagens de Liveness</h4>
+          <div class="thumbs-grid">
+            <div class="thumb-item" *ngFor="let capture of summary.captures">
+              <div class="thumb-label">Captura {{ capture.position }}</div>
+              <img [src]="capture.previewUrl || ('/api/media/liveness-frame?bucket=dayfusion-docs&key=' + capture.s3Key)" 
+                   [alt]="'Captura ' + capture.position"
+                   class="thumb-image"
+                   (error)="onThumbImageError($event, capture.s3Key)" />
+              <span class="thumb-meta">Confiança {{ capture.confidence | number:'1.0-0' }}%</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="result-document" *ngIf="documentUrl()">
+          <h4>Documento</h4>
+          <div class="document-image-wrapper">
+            <img [src]="documentUrl()!" 
+                 alt="Documento"
+                 class="document-image"
+                 (error)="onDocumentImageError($event)" />
+          </div>
+        </div>
+      </div>
+
       <div class="result-actions" *ngIf="summary.status === 'Rejeitado'">
         <button class="btn-history" (click)="goToHistory()">
           📋 Ver no Histórico
