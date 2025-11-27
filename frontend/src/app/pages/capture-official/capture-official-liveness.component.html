@@ -1,8 +1,8 @@
-<div class="modal-overlay" *ngIf="isModalOpen()" (click)="closeModal()">
-  <div class="modal-wrapper" (click)="$event.stopPropagation()">
+<div class="liveness-overlay" *ngIf="isModalOpen()" (click)="closeModal()">
+  <div class="liveness-shell" (click)="$event.stopPropagation()">
     <button class="modal-close" (click)="closeModal()" aria-label="Fechar modal">✕</button>
 
-    <div *ngIf="showPreparationScreen()" class="preparation-screen" (click)="$event.stopPropagation()">
+    <div *ngIf="showPreparationScreen()" class="preparation-screen">
       <div class="preparation-content">
         <div class="preparation-icon">💡</div>
         <h2 class="preparation-title">Prepare-se para a Verificação</h2>
@@ -53,64 +53,71 @@
       </div>
     </div>
 
-    <div *ngIf="!showReviewStep() && !showPreparationScreen()" class="widget-container">
-      <div class="countdown-overlay" *ngIf="showCountdown()">
-        <div class="countdown-content">
-          <div class="countdown-number" [attr.data-number]="countdown()">{{ countdown() }}</div>
-          <p>Preparando verificação...</p>
+    <div *ngIf="!showPreparationScreen()">
+      <div *ngIf="!showReviewStep()" class="liveness-content">
+        <div class="countdown-overlay" *ngIf="showCountdown()">
+          <div class="countdown-content">
+            <div class="countdown-number" [attr.data-number]="countdown()">{{ countdown() }}</div>
+            <p>Preparando verificação...</p>
+          </div>
+        </div>
+
+        <div class="photosensitivity-tooltip" *ngIf="!showCountdown() && !errorMessageSignal()">
+          <div class="tooltip-icon" title="Aviso de fotossensibilidade">ℹ️</div>
+          <div class="tooltip-content">
+            <strong>Aviso de fotossensibilidade</strong>
+            <p>Este teste de liveness usa luz estroboscópica que pode afetar pessoas com epilepsia fotossensível.</p>
+          </div>
+        </div>
+
+        <div class="aws-liveness-root">
+          <div
+            id="liveness-container-official"
+            class="liveness-container"
+            [class.countdown-active]="showCountdown()">
+          </div>
+        </div>
+
+        <div class="status-message" *ngIf="statusMessage() && !errorMessageSignal() && !showCountdown()">
+          <p>
+            <span *ngIf="isVerifying()" class="verifying-spinner-custom"></span>
+            {{ statusMessage() }}
+          </p>
+        </div>
+
+        <div class="verifying-loading-overlay" *ngIf="isVerifying() && !errorMessageSignal() && !showCountdown()">
+          <div class="verifying-loading-content">
+            <div class="verifying-spinner-large"></div>
+            <p>Verificando...</p>
+          </div>
+        </div>
+
+        <div class="recording-indicator" *ngIf="isRecordingVideo()">
+          <div class="recording-dot"></div>
+          <span>🎥 Gravando vídeo...</span>
+        </div>
+
+        <!-- Flash customizado -->
+        <div class="custom-flash-overlay" *ngIf="showCustomFlash()"></div>
+
+        <div class="error-message" *ngIf="errorMessageSignal()">
+          <p>{{ errorMessageSignal() }}</p>
+        </div>
+
+        <div class="loading-spinner" *ngIf="isLoading() && !errorMessageSignal() && !showCountdown()">
+          <div class="spinner"></div>
+          <p>Aguardando widget carregar...</p>
         </div>
       </div>
 
-      <div class="photosensitivity-tooltip" *ngIf="!showCountdown() && !errorMessageSignal()">
-        <div class="tooltip-icon" title="Aviso de fotossensibilidade">ℹ️</div>
-        <div class="tooltip-content">
-          <strong>Aviso de fotossensibilidade</strong>
-          <p>Este teste de liveness usa luz estroboscópica que pode afetar pessoas com epilepsia fotossensível.</p>
-        </div>
+      <div *ngIf="showReviewStep() && livenessResult() && documentS3PathSignal?.()" class="review-container">
+        <app-custom-review-step
+          [livenessResult]="livenessResult()!"
+          [documentImageS3Path]="documentS3PathSignal()!"
+          [documentImageUrl]="documentUrlSignal() || undefined"
+          (finished)="handleReviewFinished($event)">
+        </app-custom-review-step>
       </div>
-
-      <div class="dayfusion-modal">
-        <div class="aws-widget-wrapper">
-          <div id="liveness-container-official" [class.countdown-active]="showCountdown()"></div>
-        </div>
-      </div>
-
-      <div class="status-message" *ngIf="statusMessage() && !errorMessageSignal() && !showCountdown()">
-        <p>
-          <span *ngIf="isVerifying()" class="verifying-spinner-custom"></span>
-          {{ statusMessage() }}
-        </p>
-      </div>
-
-      <div class="verifying-loading-overlay" *ngIf="isVerifying() && !errorMessageSignal() && !showCountdown()">
-        <div class="verifying-loading-content">
-          <div class="verifying-spinner-large"></div>
-          <p>Verificando...</p>
-        </div>
-      </div>
-
-      <div class="recording-indicator" *ngIf="isRecordingVideo()">
-        <div class="recording-dot"></div>
-        <span>🎥 Gravando vídeo...</span>
-      </div>
-
-      <div class="error-message" *ngIf="errorMessageSignal()">
-        <p>{{ errorMessageSignal() }}</p>
-      </div>
-
-      <div class="loading-spinner" *ngIf="isLoading() && !errorMessageSignal() && !showCountdown()">
-        <div class="spinner"></div>
-        <p>Aguardando widget carregar...</p>
-      </div>
-    </div>
-
-    <div *ngIf="showReviewStep() && livenessResult() && documentS3PathSignal?.()" class="review-container">
-      <app-custom-review-step
-        [livenessResult]="livenessResult()!"
-        [documentImageS3Path]="documentS3PathSignal()!"
-        [documentImageUrl]="documentUrlSignal() || undefined"
-        (finished)="handleReviewFinished($event)">
-      </app-custom-review-step>
     </div>
   </div>
 </div>

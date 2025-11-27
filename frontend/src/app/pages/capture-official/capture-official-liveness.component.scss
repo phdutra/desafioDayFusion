@@ -1,54 +1,25 @@
-.modal-overlay {
+.liveness-overlay {
   position: fixed;
   inset: 0;
-  backdrop-filter: blur(12px) saturate(180%);
-  background: linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(30, 41, 59, 0.92));
+  background: rgba(4, 7, 20, 0.85);
+  backdrop-filter: blur(18px);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 10000;
   animation: fadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-
-  &::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background-image:
-      radial-gradient(circle at 20% 30%, rgba(99, 102, 241, 0.15) 0%, transparent 50%),
-      radial-gradient(circle at 80% 70%, rgba(34, 211, 238, 0.15) 0%, transparent 50%);
-    pointer-events: none;
-    animation: particleFloat 20s ease-in-out infinite;
-  }
 }
 
-.modal-wrapper {
+.liveness-shell {
   position: relative;
   width: min(1000px, 96vw);
-  max-height: 94vh;
-  background: linear-gradient(135deg, rgba(15, 23, 42, 0.98), rgba(30, 41, 59, 0.95));
-  border: 1px solid rgba(99, 102, 241, 0.3);
-  border-radius: 24px;
+  height: min(92vh, 860px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   padding: 0;
-  box-shadow:
-    0 30px 80px rgba(0, 0, 0, 0.6),
-    0 0 0 1px rgba(99, 102, 241, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05);
-  overflow: hidden;
-  animation: slideUpScale 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
-
-  &::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    border-radius: 24px;
-    padding: 2px;
-    background: linear-gradient(135deg, rgba(99, 102, 241, 0.5), rgba(34, 211, 238, 0.5), rgba(99, 102, 241, 0.5));
-    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-    -webkit-mask-composite: xor;
-    mask-composite: exclude;
-    animation: borderGlow 3s ease-in-out infinite;
-    pointer-events: none;
-  }
+  background: transparent;
 }
 
 .modal-close {
@@ -81,76 +52,36 @@
   }
 }
 
-.widget-container {
-  min-height: 650px;
+.liveness-content {
+  width: 100%;
+  height: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
   gap: 1.5rem;
-  padding: 2rem 2.5rem 2.5rem;
-  position: relative;
-  overflow: hidden;
-  background: linear-gradient(135deg, rgba(15, 23, 42, 0.5), rgba(30, 41, 59, 0.3));
-  border-radius: 20px;
-  margin: 1rem;
+}
 
-  &::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: radial-gradient(circle at 50% 50%, rgba(99, 102, 241, 0.1) 0%, transparent 70%);
-    pointer-events: none;
-    border-radius: 20px;
-  }
-
-  .dayfusion-modal {
-    width: 100%;
-    height: 100%;
-    position: relative;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    background: transparent;
-  }
-
-  .aws-widget-wrapper {
-    width: 100%;
-    max-width: 420px;
-    height: 580px;
-    margin: 0 auto;
-    position: relative;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    overflow: hidden;
-    background: #14163e;
-    border-radius: 20px;
-  }
-
-  face-liveness-widget {
-    width: 100%;
-    height: 100%;
-    display: block;
-  }
+.aws-liveness-root {
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  padding: 0;
+  margin: 0;
+  overflow: visible;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: transparent !important;
 }
 
 #liveness-container-official {
   width: 100%;
-  max-width: 100%;
-  min-height: 550px;
-  overflow: visible;
+  max-width: 420px;
+  height: 100%;
+  min-height: 520px;
   position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 2rem;
-  margin-top: 0;
   background: transparent;
-  border-radius: 0;
-  border: none;
-  box-shadow: none;
 
   &.countdown-active {
     opacity: 0.3;
@@ -159,18 +90,14 @@
 }
 
 .countdown-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  position: fixed;
+  inset: 0;
   background: linear-gradient(135deg, rgba(15, 23, 42, 0.98), rgba(30, 41, 59, 0.95));
   backdrop-filter: blur(20px);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
-  border-radius: 20px;
   animation: fadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 
   &::before {
@@ -367,6 +294,84 @@
       0 0 10px rgba(255, 255, 255, 0.8),
       0 0 20px rgba(239, 68, 68, 0.6);
     animation: blink 1s ease-in-out infinite;
+  }
+}
+
+// Ajustes para elementos internos do widget AWS (injetados dinamicamente)
+::ng-deep {
+  .amplify-liveness-video-anchor {
+    position: relative !important;
+    display: block !important;
+    width: 100% !important;
+    height: 100% !important;
+    overflow: hidden !important;
+  }
+
+  .amplify-liveness-video {
+    position: absolute !important;
+    top: 50% !important;
+    left: 50% !important;
+    transform: translate(-50%, -50%) scaleX(-1) !important;
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: cover !important;
+    z-index: 0 !important;
+  }
+
+  .amplify-liveness-oval-canvas {
+    position: absolute !important;
+    inset: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    z-index: 10 !important;
+    pointer-events: none !important;
+    background: transparent !important;
+
+    canvas {
+      width: 100% !important;
+      height: 100% !important;
+      position: absolute !important;
+      top: 0 !important;
+      left: 0 !important;
+    }
+  }
+
+  .amplify-flex {
+    gap: 0 !important;
+  }
+
+  .amplify-liveness-overlay,
+  .amplify-liveness-instruction-overlay {
+    position: absolute !important;
+    inset: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    padding: 1.5rem !important;
+    text-align: center !important;
+    pointer-events: none !important;
+    background: transparent !important;
+    z-index: 30 !important;
+  }
+
+  .amplify-liveness-overlay button,
+  .amplify-liveness-instruction-overlay button {
+    position: absolute !important;
+    top: 1rem !important;
+    right: 1rem !important;
+    pointer-events: auto !important;
+    z-index: 40 !important;
+  }
+
+  .amplify-liveness-overlay .amplify-flex,
+  .amplify-liveness-instruction-overlay .amplify-flex {
+    width: 100% !important;
+    justify-content: center !important;
+    align-items: center !important;
+    text-align: center !important;
   }
 }
 
@@ -673,5 +678,39 @@
   to {
     opacity: 1;
     transform: translateX(0);
+  }
+}
+
+/* ========= Flash Customizado ========= */
+/* 
+ * Flash customizado que aparece em momentos específicos da verificação.
+ * Segue as diretrizes do documento dayfusion-liveness-modal-custom-fix.md:
+ * - Usa apenas cores translúcidas (branco translúcido)
+ * - Não interfere no widget AWS (pointer-events: none)
+ * - Aparece por cima de todos os elementos (z-index alto)
+ * - Animação suave de fade in/out
+ */
+.custom-flash-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 10005;
+  pointer-events: none;
+  background: rgba(255, 255, 255, 0.85);
+  animation: flashFade 0.2s ease-out;
+  border-radius: 20px;
+}
+
+@keyframes flashFade {
+  0% {
+    opacity: 0;
+    background: rgba(255, 255, 255, 0);
+  }
+  50% {
+    opacity: 1;
+    background: rgba(255, 255, 255, 0.9);
+  }
+  100% {
+    opacity: 0;
+    background: rgba(255, 255, 255, 0);
   }
 }

@@ -66,6 +66,7 @@ export class CaptureOfficialLivenessComponent {
   readonly showPreparationScreen = signal<boolean>(false);
   readonly preparationCountdown = signal<number>(5);
   readonly isRecordingVideo = signal<boolean>(false);
+  readonly showCustomFlash = signal<boolean>(false);
 
   private widgetInstance: any = null;
   private verifyingObserverInterval: any = null;
@@ -281,6 +282,8 @@ export class CaptureOfficialLivenessComponent {
 
     if (hasVerifying && !this.isVerifying()) {
       this.isVerifying.set(true);
+      // Flash customizado ao iniciar verificação
+      this.triggerCustomFlash(250);
     } else if (!hasVerifying && this.isVerifying() && !this.showReviewStep()) {
       const isProcessing = textLower.includes('processando') ||
         textLower.includes('processing') ||
@@ -354,6 +357,9 @@ export class CaptureOfficialLivenessComponent {
     await new Promise(resolve => setTimeout(resolve, 500));
     this.showCountdown.set(false);
     this.countdown.set(null);
+    
+    // Flash customizado ao finalizar countdown
+    this.triggerCustomFlash();
   }
 
   private async autoStartWidget(): Promise<void> {
@@ -399,17 +405,53 @@ export class CaptureOfficialLivenessComponent {
       }
     }
 
-    button?.click();
+    if (button) {
+      // Flash customizado ao iniciar widget
+      this.triggerCustomFlash(150);
+      button.click();
+    }
   }
 
   private setupWidgetListeners(): void {
-    // already handled via init methods
+    // Observar mudanças no container para detectar eventos do widget
+    const container = document.getElementById('liveness-container-official');
+    if (!container) return;
+
+    // Observer para detectar quando o widget muda de estado
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (mutation.type === 'childList' || mutation.type === 'attributes') {
+          // Verificar se há mudanças que indicam início de captura
+          const videoElements = container.querySelectorAll('video');
+          if (videoElements.length > 0) {
+            const video = videoElements[0] as HTMLVideoElement;
+            if (video.readyState >= 2 && !this.isRecordingVideo()) {
+              // Flash quando vídeo está pronto para reprodução
+              setTimeout(() => this.triggerCustomFlash(180), 300);
+            }
+          }
+        }
+      });
+    });
+
+    observer.observe(container, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['class', 'style']
+    });
+
+    // Armazenar observer para limpeza
+    (this as any)._widgetMutationObserver = observer;
   }
 
   private async handleWidgetComplete(result: any): Promise<void> {
     console.log('[Liveness] Widget completo:', result);
     this.isVerifying.set(false);
     this.statusMessage.set('Verificação concluída. Processando resultados...');
+
+    // Flash customizado ao completar verificação
+    this.triggerCustomFlash(300);
 
     await this.stopVideoRecording();
 
@@ -708,6 +750,9 @@ export class CaptureOfficialLivenessComponent {
               this.videoRecorder = startVideoRecording(stream);
               this.isRecordingVideo.set(true);
               this.statusMessage.set('🎥 Gravando vídeo da sessão...');
+              
+              // Flash customizado ao iniciar gravação
+              this.triggerCustomFlash();
               return;
             } catch (error) {
               console.error('[Liveness] Erro ao iniciar gravação:', error);
@@ -749,7 +794,15 @@ export class CaptureOfficialLivenessComponent {
     this.stopVerifyingObserver();
     this.isVerifying.set(false);
     this.statusMessage.set('');
+    this.showCustomFlash.set(false);
     void this.stopVideoRecording();
+
+    // Limpar observer de mutação
+    const mutationObserver = (this as any)._widgetMutationObserver;
+    if (mutationObserver) {
+      mutationObserver.disconnect();
+      (this as any)._widgetMutationObserver = null;
+    }
 
     if (this.widgetInstance) {
       try {
@@ -776,5 +829,26 @@ export class CaptureOfficialLivenessComponent {
 
     (this as any)._videoKey = null;
     this.recordedVideo = null;
+  }
+
+  /**
+   * Dispara o flash customizado por um breve período
+   * 
+   * O flash customizado é um overlay branco translúcido que aparece em momentos
+   * específicos da verificação para fornecer feedback visual ao usuário, sem
+   * interferir no widget AWS. Ele segue as diretrizes do documento de correção
+   * que especifica usar apenas cores translúcidas (não cores berrantes).
+   * 
+   * @param duration Duração em milissegundos (padrão: 200ms)
+   */
+  triggerCustomFlash(duration: number = 200): void {
+    if (!this.isModalOpen()) {
+      return; // Não disparar flash se modal não estiver aberto
+    }
+    
+    this.showCustomFlash.set(true);
+    setTimeout(() => {
+      this.showCustomFlash.set(false);
+    }, duration);
   }
 }
