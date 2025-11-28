@@ -53,4 +53,15 @@
     </div>
   </div>
 
+  </div>
+
+  <div class="review-wrapper" *ngIf="showReviewStep()" (click)="$event.stopPropagation()">
+    <app-custom-review-step
+      *ngIf="livenessResult()"
+      [livenessResult]="livenessResult()!"
+      [documentImageS3Path]="documentS3PathSignal() || documentKeySignal() || ''"
+      [documentImageUrl]="documentUrlSignal() || undefined"
+      (finished)="handleReviewFinished($event)">
+    </app-custom-review-step>
+  </div>
 </div>

@@ -16,7 +16,7 @@ import { S3Service } from '../../core/aws/s3.service';
 import { LivenessHistoryService } from '../../core/services/liveness-history.service';
 import { FaceMatchService } from '../../core/services/face-match.service';
 import { FaceRecognitionService } from '../../core/services/face-recognition.service';
-import { LivenessResult } from '../../components/custom-review-step/custom-review-step.component';
+import { CustomReviewStepComponent, LivenessResult } from '../../components/custom-review-step/custom-review-step.component';
 import { LivenessSummary } from '../../core/models/liveness-result.model';
 import { firstValueFrom, from } from 'rxjs';
 import { environment } from '../../../environments/environment';
@@ -46,7 +46,7 @@ declare const customElements: CustomElementRegistry;
 @Component({
   selector: 'app-capture-official-liveness',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, CustomReviewStepComponent],
   templateUrl: './capture-official-liveness.component.html',
   styleUrls: ['./capture-official-liveness.component.scss'],
   schemas: [CUSTOM_ELEMENTS_SCHEMA]
@@ -844,6 +844,8 @@ export class CaptureOfficialLivenessComponent implements AfterViewInit, OnDestro
 
   private async performCompleteAnalysis(livenessResult: LivenessResult): Promise<void> {
     if (!this.documentKey || !livenessResult.auditImages?.length) {
+      this.isVerifying.set(false);
+      this.statusMessage.set('');
       this.showReviewStep.set(true);
       return;
     }
@@ -892,8 +894,9 @@ export class CaptureOfficialLivenessComponent implements AfterViewInit, OnDestro
             }
           };
           this.livenessResult.set(rejectedResult);
-          this.showReviewStep.set(true);
+          this.isVerifying.set(false);
           this.statusMessage.set('Análise completa - Documento rejeitado');
+          this.showReviewStep.set(true);
           return;
         }
       }
