@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, computed, inject, signal, ViewChild } from '@angular/core';
+import { Component, computed, HostListener, inject, OnInit, signal, ViewChild } from '@angular/core';
 import { Router } from '@angular/router';
 import { S3Service } from '../../core/aws/s3.service';
 import { FaceRecognitionService } from '../../core/services/face-recognition.service';
@@ -17,7 +17,7 @@ import { CaptureOfficialLivenessComponent } from './capture-official-liveness.co
   templateUrl: './capture-official.component.html',
   styleUrls: ['./capture-official.component.scss']
 })
-export class CaptureOfficialComponent {
+export class CaptureOfficialComponent implements OnInit {
   private readonly s3Service = inject(S3Service);
   private readonly faceService = inject(FaceRecognitionService);
   private readonly router = inject(Router);
@@ -37,6 +37,7 @@ export class CaptureOfficialComponent {
   readonly documentValidationMessage = signal<string | null>(null);
   readonly compressionInfo = signal<{ original: string; compressed: string; reduction: string } | null>(null);
   readonly lastSummary = signal<LivenessSummary | null>(null);
+  readonly showUploadModal = signal<boolean>(false);
 
   readonly documentInfo = computed(() => {
     const file = this.documentFile();
@@ -58,6 +59,21 @@ export class CaptureOfficialComponent {
       createdAt: summary.createdAt
     };
   });
+
+  ngOnInit(): void {
+    // Ao entrar na página, verificar se não há documento válido e abrir modal automaticamente
+    // Abrir modal apenas se não houver documento ou se o documento for inválido
+    const hasValidDocument = this.documentFile() && 
+                             this.documentKey() && 
+                             this.isDocumentValid() === true;
+    
+    if (!hasValidDocument) {
+      // Aguardar um breve delay para garantir que a página renderizou completamente
+      setTimeout(() => {
+        this.showUploadModal.set(true);
+      }, 300);
+    }
+  }
 
   async onDocumentSelected(event: Event): Promise<void> {
     const input = event.target as HTMLInputElement;
@@ -122,6 +138,7 @@ export class CaptureOfficialComponent {
             .catch(() => console.warn('[Capture Official] Não foi possível gerar URL assinada'));
         }
 
+        // Validar documento (o modal será fechado automaticamente após validação bem-sucedida)
         this.validateDocument(uploadResult.key).catch(error => {
           console.error('[Capture Official] Erro na validação do documento:', error);
         });
@@ -187,6 +204,10 @@ export class CaptureOfficialComponent {
         } else {
           this.documentValidationMessage.set(null);
           this.errorMessage.set(null);
+          // Documento válido - fechar modal após validação
+          setTimeout(() => {
+            this.closeUploadModal();
+          }, 1000);
         }
       } else {
         this.isDocumentValid.set(false);
@@ -210,7 +231,32 @@ export class CaptureOfficialComponent {
   }
 
   startLivenessVerification(): void {
-    this.livenessComponent?.openModal();
+    // Se não houver documento, abrir modal de upload
+    if (!this.documentFile() || !this.documentKey()) {
+      this.showUploadModal.set(true);
+      return;
+    }
+
+    // Se houver documento válido, iniciar verificação de liveness
+    if (this.isDocumentValid() !== false) {
+      this.livenessComponent?.openModal();
+    }
+  }
+
+  openUploadModal(): void {
+    this.showUploadModal.set(true);
+  }
+
+  closeUploadModal(): void {
+    this.showUploadModal.set(false);
+  }
+
+  @HostListener('window:keydown.escape', ['$event'])
+  handleEscapeKey(event: KeyboardEvent): void {
+    if (this.showUploadModal()) {
+      event.preventDefault();
+      this.closeUploadModal();
+    }
   }
 
   goToHistory(): void {

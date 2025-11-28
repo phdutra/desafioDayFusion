@@ -15,13 +15,13 @@
     </div>
     <div class="intro-actions">
       <button class="btn-dashboard" (click)="startLivenessVerification()" 
-              [disabled]="!documentFile() || isUploadingDocument() || isDocumentValid() === false">
+              [disabled]="isUploadingDocument() || (documentFile() && isDocumentValid() === false)">
         <span class="btn-icon" *ngIf="!isUploadingDocument()">▶</span>
         <span class="btn-loading-spinner" *ngIf="isUploadingDocument()"></span>
         <span>
           <span *ngIf="isUploadingDocument()">Enviando documento...</span>
-          <span *ngIf="!isUploadingDocument() && isDocumentValid() === false">Documento inválido</span>
-          <span *ngIf="!isUploadingDocument() && (isDocumentValid() === true || isDocumentValid() === null)">Iniciar Verificação Oficial</span>
+          <span *ngIf="!isUploadingDocument() && documentFile() && isDocumentValid() === false">Documento inválido</span>
+          <span *ngIf="!isUploadingDocument() && (!documentFile() || isDocumentValid() !== false)">Iniciar Verificação Oficial</span>
         </span>
       </button>
       <p class="intro-hint">Necessário navegador com HTTPS e permissão de câmera.</p>
@@ -140,6 +140,76 @@
 
   <div class="status-banner error" *ngIf="errorMessage()">
     <span>⚠️ {{ errorMessage() }}</span>
+  </div>
+
+  <!-- Modal de Upload de Documento -->
+  <div class="modal-overlay" *ngIf="showUploadModal()" (click)="closeUploadModal()">
+    <div class="upload-modal-wrapper" (click)="$event.stopPropagation()">
+      <button class="modal-close" (click)="closeUploadModal()">✕</button>
+      <div class="upload-modal-content">
+        <div class="upload-modal-header">
+          <div class="upload-modal-icon">📄</div>
+          <h3>Upload de Documento</h3>
+          <p>Faça upload de um documento (RG/CNH) para comparação facial.</p>
+        </div>
+
+        <div class="upload-modal-body">
+          <div class="document-input-modal">
+            <label class="upload-button-modal" [class.uploading]="isUploadingDocument()">
+              <input 
+                type="file" 
+                accept="image/*" 
+                (change)="onDocumentSelected($event)" 
+                hidden 
+                [disabled]="isUploadingDocument()" />
+              <span *ngIf="!isUploadingDocument()">📄 Selecionar documento</span>
+              <span *ngIf="isUploadingDocument()" class="upload-loading">
+                <span class="upload-spinner"></span>
+                Enviando e validando documento...
+              </span>
+            </label>
+
+            <div class="document-info-modal" *ngIf="documentInfo() && !isUploadingDocument(); else noDocumentModal">
+              <div *ngIf="documentInfo() as info">
+                <strong>{{ info.name }}</strong>
+                <p>{{ info.sizeKb | number:'1.0-0' }} KB</p>
+              </div>
+              <button class="btn-ghost-modal" type="button" (click)="clearDocument()">Remover</button>
+            </div>
+            <ng-template #noDocumentModal>
+              <p class="document-placeholder-modal" *ngIf="!isUploadingDocument()">Nenhum documento selecionado.</p>
+            </ng-template>
+
+            <!-- Informação de compressão -->
+            <div class="compression-info-modal" *ngIf="compressionInfo() && !isUploadingDocument()">
+              <div class="compression-badge-modal" *ngIf="compressionInfo() as compInfo">
+                <span>📦</span>
+                <span>Comprimido: {{ compInfo.original }} KB → {{ compInfo.compressed }} KB ({{ compInfo.reduction }}% menor)</span>
+              </div>
+            </div>
+
+            <!-- Mensagem de validação -->
+            <div class="document-validation-modal" *ngIf="documentValidationMessage() && isDocumentValid() === false && !isUploadingDocument()">
+              <div class="validation-badge-modal invalid">
+                <span>❌</span>
+                {{ documentValidationMessage() }}
+              </div>
+              <div *ngIf="documentScore() !== null" class="document-score-modal">
+                Score: {{ documentScore() | number:'1.0-0' }}%
+              </div>
+            </div>
+
+            <!-- Mensagem de sucesso -->
+            <div class="document-validation-modal" *ngIf="isDocumentValid() === true && !isUploadingDocument()">
+              <div class="validation-badge-modal valid">
+                <span>✅</span>
+                Documento válido! Aguarde...
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <app-capture-official-liveness
