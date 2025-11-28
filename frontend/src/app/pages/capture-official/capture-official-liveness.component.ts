@@ -83,6 +83,10 @@ export class CaptureOfficialLivenessComponent implements AfterViewInit, OnDestro
   readonly isRecordingVideo = signal<boolean>(false);
 
   private livenessDetector: any = null;
+
+  isMobile(): boolean {
+    return window.innerWidth <= 768;
+  }
   private verifyingObserverInterval: any = null;
   private sessionId = '';
   private videoRecorder: MediaRecorderController | null = null;
@@ -846,7 +850,16 @@ export class CaptureOfficialLivenessComponent implements AfterViewInit, OnDestro
     if (!this.documentKey || !livenessResult.auditImages?.length) {
       this.isVerifying.set(false);
       this.statusMessage.set('');
-      this.showReviewStep.set(true);
+      // No mobile, fechar modal antes de mostrar review (mesmo padrão da web)
+      if (this.isMobile()) {
+        this.closeModal();
+        // Aguardar modal fechar antes de mostrar review
+        setTimeout(() => {
+          this.showReviewStep.set(true);
+        }, 500);
+      } else {
+        this.showReviewStep.set(true);
+      }
       return;
     }
 
@@ -896,7 +909,15 @@ export class CaptureOfficialLivenessComponent implements AfterViewInit, OnDestro
           this.livenessResult.set(rejectedResult);
           this.isVerifying.set(false);
           this.statusMessage.set('Análise completa - Documento rejeitado');
-          this.showReviewStep.set(true);
+          // No mobile, fechar modal antes de mostrar review (mesmo padrão da web)
+          if (this.isMobile()) {
+            this.closeModal();
+            setTimeout(() => {
+              this.showReviewStep.set(true);
+            }, 500);
+          } else {
+            this.showReviewStep.set(true);
+          }
           return;
         }
       }

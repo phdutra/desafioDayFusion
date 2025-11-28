@@ -55,7 +55,8 @@
 
   </div>
 
-  <div class="review-wrapper" *ngIf="showReviewStep()" (click)="$event.stopPropagation()">
+  <!-- Review step: no mobile aparece fora do modal (position fixed), na web dentro -->
+  <div class="review-wrapper" *ngIf="showReviewStep() && (!isModalOpen() || !isMobile())" (click)="$event.stopPropagation()">
     <app-custom-review-step
       *ngIf="livenessResult()"
       [livenessResult]="livenessResult()!"
