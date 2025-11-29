@@ -75,12 +75,17 @@
     </div>
   </section>
 
-  <!-- Resultado -->
+  <!-- 2️⃣ SEGUNDO: Resultado da Verificação (após liveness completar) -->
   <section class="result-section fade-in-up" *ngIf="lastSummary() as summary">
     <div class="result-card" 
          [class.approved]="summary.status === 'Aprovado'" 
          [class.rejected]="summary.status === 'Rejeitado'" 
          [class.review]="summary.status === 'Revisar'">
+      <div class="step-badge">
+        <span class="step-number">2</span>
+        <h3>Resultado da Verificação</h3>
+      </div>
+      
       <div class="result-header">
         <div class="result-status">
           <span class="status-icon">
@@ -103,8 +108,20 @@
         </div>
       </div>
 
-      <!-- Thumbs e Documento -->
+      <!-- Documento e Thumbs -->
       <div class="result-images-section" *ngIf="summary.captures?.length || documentUrl()">
+        <!-- Documento primeiro (como era antes) -->
+        <div class="result-document" *ngIf="documentUrl()">
+          <h4>Documento de Referência</h4>
+          <div class="document-image-wrapper">
+            <img [src]="documentUrl()!" 
+                 alt="Documento"
+                 class="document-image"
+                 (error)="onDocumentImageError($event)" />
+          </div>
+        </div>
+
+        <!-- Thumbs de Liveness depois -->
         <div class="result-thumbs" *ngIf="summary.captures?.length">
           <h4>Imagens de Liveness</h4>
           <div class="thumbs-grid">
@@ -116,16 +133,6 @@
                    (error)="onThumbImageError($event, capture.s3Key)" />
               <span class="thumb-meta">Confiança {{ capture.confidence | number:'1.0-0' }}%</span>
             </div>
-          </div>
-        </div>
-
-        <div class="result-document" *ngIf="documentUrl()">
-          <h4>Documento</h4>
-          <div class="document-image-wrapper">
-            <img [src]="documentUrl()!" 
-                 alt="Documento"
-                 class="document-image"
-                 (error)="onDocumentImageError($event)" />
           </div>
         </div>
       </div>
@@ -211,19 +218,19 @@
       </div>
     </div>
   </div>
-
-  <app-capture-official-liveness
-    #livenessComponent
-    [documentFileSignal]="documentFile"
-    [documentS3PathSignal]="documentS3Path"
-    [documentUrlSignal]="documentUrl"
-    [documentKeySignal]="documentKey"
-    [documentScoreSignal]="documentScore"
-    [documentAnalysisSignal]="documentAnalysis"
-    [isDocumentValidSignal]="isDocumentValid"
-    [documentValidationMessageSignal]="documentValidationMessage"
-    [lastSummarySignal]="lastSummary"
-    [errorMessageSignal]="errorMessage">
-  </app-capture-official-liveness>
 </div>
 
+<!-- MOVIDO PARA FORA: O componente deve ficar fora do container com transform/animation para o position: fixed funcionar corretamente -->
+<app-capture-official-liveness
+  #livenessComponent
+  [documentFileSignal]="documentFile"
+  [documentS3PathSignal]="documentS3Path"
+  [documentUrlSignal]="documentUrl"
+  [documentKeySignal]="documentKey"
+  [documentScoreSignal]="documentScore"
+  [documentAnalysisSignal]="documentAnalysis"
+  [isDocumentValidSignal]="isDocumentValid"
+  [documentValidationMessageSignal]="documentValidationMessage"
+  [lastSummarySignal]="lastSummary"
+  [errorMessageSignal]="errorMessage">
+</app-capture-official-liveness>

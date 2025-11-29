@@ -9,7 +9,8 @@ import {
   inject,
   signal,
   AfterViewInit,
-  OnDestroy
+  OnDestroy,
+  ChangeDetectorRef
 } from '@angular/core';
 import { LivenessService } from '../../services/liveness.service';
 import { S3Service } from '../../core/aws/s3.service';
@@ -57,6 +58,7 @@ export class CaptureOfficialLivenessComponent implements AfterViewInit, OnDestro
   private readonly historyService = inject(LivenessHistoryService);
   private readonly faceMatchService = inject(FaceMatchService);
   private readonly faceService = inject(FaceRecognitionService);
+  private readonly cdr = inject(ChangeDetectorRef);
 
   @Input({ required: true }) documentFileSignal!: Signal<File | null>;
   @Input({ required: true }) documentS3PathSignal!: Signal<string | null>;
@@ -88,7 +90,9 @@ export class CaptureOfficialLivenessComponent implements AfterViewInit, OnDestro
     return window.innerWidth <= 768;
   }
   private verifyingObserverInterval: any = null;
+  private flashCanvasCheckInterval: any = null;
   private sessionId = '';
+  readonly sessionIdSignal = signal<string>(''); // Signal para usar no template
   private videoRecorder: MediaRecorderController | null = null;
   private videoStream: MediaStream | null = null;
   private recordedVideo: RecordedMedia | null = null;
@@ -141,23 +145,13 @@ export class CaptureOfficialLivenessComponent implements AfterViewInit, OnDestro
     this.errorMessageSignal.set(null);
     this.isModalOpen.set(true);
     this.showReviewStep.set(false);
-    this.showPreparationScreen.set(true);
+    this.showPreparationScreen.set(false);
     this.isRecordingVideo.set(false);
     this.recordedVideo = null;
     (this as any)._videoKey = null;
 
-    this.preparationCountdown.set(5);
-    const countdownInterval = setInterval(() => {
-      const current = this.preparationCountdown();
-      if (current > 1) {
-        this.preparationCountdown.set(current - 1);
-      } else {
-        clearInterval(countdownInterval);
-        this.startVerificationAfterPreparation();
-      }
-    }, 1000);
-
-    (this as any)._preparationCountdownInterval = countdownInterval;
+    // Iniciar verificação diretamente sem contagem regressiva
+    this.startVerificationAfterPreparation();
   }
 
   private startVerificationAfterPreparation(): void {
@@ -170,12 +164,12 @@ export class CaptureOfficialLivenessComponent implements AfterViewInit, OnDestro
   }
 
   closeModal(): void {
-    if ((this as any)._preparationCountdownInterval) {
-      clearInterval((this as any)._preparationCountdownInterval);
-      (this as any)._preparationCountdownInterval = null;
-    }
-
     this.isClosing.set(true);
+    
+    // Garantir que body/html não tenham overflow hidden quando fechar modal
+    document.body.style.overflow = '';
+    document.documentElement.style.overflow = '';
+    
     // Aguardar animação de fadeout antes de fechar completamente
     setTimeout(() => {
       this.isModalOpen.set(false);
@@ -183,29 +177,23 @@ export class CaptureOfficialLivenessComponent implements AfterViewInit, OnDestro
       this.destroyWidget();
       this.showReviewStep.set(false);
       this.showPreparationScreen.set(false);
-      this.preparationCountdown.set(5);
+      
+      // Garantir novamente que overflow está liberado
+      document.body.style.overflow = '';
+      document.documentElement.style.overflow = '';
     }, 400); // Tempo da animação CSS
     this.livenessResult.set(null);
     this.sessionId = '';
+    this.sessionIdSignal.set(''); // Limpar signal
   }
 
   retry(): void {
     this.errorMessageSignal.set(null);
-    this.preparationCountdown.set(5);
-    this.showPreparationScreen.set(true);
+    this.showPreparationScreen.set(false);
     this.destroyWidget();
     
-    const countdownInterval = setInterval(() => {
-      const current = this.preparationCountdown();
-      if (current > 1) {
-        this.preparationCountdown.set(current - 1);
-      } else {
-        clearInterval(countdownInterval);
-        this.startVerificationAfterPreparation();
-      }
-    }, 1000);
-
-    (this as any)._preparationCountdownInterval = countdownInterval;
+    // Iniciar verificação diretamente sem contagem regressiva
+    this.startVerificationAfterPreparation();
   }
 
   ngAfterViewInit(): void {
@@ -224,6 +212,10 @@ export class CaptureOfficialLivenessComponent implements AfterViewInit, OnDestro
       }
 
       this.sessionId = sessionResponse.sessionId;
+      this.sessionIdSignal.set(sessionResponse.sessionId); // Atualizar signal para template
+      console.log('[Liveness] ✅ SessionId definido:', sessionResponse.sessionId);
+      console.log('[Liveness] ✅ SessionIdSignal atualizado:', this.sessionIdSignal());
+      this.cdr.detectChanges(); // Forçar detecção de mudanças para atualizar template
       this.statusMessage.set('Carregando widget...');
 
       // Aguardar um pouco para garantir que o DOM está pronto
@@ -232,6 +224,16 @@ export class CaptureOfficialLivenessComponent implements AfterViewInit, OnDestro
       await this.initAmplifyLiveness(this.sessionId);
       this.isLoading.set(false);
       this.setupWidgetListeners();
+      
+      // Verificar se overlay de flash foi criado
+      setTimeout(() => {
+        const overlay = document.querySelector('.aws-liveness-flash-overlay');
+        if (overlay) {
+          console.log('[Liveness] ✅ Overlay de flash encontrado no DOM');
+        } else {
+          console.warn('[Liveness] ⚠️ Overlay de flash NÃO encontrado no DOM');
+        }
+      }, 500);
       
       // Status será atualizado pelo autoStartWidget quando a elipse aparecer
     } catch (error: any) {
@@ -327,11 +329,23 @@ export class CaptureOfficialLivenessComponent implements AfterViewInit, OnDestro
             console.warn('[Liveness] Widget não possui método mount ou render');
           }
           
-          // Aguardar widget renderizar completamente
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          
-          // Aplicar espelhamento no vídeo após widget renderizar
-          setTimeout(() => this.applyVideoMirror(), 500);
+      // Aguardar widget renderizar completamente
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Aplicar espelhamento no vídeo após widget renderizar
+      setTimeout(() => {
+        this.applyVideoMirror();
+        this.ensureFlashCanvasVisible();
+      }, 500);
+      
+      // Verificar canvas do flash em intervalos frequentes (pode ser criado durante liveness check)
+      setTimeout(() => this.ensureFlashCanvasVisible(), 1000);
+      setTimeout(() => this.ensureFlashCanvasVisible(), 1500);
+      setTimeout(() => this.ensureFlashCanvasVisible(), 2000);
+      setTimeout(() => this.ensureFlashCanvasVisible(), 2500);
+      setTimeout(() => this.ensureFlashCanvasVisible(), 3000);
+      setTimeout(() => this.ensureFlashCanvasVisible(), 4000);
+      setTimeout(() => this.ensureFlashCanvasVisible(), 5000);
         }
       } else {
         // Fallback: usar widget local se oficial não estiver disponível
@@ -358,6 +372,19 @@ export class CaptureOfficialLivenessComponent implements AfterViewInit, OnDestro
       // Configurar observadores após widget iniciar
       this.startVerifyingObserver();
       this.startVideoRecordingFromWidget();
+      
+      // Iniciar verificação contínua do canvas do flash
+      this.startFlashCanvasCheck();
+      
+      // Verificar canvas do flash imediatamente e em intervalos
+      setTimeout(() => this.ensureFlashCanvasVisible(), 500);
+      setTimeout(() => this.ensureFlashCanvasVisible(), 1000);
+      setTimeout(() => this.ensureFlashCanvasVisible(), 1500);
+      setTimeout(() => this.ensureFlashCanvasVisible(), 2000);
+      setTimeout(() => this.ensureFlashCanvasVisible(), 2500);
+      setTimeout(() => this.ensureFlashCanvasVisible(), 3000);
+      setTimeout(() => this.ensureFlashCanvasVisible(), 4000);
+      setTimeout(() => this.ensureFlashCanvasVisible(), 5000);
     } catch (error: any) {
       console.error('[Liveness] Erro ao inicializar widget:', error);
       throw new Error(`Erro ao inicializar verificação: ${error?.message || 'Erro desconhecido'}`);
@@ -460,7 +487,9 @@ export class CaptureOfficialLivenessComponent implements AfterViewInit, OnDestro
 
     if (hasVerifying && !this.isVerifying()) {
       this.isVerifying.set(true);
-      // Widget AWS gerencia flash colorido internamente - não interferir
+      // Widget AWS gerencia flash colorido internamente
+      // Garantir que canvas do flash esteja visível durante verificação
+      this.ensureFlashCanvasVisible();
     } else if (!hasVerifying && this.isVerifying() && !this.showReviewStep()) {
       const isProcessing = textLower.includes('processando') ||
         textLower.includes('processing') ||
@@ -476,6 +505,37 @@ export class CaptureOfficialLivenessComponent implements AfterViewInit, OnDestro
     if (this.verifyingObserverInterval) {
       clearInterval(this.verifyingObserverInterval);
       this.verifyingObserverInterval = null;
+    }
+  }
+
+  /**
+   * Inicia verificação contínua do canvas do flash
+   * O canvas é criado dinamicamente pelo widget AWS durante o liveness check
+   */
+  private startFlashCanvasCheck(): void {
+    // Limpar intervalo anterior se existir
+    if (this.flashCanvasCheckInterval) {
+      clearInterval(this.flashCanvasCheckInterval);
+    }
+
+    // Verificar a cada 500ms durante o processo de liveness
+    this.flashCanvasCheckInterval = setInterval(() => {
+      if (this.isModalOpen() && !this.showReviewStep()) {
+        this.ensureFlashCanvasVisible();
+      } else {
+        // Parar verificação se modal fechou ou está no review
+        this.stopFlashCanvasCheck();
+      }
+    }, 500);
+  }
+
+  /**
+   * Para a verificação contínua do canvas do flash
+   */
+  private stopFlashCanvasCheck(): void {
+    if (this.flashCanvasCheckInterval) {
+      clearInterval(this.flashCanvasCheckInterval);
+      this.flashCanvasCheckInterval = null;
     }
   }
 
@@ -694,6 +754,8 @@ export class CaptureOfficialLivenessComponent implements AfterViewInit, OnDestro
 
     // Aplicar espelhamento no vídeo (sem afetar elipse e flash)
     this.applyVideoMirror();
+    // Garantir que canvas do flash esteja visível
+    this.ensureFlashCanvasVisible();
 
     // Observer para detectar quando o widget muda de estado
     const observer = new MutationObserver((mutations) => {
@@ -705,12 +767,16 @@ export class CaptureOfficialLivenessComponent implements AfterViewInit, OnDestro
             const video = videoElements[0] as HTMLVideoElement;
             if (video.readyState >= 2 && !this.isRecordingVideo()) {
               // Widget AWS gerencia flash colorido internamente
+              // Garantir que canvas do flash esteja visível quando vídeo iniciar
+              this.ensureFlashCanvasVisible();
             }
           }
           
           // Reaplicar espelhamento se novos vídeos forem adicionados
           if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
             this.applyVideoMirror();
+            // Verificar se canvas do flash foi adicionado
+            this.ensureFlashCanvasVisible();
           }
         }
       });
@@ -725,6 +791,101 @@ export class CaptureOfficialLivenessComponent implements AfterViewInit, OnDestro
 
     // Armazenar observer para limpeza
     (this as any)._widgetMutationObserver = observer;
+  }
+
+  /**
+   * Garante que o canvas do flash (nativo do AWS) esteja visível
+   * O widget AWS cria automaticamente o canvas quando preset é 'faceMovementAndLight'
+   */
+  private ensureFlashCanvasVisible(): void {
+    const container = document.getElementById('aws-liveness-container');
+    if (!container) {
+      console.log('[Liveness] Container não encontrado para verificar canvas do flash');
+      return;
+    }
+
+    // Procurar canvas do flash em diferentes seletores possíveis
+    const flashCanvasSelectors = [
+      'canvas.amplify-liveness-freshness-canvas',
+      'canvas[class*="freshness"]',
+      'canvas[class*="liveness-freshness"]',
+      'canvas[class*="amplify-liveness"]',
+      'canvas'
+    ];
+
+    let flashCanvas: HTMLCanvasElement | null = null;
+    let allCanvases: HTMLCanvasElement[] = [];
+
+    // Primeiro, listar todos os canvas encontrados para debug
+    for (const selector of flashCanvasSelectors) {
+      const canvases = container.querySelectorAll(selector);
+      allCanvases.push(...Array.from(canvases) as HTMLCanvasElement[]);
+    }
+
+    console.log(`[Liveness] Encontrados ${allCanvases.length} canvas no container`);
+    allCanvases.forEach((canvas, idx) => {
+      console.log(`[Liveness] Canvas ${idx}:`, {
+        className: canvas.className,
+        id: canvas.id,
+        width: canvas.width,
+        height: canvas.height,
+        style: canvas.style.cssText
+      });
+    });
+
+    // Procurar canvas do flash
+    for (const selector of flashCanvasSelectors) {
+      const canvases = container.querySelectorAll(selector);
+      for (const canvas of Array.from(canvases)) {
+        const canvasEl = canvas as HTMLCanvasElement;
+        // Verificar se é o canvas do flash (geralmente tem classes relacionadas a freshness)
+        const className = canvasEl.className || '';
+        const id = canvasEl.id || '';
+        
+        // Se tem classe freshness ou é o único canvas (pode ser o flash)
+        if (className.includes('freshness') || 
+            className.includes('amplify-liveness') ||
+            id.includes('freshness') ||
+            (selector === 'canvas' && allCanvases.length === 1)) {
+          flashCanvas = canvasEl;
+          console.log('[Liveness] Canvas do flash encontrado:', { className, id, selector });
+          break;
+        }
+      }
+      if (flashCanvas) break;
+    }
+
+    // Se não encontrou por classe, usar o primeiro canvas que não seja a elipse
+    if (!flashCanvas && allCanvases.length > 0) {
+      for (const canvas of allCanvases) {
+        const className = canvas.className || '';
+        // Pular canvas da elipse (geralmente tem "oval" ou "liveness-oval")
+        if (!className.includes('oval') && !className.includes('liveness-oval')) {
+          flashCanvas = canvas;
+          console.log('[Liveness] Usando primeiro canvas não-oval como flash');
+          break;
+        }
+      }
+    }
+
+    if (flashCanvas) {
+      // Garantir que o canvas do flash esteja visível com z-index alto
+      flashCanvas.style.setProperty('display', 'block', 'important');
+      flashCanvas.style.setProperty('visibility', 'visible', 'important');
+      flashCanvas.style.setProperty('opacity', '0.8', 'important'); // Aumentar opacidade
+      flashCanvas.style.setProperty('z-index', '50000', 'important'); // z-index muito alto, similar à captura-final
+      flashCanvas.style.setProperty('position', 'absolute', 'important');
+      flashCanvas.style.setProperty('top', '0', 'important');
+      flashCanvas.style.setProperty('left', '0', 'important');
+      flashCanvas.style.setProperty('width', '100%', 'important');
+      flashCanvas.style.setProperty('height', '100%', 'important');
+      flashCanvas.style.setProperty('mix-blend-mode', 'hard-light', 'important');
+      flashCanvas.style.setProperty('pointer-events', 'none', 'important');
+      console.log('[Liveness] ✅ Canvas do flash garantido como visível (z-index: 50000, opacity: 0.8)');
+    } else {
+      // Canvas ainda não foi criado pelo widget - será criado durante o liveness check
+      console.log('[Liveness] Canvas do flash ainda não criado (será criado durante liveness check). Total de canvas encontrados:', allCanvases.length);
+    }
   }
 
   /**
@@ -774,6 +935,8 @@ export class CaptureOfficialLivenessComponent implements AfterViewInit, OnDestro
 
     this.videoMirrorObserver = new MutationObserver(() => {
       applyMirrorToVideos();
+      // Verificar canvas do flash quando novos elementos forem adicionados
+      this.ensureFlashCanvasVisible();
     });
 
     this.videoMirrorObserver.observe(container, {
@@ -1042,15 +1205,40 @@ export class CaptureOfficialLivenessComponent implements AfterViewInit, OnDestro
    * Scrolla suavemente para a seção de resultados na página principal
    */
   private scrollToResults(): void {
-    // Aguardar um pouco para garantir que o DOM foi atualizado
+    // Garantir que body/html não tenham overflow hidden
+    document.body.style.overflow = '';
+    document.documentElement.style.overflow = '';
+    
+    // Aguardar um pouco para garantir que o DOM foi atualizado e o modal fechou completamente
     setTimeout(() => {
+      // Garantir novamente que não há overflow bloqueado
+      document.body.style.overflow = '';
+      document.documentElement.style.overflow = '';
+      
       const resultSection = document.querySelector('.result-section');
       if (resultSection) {
+        // No mobile, usar block: 'center' para melhor visualização
+        const isMobile = window.innerWidth <= 768;
         resultSection.scrollIntoView({ 
           behavior: 'smooth', 
-          block: 'start',
+          block: isMobile ? 'center' : 'start',
           inline: 'nearest'
         });
+        
+        // Fallback adicional para mobile: garantir que o scroll aconteceu
+        if (isMobile) {
+          setTimeout(() => {
+            const rect = resultSection.getBoundingClientRect();
+            const isVisible = rect.top >= 0 && rect.top <= window.innerHeight;
+            if (!isVisible) {
+              // Se não estiver visível, forçar scroll
+              window.scrollTo({
+                top: window.scrollY + rect.top - (window.innerHeight / 2),
+                behavior: 'smooth'
+              });
+            }
+          }, 300);
+        }
       } else {
         // Fallback: scrollar para o final da página
         window.scrollTo({
@@ -1058,7 +1246,7 @@ export class CaptureOfficialLivenessComponent implements AfterViewInit, OnDestro
           behavior: 'smooth'
         });
       }
-    }, 100);
+    }, 600); // Aumentar delay para garantir que modal fechou completamente
   }
 
   private async finalizeAndClose(): Promise<void> {
@@ -1268,6 +1456,7 @@ export class CaptureOfficialLivenessComponent implements AfterViewInit, OnDestro
     }
     
     this.stopVerifyingObserver();
+    this.stopFlashCanvasCheck();
     this.isVerifying.set(false);
     this.statusMessage.set('');
     void this.stopVideoRecording();

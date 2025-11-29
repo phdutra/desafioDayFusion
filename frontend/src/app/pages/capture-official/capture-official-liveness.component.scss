@@ -1,22 +1,25 @@
 /* ==========================================================================
-   AWS Liveness - Layout Isolado (Angular 19)
-   Seguindo guia: aws_amplify_liveness_correct.md
+   AWS Liveness - Layout Full Screen (Angular 19)
+   Baseado em: capture-final (liveness-modal-final)
    ========================================================================== */
 
-/* Modal base */
+/* Modal base - Full Screen */
 .liveness-modal {
   position: fixed;
-  inset: 0;
- // background: rgba(0, 0, 0, 0.70);
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: #000;
   display: flex;
   justify-content: center;
   align-items: center;
   z-index: 99999;
-  backdrop-filter: blur(4px);
   opacity: 1;
   transition: opacity 0.4s ease-out, visibility 0.4s ease-out;
   visibility: visible;
-  
+  overflow: hidden; /* Impede scroll */
+
   /* Estado de fadeout */
   &.fadeout {
     opacity: 0;
@@ -31,39 +34,40 @@
   top: 20px;
   right: 25px;
   font-size: 24px;
-  background: transparent;
-  border: none;
+  background: rgba(255, 255, 255, 0.15);
+  border: 2px solid rgba(255, 255, 255, 0.2);
   color: white;
   cursor: pointer;
   z-index: 100000;
-  width: 34px;
-  height: 34px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background 0.2s;
+  transition: all 0.3s ease;
 
   &:hover {
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(255, 59, 48, 0.3);
+    border-color: #ff3b30;
+    color: #ff3b30;
+    transform: scale(1.1) rotate(90deg);
   }
 }
 
-/* Wrapper isolado do widget AWS */
+/* Wrapper Full Screen do widget AWS */
 .liveness-aws-wrapper {
-  position: relative;
-  width: 480px;
-  max-width: 90vw;
-  height: 640px;
-  max-height: 90vh;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
   background: #000;
-  border-radius: 12px;
   overflow: hidden;
-
-  /* ESSENCIAL — impede o Angular de deformar o widget */
   display: block;
-  margin: 0 auto;
   z-index: 1;
 }
+
 .review-wrapper {
   width: min(960px, 90vw);
   max-height: 90vh;
@@ -79,10 +83,11 @@
   color: #f9fafb;
   display: flex;
   justify-content: center;
+  position: relative;
+  z-index: 100001; /* Acima do modal */
 }
 
-
-/* Container AWS (não mexer no layout interno) */
+/* Container AWS (Full Screen) */
 #aws-liveness-container {
   width: 100%;
   height: 100%;
@@ -91,20 +96,17 @@
   z-index: 1;
   margin: 0;
   padding: 0;
+  min-height: 100vh;
+  min-width: 100vw;
+  background: black;
   
-  /* Garantir que o widget AWS ocupe todo o espaço */
-  min-height: 100%;
-  min-width: 100%;
-  
-  /* Vídeo seguindo padrão AWS Amplify - centralizado e espelhado ANTES de carregar */
+  /* Vídeo centralizado e espelhado */
   video {
     position: absolute !important;
     top: 50% !important;
     left: 50% !important;
     transform: translate(-50%, -50%) scaleX(-1) !important;
     -webkit-transform: translate(-50%, -50%) scaleX(-1) !important;
-    -moz-transform: translate(-50%, -50%) scaleX(-1) !important;
-    -ms-transform: translate(-50%, -50%) scaleX(-1) !important;
     width: 100% !important;
     height: 100% !important;
     object-fit: cover !important;
@@ -112,23 +114,23 @@
     z-index: 1 !important;
   }
   
-  /* Canvas de cores (flash) acima do vídeo - DEVE aparecer durante processamento */
+  /* Canvas de cores (flash) */
   canvas.amplify-liveness-freshness-canvas {
     position: absolute !important;
     top: 0 !important;
     left: 0 !important;
     width: 100% !important;
     height: 100% !important;
-    z-index: 10 !important; /* Acima do vídeo (1), abaixo da elipse (21) */
-    opacity: 0.6 !important;
+    z-index: 50000 !important;
+    opacity: 0.8 !important;
     mix-blend-mode: hard-light !important;
     pointer-events: none !important;
-    display: block !important; /* Garantir que apareça */
+    display: block !important;
     visibility: visible !important;
   }
 }
 
-/* Sobreposições que não afetam o AWS */
+/* Sobreposições */
 .liveness-overlays {
   position: absolute;
   top: 0;
@@ -137,15 +139,18 @@
   bottom: 0;
   width: 100%;
   height: 100%;
-  z-index: 25; /* Acima da elipse (21) para mostrar status e verifying */
-  pointer-events: none !important; /* ESSENCIAL - não bloquear interação */
+  z-index: 25;
+  pointer-events: none !important;
 }
 
-/* Status - DEVE aparecer durante processamento */
+/* Status Overlay */
 .status-overlay {
   position: absolute;
-  top: 10px;
-  width: 100%;
+  top: 80px; /* Abaixo do botão fechar */
+  left: 50%;
+  transform: translateX(-50%);
+  width: 90%;
+  max-width: 500px;
   text-align: center;
   color: white;
   font-size: 18px;
@@ -154,76 +159,53 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  z-index: 26; /* Acima de tudo para garantir visibilidade */
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8); /* Sombra para legibilidade */
+  z-index: 26;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
   pointer-events: none !important;
 }
 
-.status-overlay .spinner {
-  display: inline-block;
-  width: 20px;
-  height: 20px;
-  border: 3px solid rgba(255, 255, 255, 0.3);
-  border-top-color: white;
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
-/* Status overlay melhorado para verifying - estilo elegante */
 .status-overlay.verifying {
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.15), rgba(139, 92, 246, 0.15));
-  padding: 14px 28px;
-  border-radius: 16px;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  box-shadow: 
-    0 4px 16px rgba(0, 0, 0, 0.4),
-    0 0 0 1px rgba(255, 255, 255, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.2);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(15, 23, 42, 0.6);
+  padding: 12px 24px;
+  border-radius: 50px;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
   
   .spinner {
-    width: 24px;
-    height: 24px;
-    border: 3px solid rgba(59, 130, 246, 0.3);
-    border-top-color: #3b82f6;
-    border-right-color: #8b5cf6;
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 2px solid rgba(59, 130, 246, 0.3);
+    border-top-color: #60a5fa;
+    border-radius: 50%;
     animation: spin 0.9s linear infinite;
-    box-shadow: 0 0 12px rgba(59, 130, 246, 0.5);
-  }
-  
-  /* Efeito de brilho sutil */
-  &::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: -100%;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(
-      90deg,
-      transparent,
-      rgba(255, 255, 255, 0.1),
-      transparent
-    );
-    animation: shimmer 2s infinite;
-    border-radius: 16px;
   }
 }
 
 /* Gravando vídeo */
 .recording-indicator {
   position: absolute;
-  top: 55px;
-  width: 100%;
-  text-align: center;
+  top: 30px;
+  left: 30px;
   color: #ff4b4b;
   font-weight: 600;
   display: flex;
-  justify-content: center;
   align-items: center;
-  gap: 6px;
+  gap: 10px;
   font-size: 14px;
+  letter-spacing: 0.5px;
+  background: rgba(10, 10, 15, 0.65);
+  padding: 10px 20px;
+  border-radius: 50px;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 75, 75, 0.15);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  z-index: 30;
+  text-transform: uppercase;
+  font-size: 12px;
 }
 
 .recording-indicator .dot {
@@ -231,157 +213,102 @@
   height: 10px;
   background: #ff4b4b;
   border-radius: 50%;
-  animation: pulse 1s infinite alternate;
+  box-shadow: 0 0 10px rgba(255, 75, 75, 0.6);
+  animation: pulse 1.5s infinite ease-in-out;
 }
 
-@keyframes pulse {
-  to { opacity: 0.2; }
-}
-
-/* Loading */
+/* Loading Overlay */
 .loading-overlay {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  /* Usar margin em vez de transform para evitar conflitos */
-  margin-top: -40px;
-  margin-left: -100px;
+  inset: 0;
+  background: #000;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
+  justify-content: center;
+  gap: 16px;
   color: white;
-  font-size: 14px;
-  width: 200px;
+  z-index: 100;
 
   .spinner {
-    width: 30px;
-    height: 30px;
-    border: 3px solid rgba(255, 255, 255, 0.3);
-    border-top-color: white;
+    width: 50px;
+    height: 50px;
+    border: 4px solid rgba(255, 255, 255, 0.1);
+    border-top-color: #667eea;
     border-radius: 50%;
-    animation: spin 0.9s linear infinite;
-  }
-
-  p {
-    margin: 0;
-    text-align: center;
+    animation: spin 1s linear infinite;
   }
 }
 
-/* Overlay de erro */
+/* Error Overlay */
 .error-overlay {
   position: absolute;
-  bottom: 30px;
-  width: 100%;
+  bottom: 40px;
+  left: 0;
+  right: 0;
   display: flex;
   justify-content: center;
+  z-index: 10002;
 }
 
 .error-box {
-  background: #ffdddd;
-  color: #900;
-  padding: 14px 20px;
-  border-radius: 10px;
-  font-size: 14px;
-  pointer-events: auto; /* permite clicar no botão */
+  background: rgba(239, 68, 68, 0.95);
+  color: white;
+  padding: 16px 24px;
+  border-radius: 12px;
   text-align: center;
   max-width: 90%;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+  pointer-events: auto;
 
-  h3 {
-    margin: 0 0 8px;
-    font-size: 16px;
-  }
-
-  p {
-    margin: 0 0 12px;
-  }
+  h3 { margin: 0 0 8px; font-size: 18px; }
+  p { margin: 0 0 16px; }
 }
 
 .retry-btn {
-  background: #3b82f6;
-  color: white;
+  background: white;
+  color: #ef4444;
   border: none;
-  padding: 8px 16px;
-  border-radius: 6px;
-  cursor: pointer;
+  padding: 8px 20px;
+  border-radius: 20px;
   font-weight: 600;
-  font-size: 14px;
-  transition: background 0.2s;
+  cursor: pointer;
+  transition: transform 0.2s;
 
-  &:hover {
-    background: #2563eb;
-  }
+  &:hover { transform: scale(1.05); }
 }
-
-/* Overlay de preparação */
-.prep-overlay {
-  position: absolute;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.85);
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  z-index: 20;
-  text-align: center;
-  color: #fff;
-}
-
-.prep-content {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1rem;
-}
-
-.preparation-icon {
-  font-size: 4rem;
-  margin-bottom: 1rem;
-}
-
-.prep-overlay h2 {
-  font-size: 1.8rem;
-  margin: 0 0 0.5rem;
-}
-
-.prep-overlay p {
-  font-size: 1rem;
-  margin: 0;
-  opacity: 0.9;
-}
-
-.prep-overlay .count {
-  margin-top: 16px;
-  font-size: 58px;
-  font-weight: bold;
-}
-
-/* Review Step removido - resultados aparecem na página principal */
 
 /* Animações */
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@keyframes shimmer {
-  0% {
-    left: -100%;
-  }
-  100% {
-    left: 100%;
-  }
-}
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes pulse { to { opacity: 0.4; } }
 
 /* ==========================================================================
-   ESTILOS PARA ELIPSE DO WIDGET AWS - CENTRALIZADA
+   ESTILOS PARA ELIPSE DO WIDGET AWS - CENTRALIZADA E FULL SCREEN
    ========================================================================== */
 ::ng-deep {
-  /* Garantir que a elipse apareça corretamente e centralizada */
   #aws-liveness-container {
-    /* Container de overlay da elipse - centralizar */
+    /* FORÇA TAMANHO PEQUENO EM TODOS OS BOTÕES - MENOR AINDA */
+    * button,
+    * [role="button"],
+    * button[type="button"] {
+      width: 24px !important;
+      height: 24px !important;
+      min-width: 24px !important;
+      min-height: 24px !important;
+      max-width: 24px !important;
+      max-height: 24px !important;
+      
+      svg, svg *, path, circle, rect {
+        width: 12px !important;
+        height: 12px !important;
+        max-width: 12px !important;
+        max-height: 12px !important;
+      }
+    }
+    
+    /* Overlays e Instruções */
     [class*="instruction-overlay"],
     [class*="liveness-overlay"],
     [class*="amplify-liveness-overlay"] {
@@ -397,7 +324,7 @@
       pointer-events: none !important;
     }
     
-    /* Elementos SVG da elipse - centralizar */
+    /* SVG Elipse */
     svg[class*="liveness"],
     svg[class*="oval"],
     svg[class*="Oval"],
@@ -410,324 +337,299 @@
       transform: translate(-50%, -50%) !important;
       z-index: 21 !important;
       pointer-events: none !important;
+      width: 100% !important;
+      height: 100% !important;
+      max-width: 100% !important;
+      max-height: 100% !important;
       
-      /* Garantir que seja linha branca, não preenchimento */
-      fill: none !important;
-      stroke: #ffffff !important;
-      stroke-width: 2px !important;
-      opacity: 1 !important;
-    }
-    
-    /* Paths e elementos internos da elipse */
-    svg path,
-    svg circle,
-    svg ellipse {
       fill: none !important;
       stroke: #ffffff !important;
       stroke-width: 2px !important;
     }
     
-    /* Canvas de elipse (se houver) - centralizar */
-    canvas[class*="oval"],
-    canvas[class*="liveness"]:not([class*="freshness"]) {
-      position: absolute !important;
-      top: 50% !important;
-      left: 50% !important;
-      transform: translate(-50%, -50%) !important;
-      z-index: 21 !important;
-      pointer-events: none !important;
-      background: transparent !important;
-    }
-    
-    /* Melhorar visibilidade dos textos de instrução - estilo elegante e discreto */
+    /* Textos de Instrução - ELEGANTE E SUAVE */
     [class*="instruction"],
     [class*="Instruction"],
     [class*="instruction-text"],
-    [class*="InstructionText"],
-    [class*="liveness-instruction"],
-    [class*="amplify-liveness-instruction"] {
+    .amplify-liveness-instruction-overlay {
       position: absolute !important;
-      top: 50% !important;
+      top: 15% !important; /* Posição acima da elipse */
+      bottom: auto !important;
       left: 50% !important;
-      transform: translate(-50%, -50%) !important;
-      z-index: 22 !important;
+      transform: translateX(-50%) !important;
+      z-index: 9999 !important;
       pointer-events: none !important;
       
-      /* Estilo elegante e discreto */
+      /* Estilo Minimalista */
+      background: transparent !important;
+      backdrop-filter: none !important;
+      -webkit-backdrop-filter: none !important;
+      padding: 0 !important;
+      border: none !important;
+      box-shadow: none !important;
+      
+      /* Tipografia - FONTE MENOR E HARMONIOSA */
       color: #ffffff !important;
-      font-weight: 500 !important;
-      font-size: 16px !important;
-      text-shadow: 
-        0 2px 6px rgba(0, 0, 0, 0.8),
-        0 1px 3px rgba(0, 0, 0, 0.9) !important;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif !important;
+      font-weight: 400 !important;
+      font-size: 13px !important;
+      line-height: 1.4 !important;
+      letter-spacing: 0.01em !important;
+      text-shadow: 0 2px 12px rgba(0,0,0,0.7), 0 1px 3px rgba(0,0,0,0.5) !important;
       text-align: center !important;
-    }
-    
-    /* Textos dentro dos overlays de instrução - estilo elegante */
-    [class*="instruction-overlay"] p,
-    [class*="instruction-overlay"] span,
-    [class*="instruction-overlay"] div,
-    [class*="liveness-overlay"] p,
-    [class*="liveness-overlay"] span,
-    [class*="liveness-overlay"] div,
-    [class*="amplify-liveness-overlay"] p,
-    [class*="amplify-liveness-overlay"] span,
-    [class*="amplify-liveness-overlay"] div {
-      color: #ffffff !important;
-      font-weight: 500 !important;
-      font-size: 15px !important;
-      text-shadow: 
-        0 2px 6px rgba(0, 0, 0, 0.8),
-        0 1px 3px rgba(0, 0, 0, 0.9) !important;
-      /* Remover fundo pesado - apenas sombra de texto elegante */
-    }
-    
-    /* Canvas de cores (flash) - DEVE aparecer durante processamento */
-    canvas.amplify-liveness-freshness-canvas {
-      position: absolute !important;
-      top: 0 !important;
-      left: 0 !important;
       width: 100% !important;
-      height: 100% !important;
-      z-index: 10 !important; /* Entre vídeo (1) e elipse (21) */
-      opacity: 0.6 !important;
-      mix-blend-mode: hard-light !important;
-      pointer-events: none !important;
-      display: block !important; /* Garantir que apareça */
-      visibility: visible !important;
+      max-width: 100% !important;
+      
+      /* Layout Flex */
+      display: flex !important;
+      flex-direction: column !important;
+      align-items: center !important;
+      justify-content: center !important;
+      
+      /* Remove backgrounds internos */
+      * {
+        background: transparent !important;
+        box-shadow: none !important;
+        border: none !important;
+      }
     }
-  }
-}
 
-/* ==========================================================================
-   AJUSTES REFINADOS PARA MOBILE
-   ========================================================================== */
-@media (max-width: 768px) {
-  /* Modal ajustado para mobile */
-  .liveness-modal {
-    padding: 10px;
-  }
+    /* Container do texto - PÍLULA ELEGANTE */
+    [class*="instruction"] > div:first-child,
+    .amplify-liveness-instruction-overlay > div {
+        background: rgba(0, 0, 0, 0.5) !important;
+        backdrop-filter: blur(12px) saturate(180%) !important;
+        -webkit-backdrop-filter: blur(12px) saturate(180%) !important;
+        padding: 8px 16px !important;
+        border-radius: 16px !important;
+        border: 1px solid rgba(255, 255, 255, 0.12) !important;
+        display: inline-flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        gap: 2px !important;
+        max-width: 85vw !important;
+        width: auto !important;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3) !important;
+    }
 
-  /* Wrapper ajustado para mobile */
-  .liveness-aws-wrapper {
-    width: 100%;
-    max-width: 100vw;
-    height: 100vh;
-    max-height: 100vh;
-    border-radius: 0;
-  }
+    /* Título dentro da instrução */
+    [class*="instruction"] h1,
+    [class*="instruction"] h2,
+    [class*="instruction"] h3 {
+        margin: 0 !important;
+        font-size: 13px !important;
+        font-weight: 500 !important;
+        line-height: 1.4 !important;
+    }
 
-  /* Botão fechar menor no mobile */
-  .close-button {
-    top: 10px;
-    right: 15px;
-    width: 32px;
-    height: 32px;
-    font-size: 20px;
-  }
+    /* Texto descritivo - MENOR E SUAVE */
+    [class*="instruction"] p,
+    [class*="instruction"] span,
+    [class*="instruction"] > div:first-child > *,
+    [class*="instruction"] * {
+        font-size: 13px !important;
+        font-weight: 400 !important;
+        opacity: 0.95 !important;
+        line-height: 1.4 !important;
+        margin: 0 !important;
+    }
 
-  /* Status overlay ajustado */
-  .status-overlay {
-    top: 8px;
-    font-size: 16px;
-    padding: 0 10px;
+    /* Botões do Widget AWS - MENORES E ESTILOSOS */
+    /* Captura TODOS os botões dentro do container AWS - FORÇA TAMANHO PEQUENO */
+    button,
+    button *,
+    [role="button"],
+    [type="button"] {
+        /* Tamanho bem menor - 24px */
+        width: 24px !important;
+        height: 24px !important;
+        min-width: 24px !important;
+        min-height: 24px !important;
+        max-width: 24px !important;
+        max-height: 24px !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        border-radius: 50% !important;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        cursor: pointer !important;
+        box-sizing: border-box !important;
+        
+        /* Ícones menores */
+        svg, 
+        img, 
+        [class*="icon"],
+        svg *,
+        path,
+        circle,
+        rect {
+            width: 12px !important;
+            height: 12px !important;
+            max-width: 12px !important;
+            max-height: 12px !important;
+        }
+        
+        /* Reset de dimensões inline */
+        &[style] {
+            width: 24px !important;
+            height: 24px !important;
+        }
+    }
     
-    &.verifying {
-      padding: 12px 24px;
-      font-size: 16px;
-
-  .spinner {
-        width: 20px;
-        height: 20px;
-        border-width: 2.5px;
-      }
+    /* Seletores específicos para garantir aplicação */
+    button[class*="liveness"],
+    button[class*="Liveness"],
+    button[class*="amplify"],
+    button[class*="button"],
+    button[type="button"],
+    button[style*="width"],
+    button[style*="height"] {
+        width: 24px !important;
+        height: 24px !important;
+        min-width: 24px !important;
+        min-height: 24px !important;
+        max-width: 24px !important;
+        max-height: 24px !important;
     }
-  }
-
-  /* Textos de instrução ajustados para mobile */
-  ::ng-deep {
-    #aws-liveness-container {
-      [class*="instruction"],
-      [class*="Instruction"],
-      [class*="instruction-text"],
-      [class*="InstructionText"],
-      [class*="liveness-instruction"],
-      [class*="amplify-liveness-instruction"] {
-        font-size: 16px !important;
-      }
-
-      [class*="instruction-overlay"] p,
-      [class*="instruction-overlay"] span,
-      [class*="instruction-overlay"] div,
-      [class*="liveness-overlay"] p,
-      [class*="liveness-overlay"] span,
-      [class*="liveness-overlay"] div,
-      [class*="amplify-liveness-overlay"] p,
-      [class*="amplify-liveness-overlay"] span,
-      [class*="amplify-liveness-overlay"] div {
-        font-size: 15px !important;
-      }
+    
+    /* Botão vermelho de gravação - NO TOPO */
+    button[style*="rgb(255"],
+    button[style*="rgb(244"],
+    button[style*="#f" i],
+    button[style*="#ff" i],
+    button:has(svg[fill*="red" i]),
+    button:has(svg[fill*="#f" i]),
+    button:has(svg[fill*="#ff" i]),
+    button[style*="background"][style*="255"] {
+        width: 24px !important;
+        height: 24px !important;
+        min-width: 24px !important;
+        min-height: 24px !important;
+        max-width: 24px !important;
+        max-height: 24px !important;
+        background: rgba(255, 75, 75, 0.9) !important;
+        border: 1.5px solid rgba(255, 255, 255, 0.3) !important;
+        box-shadow: 0 2px 6px rgba(255, 75, 75, 0.4) !important;
+        
+        /* Posiciona no topo esquerdo */
+        position: absolute !important;
+        top: 20px !important;
+        left: 20px !important;
+        right: auto !important;
+        bottom: auto !important;
+        transform: none !important;
+        margin: 0 !important;
+        
+        svg, svg * {
+            width: 12px !important;
+            height: 12px !important;
+        }
+        
+        &:hover {
+            background: rgba(255, 95, 95, 1) !important;
+            box-shadow: 0 3px 12px rgba(255, 75, 75, 0.6) !important;
+            transform: scale(1.05) !important;
+        }
     }
-  }
-
-  /* Recording indicator ajustado */
-.recording-indicator {
-    top: 45px;
-    font-size: 13px;
-  }
-
-  /* Ajustes específicos para elipse no mobile - descer um pouco */
-  ::ng-deep {
-    #aws-liveness-container {
-      /* Elipse ajustada para mobile - descer um pouco (de 50% para 52%) */
-      svg[class*="liveness"],
-      svg[class*="oval"],
-      svg[class*="Oval"],
-      .amplify-liveness-oval,
-      [class*="amplify-liveness-oval"],
-      svg {
-        top: 52% !important; /* Ajustado de 50% para 52% - desce a elipse */
-        transform: translate(-50%, -50%) !important;
-      }
-
-      /* Canvas de elipse também ajustado */
-      canvas[class*="oval"],
-      canvas[class*="liveness"]:not([class*="freshness"]) {
-        top: 52% !important; /* Ajustado de 50% para 52% */
-        transform: translate(-50%, -50%) !important;
-      }
-
-      /* Instruções também ajustadas */
-      [class*="instruction"],
-      [class*="Instruction"] {
-        top: 52% !important; /* Ajustado de 50% para 52% */
-        transform: translate(-50%, -50%) !important;
-      }
-
-      /* Vídeo ajustado para mobile */
-      video {
-        object-fit: cover !important;
-        object-position: center 48% !important; /* Ajustar posição do vídeo para alinhar com elipse */
-      }
+    
+    /* Botão de fechar (X) - NO TOPO DIREITO */
+    button[aria-label*="close" i],
+    button[aria-label*="Close" i],
+    button[aria-label*="fechar" i],
+    button:has(svg[viewBox*="24"]),
+    button:has(path[d*="M"]):not(:has(svg[fill*="red" i])),
+    button[style*="background"][style*="gray" i],
+    button[style*="background"][style*="grey" i],
+    button:has(svg path[d*="M"]):has(svg path[d*="L"]):not(:has(svg[fill*="red"])) {
+        width: 24px !important;
+        height: 24px !important;
+        min-width: 24px !important;
+        min-height: 24px !important;
+        max-width: 24px !important;
+        max-height: 24px !important;
+        background: rgba(100, 100, 100, 0.7) !important;
+        border: 1.5px solid rgba(255, 255, 255, 0.2) !important;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3) !important;
+        
+        /* Posiciona no topo direito */
+        position: absolute !important;
+        top: 20px !important;
+        right: 20px !important;
+        left: auto !important;
+        bottom: auto !important;
+        transform: none !important;
+        margin: 0 !important;
+        
+        svg, svg *, path {
+            width: 12px !important;
+            height: 12px !important;
+            max-width: 12px !important;
+            max-height: 12px !important;
+        }
+        
+        &:hover {
+            background: rgba(120, 120, 120, 0.85) !important;
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.4) !important;
+            transform: scale(1.05) !important;
+        }
+    }
+    
+    /* Força posicionamento no topo para todos os botões do widget */
+    button {
+        /* Se botão está no canto esquerdo, força topo esquerdo */
+        &[style*="left"]:not([style*="right"]) {
+            top: 20px !important;
+            left: 20px !important;
+            bottom: auto !important;
+            transform: none !important;
+        }
+        
+        /* Se botão está no canto direito, força topo direito */
+        &[style*="right"]:not([style*="left"]) {
+            top: 20px !important;
+            right: 20px !important;
+            bottom: auto !important;
+            transform: none !important;
+        }
+        
+        /* Se tem bottom mas não top, move para topo */
+        &[style*="bottom"]:not([style*="top"]) {
+            top: 20px !important;
+            bottom: auto !important;
+            transform: none !important;
+        }
+        
+        /* Se tem top, ajusta para ficar no topo */
+        &[style*="top"] {
+            top: 20px !important;
+        }
     }
   }
 }
 
-/* Ajustes para telas muito pequenas (smartphones pequenos) */
-@media (max-width: 480px) {
-  .liveness-aws-wrapper {
-    width: 100vw;
-    height: 100vh;
+/* Mobile adjustments */
+@media (max-width: 768px) {
+  .close-button {
+    top: 15px;
+    right: 15px;
+    width: 36px;
+    height: 36px;
   }
 
   .status-overlay {
-    font-size: 14px;
-    top: 6px;
+    top: 70px;
+    font-size: 16px;
   }
 
   .recording-indicator {
-    top: 40px;
-    font-size: 12px;
+    top: 20px;
+    left: 20px;
+    font-size: 14px;
   }
-
-  /* Status overlay ajustado para telas pequenas */
-  .status-overlay {
-    &.verifying {
-      padding: 10px 20px;
-      font-size: 14px;
-      
-      .spinner {
-        width: 18px;
-        height: 18px;
-        border-width: 2.5px;
-      }
-    }
-  }
-
-  ::ng-deep {
-    #aws-liveness-container {
-      /* Elipse ainda mais ajustada para telas pequenas */
-      svg[class*="liveness"],
-      svg[class*="oval"],
-      svg[class*="Oval"],
-      .amplify-liveness-oval,
-      [class*="amplify-liveness-oval"],
-      svg {
-        top: 52.5% !important; /* Ajuste fino adicional */
-      }
-
-      canvas[class*="oval"],
-      canvas[class*="liveness"]:not([class*="freshness"]) {
-        top: 52.5% !important;
-      }
-
-      [class*="instruction"],
-      [class*="Instruction"] {
-        top: 52.5% !important;
-      }
-
-      /* Textos de instrução ajustados para telas pequenas */
-      [class*="instruction"],
-      [class*="Instruction"],
-      [class*="instruction-text"],
-      [class*="InstructionText"],
-      [class*="liveness-instruction"],
-      [class*="amplify-liveness-instruction"] {
-        font-size: 14px !important;
-        padding: 5px 10px !important;
-      }
-
-      [class*="instruction-overlay"] p,
-      [class*="instruction-overlay"] span,
-      [class*="instruction-overlay"] div,
-      [class*="liveness-overlay"] p,
-      [class*="liveness-overlay"] span,
-      [class*="liveness-overlay"] div,
-      [class*="amplify-liveness-overlay"] p,
-      [class*="amplify-liveness-overlay"] span,
-      [class*="amplify-liveness-overlay"] div {
-        font-size: 13px !important;
-        padding: 4px 8px !important;
-      }
-    }
+  
+  /* Ajuste fino para a elipse no mobile */
+  ::ng-deep #aws-liveness-container {
+     svg[class*="liveness"], svg {
+        top: 50% !important;
+     }
   }
 }
-
-/* Ajustes para orientação landscape no mobile */
-@media (max-width: 768px) and (orientation: landscape) {
-  .liveness-aws-wrapper {
-    height: 100vh;
-    max-height: 100vh;
-  }
-
-  ::ng-deep {
-    #aws-liveness-container {
-      svg[class*="liveness"],
-      svg[class*="oval"],
-      svg[class*="Oval"],
-      .amplify-liveness-oval,
-      [class*="amplify-liveness-oval"],
-      svg {
-        top: 51% !important; /* Ajuste diferente para landscape */
-      }
-    }
-  }
-}
-
-/* ==========================================================================
-   REGRAS OBRIGATÓRIAS DA AWS (CRÍTICAS)
-   ========================================================================== */
-/* 
-   🚫 Não usar grid, flex parents, transform, translate, scale, 
-      animations ou padding no container.
-   
-   🚫 Não colocar nada por cima do widget com pointer-events.
-   
-   ✔ Overlays devem sempre ter pointer-events: none.
-   
-   ✔ O container deve ser fixo, não dinâmico.
-   
-   ✔ Sem overflow hidden no pai (já controlado).
-   
-   ✔ Deixar somente o AWS usar flash, bounding box e controle do vídeo.
-*/

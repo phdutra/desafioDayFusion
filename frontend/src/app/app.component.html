@@ -56,18 +56,8 @@
           </a>
         </li>
         <li class="nav-item">
-          <a routerLink="/capture3d" routerLinkActive="active" class="nav-link">
-            <span class="nav-text">Captura 3D</span>
-          </a>
-        </li>
-        <li class="nav-item">
           <a routerLink="/capture-official" routerLinkActive="active" class="nav-link">
             <span class="nav-text">Capturar Oficial</span>
-          </a>
-        </li>
-        <li class="nav-item">
-          <a routerLink="/aws-widget" routerLinkActive="active" class="nav-link">
-            <span class="nav-text">Widget AWS</span>
           </a>
         </li>
         <li class="nav-item">
@@ -94,6 +84,29 @@
           <a routerLink="/help" routerLinkActive="active" class="nav-link">
             <span class="nav-text">Ajuda</span>
           </a>
+        </li>
+        <li class="nav-item nav-item-parent">
+          <button type="button" class="nav-link nav-link-parent" (click)="toggleObsoletoMenu()" [class.open]="isObsoletoMenuOpen()">
+            <span class="nav-text">Obsoleto</span>
+            <span class="nav-arrow" [class.open]="isObsoletoMenuOpen()">▼</span>
+          </button>
+          <ul class="nav-submenu" [class.open]="isObsoletoMenuOpen()">
+            <li class="nav-subitem">
+              <a routerLink="/capture3d" routerLinkActive="active" class="nav-sublink">
+                <span class="nav-text">Captura 3D</span>
+              </a>
+            </li>
+            <li class="nav-subitem">
+              <a routerLink="/capture-final" routerLinkActive="active" class="nav-sublink">
+                <span class="nav-text">🎯 Captura Final</span>
+              </a>
+            </li>
+            <li class="nav-subitem">
+              <a routerLink="/aws-widget" routerLinkActive="active" class="nav-sublink">
+                <span class="nav-text">Widget AWS</span>
+              </a>
+            </li>
+          </ul>
         </li>
 
         <li class="nav-divider"></li>
@@ -176,3 +189,4 @@
 
 <!-- Modal de Sessão Expirada (Global) -->
 <app-session-expired-modal></app-session-expired-modal>
+

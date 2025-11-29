@@ -1,0 +1,941 @@
+// ═══════════════════════════════════════════════════════════════
+// Container Invisível do AWS (Arquitetura Híbrida)
+// ═══════════════════════════════════════════════════════════════
+.aws-liveness-hidden {
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+  position: absolute;
+  z-index: -1;
+  pointer-events: none;
+}
+
+.liveness-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  min-height: 100vh;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  animation: fadeIn 0.3s ease-in-out;
+  overflow: visible;
+}
+
+.modal-content {
+  background: #000;
+  width: 100%;
+  min-height: 100vh;
+  height: 100vh;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: visible;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem 2rem;
+  // REMOVIDO: border-bottom (não necessário)
+  background: rgba(0, 0, 0, 0.7);
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  backdrop-filter: blur(10px);
+  // NÃO usar transform aqui
+
+  h3 {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #fff;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+    // REMOVIDO: gradient (simplificar)
+  }
+}
+
+.status-messages {
+  position: absolute;
+  top: 70px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10002;
+  width: 90%;
+  max-width: 500px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  pointer-events: none;
+
+  @media (max-width: 768px) {
+    top: 60px;
+    width: 85%;
+  }
+
+  .status-message {
+    background: rgba(99, 102, 241, 0.95);
+    backdrop-filter: blur(10px);
+    border-radius: 0.75rem;
+    padding: 1rem 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    box-shadow: 0 4px 20px rgba(99, 102, 241, 0.4);
+    animation: slideDown 0.4s ease-out;
+
+    .status-icon {
+      font-size: 1.25rem;
+      flex-shrink: 0;
+    }
+
+    span:last-child {
+      color: #fff;
+      font-size: 0.95rem;
+      font-weight: 500;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+    }
+  }
+
+  .error-message {
+    background: rgba(239, 68, 68, 0.95);
+    backdrop-filter: blur(10px);
+    border-radius: 0.75rem;
+    padding: 1rem 1.25rem;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    box-shadow: 0 4px 20px rgba(239, 68, 68, 0.4);
+    animation: shake 0.5s ease-out;
+
+    .error-icon {
+      font-size: 1.25rem;
+      flex-shrink: 0;
+    }
+
+    .error-text {
+      color: #fff;
+      font-size: 0.875rem;
+      font-weight: 500;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+      white-space: pre-wrap;
+      word-break: break-word;
+      margin: 0;
+    }
+  }
+}
+
+.btn-close {
+  background: rgba(255, 255, 255, 0.15);
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  color: #fff;
+  font-size: 1.5rem;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  font-weight: bold;
+  line-height: 1;
+  z-index: 100;
+
+  &:hover {
+    background: rgba(255, 59, 48, 0.3);
+    border-color: #ff3b30;
+    color: #ff3b30;
+    transform: scale(1.1) rotate(90deg);
+  }
+
+  &:active {
+    transform: scale(0.95);
+  }
+
+  &:focus {
+    outline: 2px solid #fff;
+    outline-offset: 2px;
+  }
+}
+
+.modal-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  // REMOVIDO: padding (não necessário)
+  gap: 1.5rem;
+  background: #000;
+  z-index: 5;
+  // NÃO usar transform aqui
+
+  .spinner {
+    width: 50px;
+    height: 50px;
+    border: 4px solid rgba(255, 255, 255, 0.1);
+    border-top-color: #667eea;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+
+  p {
+    margin: 0;
+    font-size: 1rem;
+    color: rgba(255, 255, 255, 0.8);
+    font-weight: 500;
+  }
+}
+
+.widget-wrapper {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  position: relative;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  // REMOVIDO: padding (pode interferir)
+  // NÃO usar transform aqui
+  // NÃO usar overflow: hidden
+  // NÃO usar clip-path
+  // NÃO usar mask
+}
+
+.widget-container {
+  width: 100%;
+  height: 100vh;
+  min-height: 100vh;
+  position: relative !important;
+  overflow: visible !important; // Mudado para visible para não cortar
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  // REMOVIDO: isolation: isolate; (estava isolando o overlay do flash)
+
+  .liveness-container {
+    width: 100vw !important;
+    height: 100vh !important;
+    max-width: 600px !important;
+    max-height: 900px !important;
+    min-width: 400px !important;
+    min-height: 600px !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative !important;
+    background: transparent;
+    overflow: visible !important; // Mudado para visible
+    margin: 0 auto !important;
+
+    // Container interno do widget AWS
+    > div {
+      width: 100% !important;
+      height: 100% !important;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+
+    // Vídeo da câmera deve ficar centralizado e atrás (sem z-index)
+    video {
+      position: absolute !important;
+      top: 50% !important;
+      left: 50% !important;
+      transform: translate(-50%, -50%) scaleX(-1) !important;
+      width: 100% !important;
+      height: 100% !important;
+      max-width: 100% !important;
+      max-height: 100% !important;
+      object-fit: cover !important;
+      object-position: center !important;
+      clip-path: none !important;
+    }
+
+    // Canvas do widget deve ficar centralizado e atrás também (sem z-index)
+    canvas {
+      position: absolute !important;
+      top: 50% !important;
+      left: 50% !important;
+      transform: translate(-50%, -50%) scaleX(-1) !important;
+      width: 100% !important;
+      height: 100% !important;
+      max-width: 100% !important;
+      max-height: 100% !important;
+      clip-path: none !important;
+    }
+
+    // Elipse e overlays do widget AWS devem ficar acima do vídeo mas ABAIXO do flash
+    svg {
+      position: absolute !important;
+      top: 50% !important;
+      left: 50% !important;
+      transform: translate(-50%, -50%) !important;
+      z-index: 5000 !important; // Acima do vídeo mas abaixo do flash (999999)
+      pointer-events: none !important;
+      width: 100% !important;
+      height: 100% !important;
+      max-width: 100% !important;
+      max-height: 100% !important;
+    }
+
+    // Divs com overlay/guide devem ficar centralizados mas ABAIXO do flash
+    [class*="guide"],
+    [class*="ellipse"],
+    [class*="overlay"]:not(.aws-liveness-overlay),
+    [class*="oval"],
+    [class*="effect"] {
+      position: absolute !important;
+      top: 50% !important;
+      left: 50% !important;
+      transform: translate(-50%, -50%) !important;
+      z-index: 5000 !important; // Acima do vídeo mas abaixo do flash
+      pointer-events: none !important;
+    }
+
+    // Ocultar máscaras pretas (elipse preto)
+    [class*="mask"],
+    [style*="background"][style*="#000"],
+    [style*="background"][style*="black"],
+    [style*="radial-gradient"][style*="black"],
+    [style*="radial-gradient"][style*="#000"] {
+      display: none !important;
+      opacity: 0 !important;
+      visibility: hidden !important;
+    }
+
+    // Garantir que todos os elementos com background fiquem ABAIXO do flash
+    div[style*="background"]:not(video):not(canvas):not(.aws-liveness-overlay) {
+      z-index: 5000 !important; // Abaixo do flash
+    }
+  }
+
+  .local-widget-container {
+    width: 100%;
+    height: 100vh;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    face-liveness-widget {
+      width: 100%;
+      height: 100%;
+      min-height: 100vh;
+    }
+
+    .loading-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.8); /* Mais escuro para contraste */
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1rem;
+      border-radius: 12px;
+      z-index: 60000 !important; /* Maior que o overlay do liveness */
+      backdrop-filter: blur(5px);
+
+      .spinner {
+        width: 48px;
+        height: 48px;
+        border: 4px solid rgba(255, 255, 255, 0.3);
+        border-top-color: #6366f1; /* Cor primária */
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+
+      p {
+        color: #fff;
+        font-size: 1rem;
+        font-weight: 500;
+      }
+    }
+  }
+}
+
+// Overlay AWS Liveness Flash - FORA do modal (no body)
+.aws-liveness-overlay {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  z-index: 2147483647 !important; /* z-index MÁXIMO do CSS - acima de ABSOLUTAMENTE TUDO */
+  pointer-events: none !important;
+  overflow: visible !important;
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  isolation: auto !important; /* Não criar contexto isolado */
+  transform: none !important; /* Não aplicar transformações que possam criar novo contexto */
+
+  // Removido: gradientes customizados - usando padrão Amplify
+
+  // ═══════════════════════════════════════════════════════════════
+  // Overlay de Captura Estiloso
+  // ═══════════════════════════════════════════════════════════════
+  .capture-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    pointer-events: none;
+    z-index: 10000; // Abaixo do flash (2147483647)
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    padding: 2rem;
+    gap: 1rem;
+
+      // Indicador de Proximidade
+      .proximity-indicator {
+        position: absolute;
+        top: 160px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 280px;
+        max-width: 80%;
+        background: rgba(0, 0, 0, 0.8);
+        backdrop-filter: blur(15px);
+        border-radius: 50px;
+        padding: 0.75rem 1.25rem;
+        border: 2px solid rgba(99, 102, 241, 0.6);
+        box-shadow: 0 6px 30px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.1);
+        z-index: 10001;
+        animation: slideDown 0.5s ease-out;
+
+        @media (max-width: 768px) {
+          top: 140px;
+          width: 240px;
+          padding: 0.6rem 1rem;
+        }
+
+        .proximity-bar {
+          height: 10px;
+          background: #10b981; // Cor sólida do Amplify (success)
+          border-radius: 5px;
+          transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1), background 0.4s ease;
+          box-shadow: 0 2px 10px rgba(16, 185, 129, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+          position: relative;
+          overflow: hidden;
+        }
+
+      .proximity-label {
+        margin-top: 0.5rem;
+        text-align: center;
+        color: #fff;
+        font-size: 0.875rem;
+        font-weight: 600;
+        text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+        letter-spacing: 0.5px;
+      }
+    }
+
+    // Mensagem de Instrução
+    .instruction-message {
+      position: absolute;
+      bottom: 40px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(99, 102, 241, 0.95);
+      backdrop-filter: blur(10px);
+      border-radius: 1rem;
+      padding: 1rem 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      border: 2px solid rgba(255, 255, 255, 0.2);
+      box-shadow: 0 8px 30px rgba(99, 102, 241, 0.5);
+      opacity: 0;
+      transform: translateX(-50%) translateY(20px);
+      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      z-index: 10001;
+      max-width: 90%;
+      min-width: 250px;
+
+      @media (max-width: 768px) {
+        bottom: 30px;
+        padding: 0.875rem 1.25rem;
+        min-width: 200px;
+      }
+
+      &.visible {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+      }
+
+      .instruction-icon {
+        font-size: 1.5rem;
+        flex-shrink: 0;
+        animation: bounce 2s ease-in-out infinite;
+      }
+
+      .instruction-text {
+        color: #fff;
+        font-size: 0.95rem;
+        font-weight: 600;
+        text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        line-height: 1.4;
+      }
+    }
+
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// UI DayFusion Custom (Arquitetura Híbrida)
+// ═══════════════════════════════════════════════════════════════
+.df-liveness-ui {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 999998; // Abaixo do flash AWS mas acima do vídeo
+}
+
+// Flash custom (replicado dos eventos AWS)
+.df-flash {
+  position: fixed !important; // Fixed para cobrir toda a tela
+  top: 0 !important;
+  left: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  background: rgba(255, 255, 255, 0);
+  transition: background 0.2s ease;
+  pointer-events: none !important;
+  z-index: 2147483646 !important; // Um abaixo do máximo, acima de tudo
+  opacity: 0;
+  
+  &.active {
+    background: rgba(0, 123, 255, 0.35); // Azul do AWS
+    opacity: 1;
+  }
+}
+
+// Oval custom (replicada dos eventos AWS)
+.df-oval {
+  position: absolute;
+  width: 320px;
+  height: 440px;
+  border: 4px solid rgba(255, 255, 255, 0.8);
+  border-radius: 50% / 60%;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 999998; // Abaixo do flash mas acima do vídeo
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  
+  &.visible {
+    opacity: 1;
+  }
+}
+
+// Garantir que nada do CSS sobreponha o AWS Flash
+.awsui-liveness-flash-overlay {
+  z-index: 2147483647 !important; // Z-index máximo
+}
+
+.df-flash {
+  z-index: 2147483646 !important; // Um abaixo do AWS, mas acima de tudo mais
+}
+
+video, canvas {
+  z-index: 1 !important;
+}
+
+#aws-liveness-container-final {
+  width: 100vw !important;
+  height: 100vh !important;
+  max-width: 600px !important;
+  max-height: 900px !important;
+  min-width: 400px !important;
+  min-height: 600px !important;
+  position: relative !important;
+  // OBRIGATÓRIO: position: relative para o ellipse funcionar
+  background: transparent !important;
+  overflow: visible !important; // Mudado para visible
+  margin: 0 auto !important;
+  
+  // Garantir que vídeo ocupe o container (sem z-index)
+  ::ng-deep video {
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: cover !important;
+    object-position: center !important;
+    // Espelhamento de vídeo
+    transform: scaleX(-1) !important;
+    -webkit-transform: scaleX(-1) !important;
+    // Remover clip-path que pode cortar o widget
+    clip-path: none !important;
+  }
+  
+  // Canvas sem z-index - fica na ordem natural do DOM
+  ::ng-deep canvas {
+    clip-path: none !important;
+  }
+  
+  // SVG (elipse) deve ficar acima do vídeo mas abaixo do flash
+  ::ng-deep svg {
+    z-index: 5000 !important; // Acima do vídeo mas abaixo do flash (999999)
+    clip-path: none !important;
+  }
+}
+
+.modal-status {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 1.5rem 2rem;
+  text-align: center;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(10px);
+  z-index: 10;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+
+  p {
+    margin: 0;
+    font-size: 1rem;
+    color: #fff;
+    font-weight: 600;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+    letter-spacing: 0.5px;
+  }
+}
+
+.modal-error {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 1rem 2rem;
+  background: rgba(255, 59, 48, 0.2);
+  // REMOVIDO: border-top (não necessário)
+  z-index: 10;
+  // NÃO usar transform aqui
+
+  .error-icon {
+    font-size: 1.5rem;
+  }
+
+  .error-text {
+    color: #ff3b30;
+    font-size: 0.95rem;
+    font-weight: 500;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Tela de Preparação (Preview da Câmera)
+// ═══════════════════════════════════════════════════════════════
+.preparation-screen {
+  position: absolute;
+  inset: 0;
+  background: #0f172a; // Cor sólida do Amplify
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  padding: 1rem 1.5rem 1.5rem 1.5rem;
+  padding-top: 4.5rem;
+  overflow-y: auto;
+  z-index: 20;
+  animation: fadeIn 0.3s ease-out;
+
+  @media (max-width: 768px) {
+    padding: 0.75rem;
+    padding-top: 3.5rem;
+  }
+
+  .preparation-container {
+    max-width: 550px;
+    width: 100%;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    animation: slideUp 0.5s ease-out;
+    padding-bottom: 1.5rem;
+  }
+
+  .photosensitivity-warning {
+    background: rgba(245, 158, 11, 0.15);
+    border: 2px solid rgba(245, 158, 11, 0.3);
+    border-radius: 0.75rem;
+    padding: 1rem;
+    display: flex;
+    gap: 0.75rem;
+    align-items: flex-start;
+    animation: pulse 2s ease-in-out infinite;
+
+    .warning-icon {
+      font-size: 1.5rem;
+      flex-shrink: 0;
+    }
+
+    .warning-content {
+      flex: 1;
+
+      h4 {
+        color: #f59e0b;
+        font-size: 1rem;
+        font-weight: 600;
+        margin: 0 0 0.25rem 0;
+      }
+
+      p {
+        color: #f1f5f9;
+        font-size: 0.85rem;
+        line-height: 1.4;
+        margin: 0;
+      }
+    }
+  }
+
+  .instructions-box {
+    background: rgba(99, 102, 241, 0.1);
+    border: 1px solid rgba(99, 102, 241, 0.2);
+    border-radius: 0.75rem;
+    padding: 1rem;
+
+    h4 {
+      color: #f1f5f9;
+      font-size: 1rem;
+      font-weight: 600;
+      margin: 0 0 0.5rem 0;
+    }
+
+    p {
+      color: #94a3b8;
+      font-size: 0.85rem;
+      line-height: 1.4;
+      margin: 0 0 0.5rem 0;
+
+      &:last-child {
+        margin-bottom: 0;
+      }
+
+      &.pt-instruction {
+        color: #6366f1;
+        font-weight: 600;
+        margin-top: 0.5rem;
+      }
+
+      strong {
+        color: #f1f5f9;
+      }
+    }
+  }
+
+  .camera-preview-container {
+    position: relative;
+    width: 100%;
+    max-width: 280px;
+    height: 210px;
+    margin: 0 auto;
+    border-radius: 0.75rem;
+    overflow: hidden;
+    background: #000;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+    border: 2px solid #6366f1;
+
+    @media (max-width: 768px) {
+      max-width: 240px;
+      height: 180px;
+    }
+
+    .camera-preview {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transform: scaleX(-1);
+      display: block;
+    }
+
+    .camera-overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+
+      .face-guide {
+        width: 55%;
+        height: 65%;
+        border: 2px dashed rgba(99, 102, 241, 0.6);
+        border-radius: 50%;
+        animation: pulse 2s ease-in-out infinite;
+      }
+    }
+  }
+
+  .btn-continue {
+    width: 100%;
+    padding: 1rem 2rem;
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: white;
+    background: #10b981; // Cor sólida do Amplify (success)
+    border: none;
+    border-radius: 0.75rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 20px rgba(16, 185, 129, 0.5);
+    margin-top: 0.5rem;
+
+    &:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 30px rgba(16, 185, 129, 0.7);
+      background: #059669; // Cor sólida do Amplify (success hover)
+    }
+
+    &:active {
+      transform: translateY(0);
+    }
+
+    .btn-icon {
+      font-size: 1.5rem;
+    }
+
+    @media (max-width: 768px) {
+      padding: 0.875rem 1.5rem;
+      font-size: 1rem;
+    }
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.05);
+  }
+}
+
+@keyframes flashPulse {
+  0%, 100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+
+// Removido: animação shimmer (não mais necessária sem gradientes)
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+// Estilos para espelhar vídeo do widget AWS (corrigir inversão da câmera)
+.liveness-container {
+  video {
+    transform: scaleX(-1) !important;
+  }
+
+  canvas {
+    transform: scaleX(-1);
+  }
+}
+
+.local-widget-container {
+  video {
+    transform: scaleX(-1);
+  }
+}
+
+// Mobile
+@media (max-width: 768px) {
+  // .modal-content removido pois estava vazio
+
+  .modal-header {
+    padding: 1rem 1.5rem;
+
+    h3 {
+      font-size: 1.25rem;
+    }
+  }
+
+  // .widget-wrapper removido pois estava vazio
+
+  .widget-container {
+    .liveness-container {
+      width: 100% !important;
+    }
+  }
+
+  // #aws-liveness-container-final removido pois estava vazio
+}
+

@@ -1,0 +1,80 @@
+<div class="liveness-modal" *ngIf="isOpen" (click)="closeModal()">
+  <div class="modal-content" (click)="$event.stopPropagation()">
+    <!-- Header do Modal -->
+    <div class="modal-header">
+      <h3>Verificação Facial</h3>
+      <button class="btn-close" (click)="closeModal()">✕</button>
+    </div>
+
+    <!-- Mensagens de status -->
+    <div class="status-messages" *ngIf="statusMessage() || errorMessage()">
+      <div class="status-message" *ngIf="statusMessage()">
+        <span class="status-icon">ℹ️</span>
+        <span>{{ statusMessage() }}</span>
+      </div>
+      <div class="error-message" *ngIf="errorMessage()">
+        <span class="error-icon">⚠️</span>
+        <pre class="error-text">{{ errorMessage() }}</pre>
+      </div>
+    </div>
+
+ 
+
+    <!-- Container do widget AWS (interface nativa) -->
+    <div class="widget-container">
+      <!-- Container invisível do AWS (arquitetura híbrida) -->
+      <div id="aws-liveness-hidden" class="aws-liveness-hidden"></div>
+      
+      <!-- Widget AWS oficial (se carregado) -->
+      <div id="aws-liveness-container-final" class="liveness-container" style="position: relative;" *ngIf="sessionId && !useLocalWidget()">
+
+      </div>
+
+          <!-- Overlay AWS Liveness Flash - Removido: usando padrão Amplify -->
+      
+      <!-- Widget local como fallback -->
+      <div class="local-widget-container" *ngIf="useLocalWidget() && sessionId">
+        <face-liveness-widget
+          [attr.session-id]="sessionId"
+          [attr.region]="awsRegion"
+          [attr.create-session-url]="createSessionUrl"
+          [attr.results-url]="resultsUrl"
+          [attr.identity-pool-id]="identityPoolId">
+        </face-liveness-widget>
+      </div>
+
+      <!-- UI DayFusion Custom (arquitetura híbrida) -->
+      <div class="df-liveness-ui" *ngIf="!isLoading() && sessionId">
+        <!-- Flash custom (replicado dos eventos AWS) -->
+        <div class="df-flash" [class.active]="isFlashActive()"></div>
+        
+        <!-- Oval custom (replicada dos eventos AWS) -->
+        <div class="df-oval" [class.visible]="isOvalVisible()"></div>
+        
+        <!-- Overlay de Captura Estiloso -->
+        <div class="capture-overlay">
+          <!-- Indicador de Proximidade -->
+          <div class="proximity-indicator">
+            <div class="proximity-bar" [style.width.%]="proximityLevel()"></div>
+            <div class="proximity-label">{{ proximityMessage() }}</div>
+          </div>
+
+          <!-- Mensagem de Instrução -->
+          <div class="instruction-message" [class.visible]="instructionMessage() && !isLoading()">
+            <div class="instruction-icon">{{ instructionIcon() }}</div>
+            <div class="instruction-text">{{ instructionMessage() }}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Loading inicial -->
+      <div class="loading-overlay" *ngIf="isLoading()">
+        <div class="spinner"></div>
+        <p>Carregando widget...</p>
+      </div>
+    </div>
+  </div>
+  
+ 
+</div>
+

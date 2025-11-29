@@ -5,6 +5,15 @@
   display: flex;
   flex-direction: column;
   gap: 2rem;
+  min-height: 100vh; /* Garantir altura mínima para scroll funcionar */
+  overflow-x: hidden; /* Evitar scroll horizontal */
+  overflow-y: visible; /* Permitir scroll vertical */
+  
+  @media (max-width: 768px) {
+    padding: 1.5rem 1rem;
+    gap: 1.5rem;
+    overflow-y: visible; /* Garantir scroll vertical no mobile */
+  }
 }
 
 /* Animação fade-in-up para resultados */
@@ -12,6 +21,12 @@
   animation: fadeInUp 0.6s ease-out;
   opacity: 0;
   animation-fill-mode: forwards;
+  
+  /* No mobile, garantir que seja visível após animação */
+  @media (max-width: 768px) {
+    animation-fill-mode: forwards;
+    opacity: 1; /* Forçar visibilidade no mobile após animação */
+  }
 }
 
 @keyframes fadeInUp {
@@ -541,6 +556,11 @@
 
   .result-section {
     padding: 1.25rem;
+    margin-top: 1.5rem;
+    min-height: 200px; /* Garantir altura mínima para ser visível */
+    opacity: 1 !important; /* Forçar visibilidade */
+    visibility: visible !important;
+    display: block !important;
   }
 
   .result-card {

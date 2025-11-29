@@ -19,6 +19,7 @@ export class AppComponent implements OnDestroy {
   readonly currentUser = signal<UserProfile | null>(null);
   readonly avatarUrl = signal<string | null>(null);
   readonly isSidebarOpen = signal(false);
+  readonly isObsoletoMenuOpen = signal(false);
   readonly displayName = computed(() => {
     const user = this.currentUser();
     return user?.name || user?.Name || 'Usuário';
@@ -44,6 +45,7 @@ export class AppComponent implements OnDestroy {
   });
 
   private readonly destroy$ = new Subject<void>();
+  private readonly obsoletoRoutes = new Set(['/capture3d', '/capture-final', '/aws-widget']);
 
   /**
    * Verifica se o usuário atual é Admin
@@ -61,7 +63,10 @@ export class AppComponent implements OnDestroy {
     this.router.events
       .pipe(filter((event): event is NavigationEnd => event instanceof NavigationEnd))
       .pipe(takeUntil(this.destroy$))
-      .subscribe((event) => this.updateShellVisibility(event.urlAfterRedirects));
+      .subscribe((event) => {
+        this.updateShellVisibility(event.urlAfterRedirects);
+        this.checkObsoletoMenu(event.urlAfterRedirects);
+      });
 
     this.authService.currentUser$
       .pipe(takeUntil(this.destroy$))
@@ -134,10 +139,21 @@ export class AppComponent implements OnDestroy {
     }
   }
 
+  toggleObsoletoMenu(): void {
+    this.isObsoletoMenuOpen.update((value) => !value);
+  }
+
   private updateShellVisibility(url: string): void {
     const path = url.split('?')[0];
     this.showShell.set(!this.authRoutes.has(path));
     this.isSidebarOpen.set(false);
+  }
+
+  private checkObsoletoMenu(url: string): void {
+    const path = url.split('?')[0];
+    if (this.obsoletoRoutes.has(path)) {
+      this.isObsoletoMenuOpen.set(true);
+    }
   }
 
   private loadAvatar(key: string): void {

@@ -86,6 +86,11 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/capture-official/capture-official.component').then(m => m.CaptureOfficialComponent)
   },
   {
+    path: 'capture-final',
+    canActivate: [authGuard],
+    loadComponent: () => import('./pages/capture-final/capture-final.component').then(m => m.CaptureFinalComponent)
+  },
+  {
     path: '**',
     redirectTo: '/login'
   }

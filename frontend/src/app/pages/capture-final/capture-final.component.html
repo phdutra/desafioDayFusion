@@ -1,0 +1,117 @@
+<div class="capture-final-page">
+  <!-- Header -->
+  <div class="page-header">
+    <div class="header-icon">🎭</div>
+    <h1 class="page-title">Captura Final</h1>
+    <p class="page-subtitle">Verificação Facial 3D com AWS Face Liveness</p>
+  </div>
+
+  <!-- Card Principal -->
+  <div class="main-card">
+    <div class="card-content">
+      <div class="info-section">
+        <div class="info-icon">🛡️</div>
+        <h2>Verificação de Liveness 3D</h2>
+        <p>Tecnologia AWS Rekognition para detecção de vitalidade facial com:</p>
+        
+        <ul class="features-list">
+          <li>
+            <span class="feature-icon">✨</span>
+            <span>Face Movement Challenge - Movimentos faciais</span>
+          </li>
+          <li>
+            <span class="feature-icon">💡</span>
+            <span>Light Challenge - Flash colorido para detecção de vida</span>
+          </li>
+          <li>
+            <span class="feature-icon">🎯</span>
+            <span>Detecção de máscaras, fotos e vídeos</span>
+          </li>
+          <li>
+            <span class="feature-icon">🔒</span>
+            <span>100% seguro e certificado pela AWS</span>
+          </li>
+        </ul>
+      </div>
+
+      <!-- Botão Principal -->
+      <div class="action-section">
+        <button 
+          class="btn-start-verification" 
+          (click)="startVerification()"
+          [disabled]="isModalOpen()"
+          type="button"
+          aria-label="Iniciar verificação facial">
+          <span class="btn-icon">▶</span>
+          <span class="btn-text">Iniciar Verificação Facial</span>
+        </button>
+        
+        <p class="btn-hint">
+          Certifique-se de estar em um ambiente bem iluminado
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Resultado da Verificação -->
+  <div class="result-card" *ngIf="livenessResult() as result">
+    <div class="result-header" [ngClass]="getStatusColor(result.status)">
+      <div class="result-icon">{{ getStatusIcon(result.status) }}</div>
+      <div class="result-info">
+        <h3>{{ getStatusText(result.status) }}</h3>
+        <p class="result-session">Sessão: {{ result.sessionId }}</p>
+      </div>
+    </div>
+
+    <div class="result-details">
+      <div class="detail-item">
+        <span class="detail-label">Confiança</span>
+        <span class="detail-value">{{ result.confidence | number:'1.0-0' }}%</span>
+      </div>
+      <div class="detail-item">
+        <span class="detail-label">Status</span>
+        <span class="detail-value" [class.success]="result.status === 'LIVE'" [class.danger]="result.status === 'FAKE'">
+          {{ result.status }}
+        </span>
+      </div>
+    </div>
+
+    <!-- Imagens de Auditoria -->
+    <div class="audit-images" *ngIf="result.auditImages && result.auditImages.length > 0">
+      <h4>Imagens Capturadas</h4>
+      <div class="images-grid">
+        <div class="image-item" *ngFor="let img of result.auditImages; let i = index">
+          <img [src]="img.url || '/api/media/liveness-frame?bucket=' + img.bucket + '&key=' + img.key" 
+               [alt]="'Captura ' + (i + 1)"
+               class="audit-image" />
+          <span class="image-label">Captura {{ i + 1 }}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="result-actions">
+      <button class="btn-secondary" (click)="startVerification()">
+        🔄 Nova Verificação
+      </button>
+      <button class="btn-secondary" (click)="goToHistory()">
+        📋 Ver Histórico
+      </button>
+    </div>
+  </div>
+
+  <!-- Mensagem de Erro -->
+  <div class="error-banner" *ngIf="errorMessage()">
+    <span class="error-icon">⚠️</span>
+    <span class="error-text">{{ errorMessage() }}</span>
+  </div>
+</div>
+
+<!-- Modal de Verificação (Widget AWS) -->
+<app-liveness-modal-final
+  *ngIf="isModalOpen()"
+  [isOpen]="true"
+  (close)="closeModal()"
+  (complete)="onLivenessComplete($event)"
+  (error)="onLivenessError($event)">
+</app-liveness-modal-final>
+

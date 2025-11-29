@@ -6,19 +6,11 @@
   <!-- Botão fechar -->
   <button class="close-button" (click)="closeModal()" aria-label="Fechar modal">✕</button>
 
-  <!-- Overlay de preparação -->
-  <div class="prep-overlay" *ngIf="showPreparationScreen()">
-    <div class="prep-content">
-      <div class="preparation-icon">💡</div>
-      <h2>Prepare-se para a Verificação</h2>
-      <p>Centralize o rosto e aguarde.</p>
-      <div class="count">{{ preparationCountdown() }}</div>
+  <!-- Wrapper isolado do AWS (Full Screen) -->
+  <div class="liveness-aws-wrapper" *ngIf="!showReviewStep()" (click)="$event.stopPropagation()">
+    <div id="aws-liveness-container">
+      <!-- Widget AWS será montado aqui -->
     </div>
-  </div>
-
-  <!-- Wrapper isolado do AWS -->
-  <div class="liveness-aws-wrapper" *ngIf="!showPreparationScreen() && !showReviewStep()" (click)="$event.stopPropagation()">
-    <div id="aws-liveness-container"></div>
     
     <!-- Overlays (não interferem no AWS) - dentro do wrapper -->
     <div class="liveness-overlays">
@@ -34,7 +26,7 @@
     <!-- Gravando vídeo -->
     <div class="recording-indicator" *ngIf="isRecordingVideo()">
       <div class="dot"></div>
-      Gravando vídeo...
+      Gravando vídeo da sessão...
     </div>
 
     <!-- Loading -->

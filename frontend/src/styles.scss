@@ -3,6 +3,12 @@
 /* Import Angular Material theme */
 @import '@angular/material/prebuilt-themes/indigo-pink.css';
 
+/* Import AWS Amplify UI styles (obrigatório - inclui liveness) */
+@import '@aws-amplify/ui/styles.css';
+
+/* Import AWS Amplify UI theme (obrigatório) */
+@import '@aws-amplify/ui/theme.css';
+
 /* Global Variables */
 :root {
   --primary-color: #8B5CF6;
@@ -39,6 +45,15 @@
   --transition-fast: 0.15s ease-in-out;
   --transition-normal: 0.3s ease-in-out;
   --transition-slow: 0.5s ease-in-out;
+
+  /* Amplify UI Liveness Detector - Customização da Elipse (AUMENTADO) */
+  --amplify-liveness-ellipse-width: 480px;
+  --amplify-liveness-ellipse-height: 720px;
+  --amplify-liveness-ellipse-border-width: 4px;
+  --amplify-liveness-ellipse-border-color: #ffffff;
+  
+  /* Largura dos gradientes de flash (proporcional à elipse) */
+  --amplify-liveness-flash-width: 400px; /* ~29% da largura da elipse */
 }
 
 /* Reset and Base Styles */
@@ -521,7 +536,7 @@ html, body {
 .left-gradient,
 .right-gradient {
   position: absolute !important;
-  width: 140px !important;
+  width: 50% !important; /* Ocupa metade da largura para cada lado */
   height: 100% !important;
   z-index: 50000 !important; /* z-index muito alto */
   pointer-events: none !important;
@@ -539,4 +554,97 @@ html, body {
   right: 0 !important;
   top: 0 !important;
   background: linear-gradient(#ffcc00, #ff0000) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   AWS Amplify Face Liveness - Customização da Elipse
+   Reduz tamanho da elipse para melhor visualização
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Container principal do liveness detector (AUMENTADO) */
+#aws-liveness-container-final,
+.amplify-liveness-camera-module {
+  width: 50vw !important;
+  height: 50vh !important;
+  max-width: 600px !important;
+  max-height: 900px !important;
+  min-width: 400px !important;
+  min-height: 600px !important;
+  margin: 0 auto !important;
+  position: relative !important;
+}
+
+/* Aumentar widget AWS proporcionalmente sem distorcer */
+.awsui-liveness-widget {
+  transform: scale(1.25) !important;
+  transform-origin: center !important;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.awsui-liveness-video-container {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.awsui-liveness-oval-container {
+  transform: scale(1.3) !important; /* aumenta só a oval */
+  transform-origin: center !important;
+}
+
+/* SVG da elipse (overlay) - AUMENTADO */
+.amplify-liveness-oval-canvas svg,
+.amplify-liveness-oval-canvas ellipse {
+  width: var(--amplify-liveness-ellipse-width, 480px) !important;
+  height: var(--amplify-liveness-ellipse-height, 720px) !important;
+  max-width: 50% !important;
+  max-height: 50% !important;
+  clip-path: none !important;
+}
+
+/* Vídeo dentro da elipse - AUMENTADO */
+.amplify-liveness-video {
+  width: var(--amplify-liveness-ellipse-width, 480px) !important;
+  height: var(--amplify-liveness-ellipse-height, 720px) !important;
+  max-width: 500% !important;
+  max-height: 500% !important;
+  object-fit: cover !important;
+  clip-path: none !important;
+}
+
+/* Canvas da elipse - AUMENTADO */
+.amplify-liveness-oval-canvas {
+  width: var(--amplify-liveness-ellipse-width, 480px) !important;
+  height: var(--amplify-liveness-ellipse-height, 720px) !important;
+  max-width: 50% !important;
+  max-height: 50% !important;
+  clip-path: none !important;
+}
+
+/* Garantir que vídeo não seja cortado por clip-path */
+video {
+  clip-path: none !important;
+}
+
+canvas {
+  clip-path: none !important;
+}
+
+/* Mobile - ajustes responsivos (AUMENTADO) */
+@media (max-width: 768px) {
+  :root {
+    --amplify-liveness-ellipse-width: 360px;
+    --amplify-liveness-ellipse-height: 540px;
+    --amplify-liveness-flash-width: 104px; /* ~29% da largura da elipse no mobile */
+  }
+  
+  #aws-liveness-container-final,
+  .amplify-liveness-camera-module {
+    width: 90vw !important;
+    height: 60vh !important;
+    max-width: 400px !important;
+    max-height: 700px !important;
+    min-width: 320px !important;
+    min-height: 500px !important;
+  }
 }
